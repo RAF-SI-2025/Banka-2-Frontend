@@ -35,6 +35,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (data: LoginRequest) => {
+    // MOCK LOGIN — odkomentarisati za lokalno testiranje bez backend-a
+    // Kredencijali: test@test.test / test (sve permisije)
+    // if (data.email === 'test@test.test' && data.password === 'test') {
+    //   const mockUser: AuthUser = {
+    //     id: 0,
+    //     email: 'test@test.test',
+    //     username: 'testuser',
+    //     firstName: 'Test',
+    //     lastName: 'User',
+    //     permissions: Object.values(Permission),
+    //   };
+    //   sessionStorage.setItem('accessToken', 'mock-token');
+    //   sessionStorage.setItem('refreshToken', 'mock-refresh');
+    //   sessionStorage.setItem('user', JSON.stringify(mockUser));
+    //   setUser(mockUser);
+    //   return;
+    // }
+
     const response = await authService.login(data);
 
     sessionStorage.setItem('accessToken', response.accessToken);

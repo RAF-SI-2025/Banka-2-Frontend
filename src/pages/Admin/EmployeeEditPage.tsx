@@ -17,24 +17,36 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
-// =============================================================================
-// TODO [FE-05] JOVAN KRUNIĆ — Fix: Select dropdown-ovi za Pol, Poziciju i Departman
-// =============================================================================
-// Trenutno Pol, Pozicija i Departman koriste obične <Input> text polja.
-// Korisnik može upisati bilo šta — to je BUG.
-// ZADATAK:
-//   1. Dodaj import za Select, SelectContent, SelectItem, SelectTrigger, SelectValue
-//      iz '@/components/ui/select' (pogledaj EmployeeCreatePage.tsx za primer)
-//   2. Dodaj POSITIONS i DEPARTMENTS nizove (kopiraj iz EmployeeCreatePage.tsx)
-//   3. Zameni <Input id="gender" .../> sa <Select> komponentom (M/F/O opcije)
-//      Koristiti Controller iz react-hook-form (već importovan gore)
-//   4. Zameni <Input id="position" .../> sa <Select> komponentom (10 pozicija)
-//   5. Zameni <Input id="department" .../> sa <Select> komponentom (7 odeljenja)
-// PRIMER: Pogledaj EmployeeCreatePage.tsx — tamo su sva tri polja već Select.
-// Uradi ISTO na ovoj stranici.
-// + Napiši kratak E2E test koji proverava da dropdown-ovi rade na edit stranici.
-// =============================================================================
+const POSITIONS = [
+  'Software Developer',
+  'Project Manager',
+  'Team Lead',
+  'QA Engineer',
+  'Business Analyst',
+  'DevOps Engineer',
+  'HR Manager',
+  'Accountant',
+  'Actuary',
+  'Supervisor',
+];
+
+const DEPARTMENTS = [
+  'IT',
+  'Finance',
+  'HR',
+  'Marketing',
+  'Operations',
+  'Legal',
+  'Risk Management',
+];
 
 // =============================================================================
 // TODO [FE-22] ELENA KALAJDŽIĆ — Poboljšanje EmployeeEditPage UI
@@ -216,23 +228,24 @@ export default function EmployeeEditPage() {
                   <p className="text-sm text-destructive">{errors.dateOfBirth.message}</p>
                 )}
               </div>
-              {/* TODO [FE-05] JOVAN: Zameni ovaj Input sa Select komponentom (M/F/O)
-                  Primer iz EmployeeCreatePage.tsx:
-                  <Controller name="gender" control={control}
-                    render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger><SelectValue placeholder="Izaberite pol" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="M">Muški</SelectItem>
-                          <SelectItem value="F">Ženski</SelectItem>
-                          <SelectItem value="O">Ostalo</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  /> */}
               <div className="space-y-2">
-                <Label htmlFor="gender">Pol</Label>
-                <Input id="gender" {...register('gender')} />
+                <Label>Pol</Label>
+                <Controller
+                  name="gender"
+                  control={control}
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Izaberite pol" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="M">Muški</SelectItem>
+                        <SelectItem value="F">Ženski</SelectItem>
+                        <SelectItem value="O">Ostalo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
                 {errors.gender && (
                   <p className="text-sm text-destructive">{errors.gender.message}</p>
                 )}
@@ -254,24 +267,50 @@ export default function EmployeeEditPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {/* TODO [FE-05] JOVAN: Zameni ovaj Input sa Select komponentom
-                  Koristiti POSITIONS niz (10 opcija, kopiraj iz EmployeeCreatePage.tsx)
-                  Primer: <Controller name="position" control={control} render={...} />
-                  Pogledaj kako je urađeno na CreatePage za Poziciju */}
               <div className="space-y-2">
-                <Label htmlFor="position">Pozicija</Label>
-                <Input id="position" {...register('position')} />
+                <Label>Pozicija</Label>
+                <Controller
+                  name="position"
+                  control={control}
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Izaberite poziciju" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {POSITIONS.map((pos) => (
+                          <SelectItem key={pos} value={pos}>
+                            {pos}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
                 {errors.position && (
                   <p className="text-sm text-destructive">{errors.position.message}</p>
                 )}
               </div>
-              {/* TODO [FE-05] JOVAN: Zameni ovaj Input sa Select komponentom
-                  Koristiti DEPARTMENTS niz (7 opcija, kopiraj iz EmployeeCreatePage.tsx)
-                  Primer: <Controller name="department" control={control} render={...} />
-                  Pogledaj kako je urađeno na CreatePage za Odeljenje */}
               <div className="space-y-2">
-                <Label htmlFor="department">Odeljenje</Label>
-                <Input id="department" {...register('department')} />
+                <Label>Odeljenje</Label>
+                <Controller
+                  name="department"
+                  control={control}
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Izaberite odeljenje" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEPARTMENTS.map((dep) => (
+                          <SelectItem key={dep} value={dep}>
+                            {dep}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
                 {errors.department && (
                   <p className="text-sm text-destructive">{errors.department.message}</p>
                 )}

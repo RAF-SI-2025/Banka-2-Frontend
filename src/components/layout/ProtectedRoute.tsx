@@ -11,7 +11,11 @@ export default function ProtectedRoute({
   requiredPermission,
   adminOnly = false,
 }: ProtectedRouteProps) {
-  const { user, hasPermission, isAdmin } = useAuth();
+  const { user, isLoading, hasPermission, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return null;
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />;
