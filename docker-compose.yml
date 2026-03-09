@@ -1,0 +1,6 @@
+services:
+  frontend:
+    build: .
+    container_name: banka2_frontend
+    ports:
+      - "3000:80"
