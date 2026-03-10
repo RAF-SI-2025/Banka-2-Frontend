@@ -1,19 +1,3 @@
-// =============================================================================
-// TODO [FE-09] MARTA ŠULJAGIĆ — Poboljšanje DashboardPage
-// =============================================================================
-// Trenutno Dashboard prikazuje samo kartice za admin operacije.
-// Za neadmin korisnika stranica je praktično PRAZNA.
-// ZADATAK:
-//   1. Welcome section sa imenom korisnika (već postoji — OK)
-//   2. Dodati kartice za pretragu zaposlenih (ako korisnik ima permisiju)
-//   3. Opciono: prikaz broja zaposlenih, broja aktivnih/neaktivnih
-//   4. Opciono: vest dana, quick actions, statistike
-// NAPOMENA: Ovo je kreativniji task — eksperimentiši sa dizajnom!
-// Pogledaj postojeće Card, CardHeader, CardTitle komponente u components/ui/
-// Koristi AI Agent Mode za pomoć!
-// + Napiši E2E test koji proverava da Dashboard prikazuje kartice.
-// =============================================================================
-
 import { useNavigate } from 'react-router-dom';
 import { Users, UserPlus, Landmark, TrendingUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
