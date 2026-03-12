@@ -24,12 +24,10 @@ export interface Employee {
   phoneNumber: string;
   isActive: boolean;
   permissions: Permission[];
-  jmbg: string;
   address: string;
   dateOfBirth: string;
   gender: string;
   department: string;
-  role: string;
 }
 
 export interface Client {
@@ -52,7 +50,15 @@ export interface LoginRequest {
 export interface LoginResponse {
   accessToken: string;
   refreshToken: string;
-  user: Employee;
+  tokenType: string;
+}
+
+export interface JwtPayload {
+  sub: string;
+  role: string;
+  active: boolean;
+  exp: number;
+  iat: number;
 }
 
 export interface CreateEmployeeRequest {
@@ -64,12 +70,10 @@ export interface CreateEmployeeRequest {
   phoneNumber: string;
   isActive: boolean;
   permissions: Permission[];
-  jmbg: string;
   address: string;
   dateOfBirth: string;
   gender: string;
   department: string;
-  role: string;
 }
 
 export interface UpdateEmployeeRequest {
@@ -79,12 +83,11 @@ export interface UpdateEmployeeRequest {
   position?: string;
   phoneNumber?: string;
   isActive?: boolean;
-  jmbg?: string;
+  permissions?: Permission[];
   address?: string;
   dateOfBirth?: string;
   gender?: string;
   department?: string;
-  role?: string;
 }
 
 export interface ActivateAccountRequest {
@@ -103,10 +106,11 @@ export interface ResetPasswordRequest {
 
 export interface EmployeeFilters {
   email?: string;
-  name?: string;
+  firstName?: string;
+  lastName?: string;
   position?: string;
   page?: number;
-  size?: number;
+  limit?: number;
 }
 
 export interface PaginatedResponse<T> {

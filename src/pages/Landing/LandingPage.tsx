@@ -57,7 +57,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-indigo-900 to-indigo-950">
       {/* Navbar */}
-      <nav className="border-b border-white/10">
+      <nav className="sticky top-0 z-50 border-b border-white/10 bg-indigo-950/80 backdrop-blur supports-[backdrop-filter]:bg-indigo-950/60">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10">
@@ -65,22 +65,12 @@ export default function LandingPage() {
             </div>
             <span className="text-lg font-bold text-white">Banka 2025</span>
           </div>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              className="text-indigo-200 hover:text-white hover:bg-white/10"
-              onClick={() => navigate('/login')}
-            >
-              Prijavi se
-            </Button>
-            <Button
-              className="bg-white text-indigo-950 hover:bg-indigo-100"
-              onClick={() => navigate('/login')}
-            >
-              Započni
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
+          <Button
+            className="bg-white text-indigo-950 hover:bg-indigo-100"
+            onClick={() => navigate('/login')}
+          >
+            Prijavi se
+          </Button>
         </div>
       </nav>
 

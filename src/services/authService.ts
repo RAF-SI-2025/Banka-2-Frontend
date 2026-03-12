@@ -19,14 +19,14 @@ export const authService = {
   },
 
   forgotPassword: async (data: ForgotPasswordRequest): Promise<void> => {
-    await api.post('/auth/forgot-password', data);
+    await api.post('/auth/password_reset/request', data);
   },
 
   resetPassword: async (data: ResetPasswordRequest): Promise<void> => {
-    await api.post('/auth/reset-password', data);
+    await api.post('/auth/password_reset/confirm', data);
   },
 
   activateAccount: async (data: ActivateAccountRequest): Promise<void> => {
-    await api.post('/auth/activate', data);
+    await api.post('/auth-employee/activate', data);
   },
 };

@@ -43,7 +43,8 @@ export default function EmployeeListPage() {
   const [error, setError] = useState('');
   const [filters, setFilters] = useState<EmployeeFilters>({
     email: '',
-    name: '',
+    firstName: '',
+    lastName: '',
     position: '',
   });
   const [showFilters, setShowFilters] = useState(false);
@@ -55,9 +56,10 @@ export default function EmployeeListPage() {
     setLoading(true);
     setError('');
     try {
-      const activeFilters: EmployeeFilters = { page, size: rowsPerPage };
+      const activeFilters: EmployeeFilters = { page, limit: rowsPerPage };
       if (filters.email) activeFilters.email = filters.email;
-      if (filters.name) activeFilters.name = filters.name;
+      if (filters.firstName) activeFilters.firstName = filters.firstName;
+      if (filters.lastName) activeFilters.lastName = filters.lastName;
       if (filters.position) activeFilters.position = filters.position;
 
       const data = await employeeService.getAll(activeFilters);
@@ -77,7 +79,7 @@ export default function EmployeeListPage() {
 
   useEffect(() => {
     setPage(0);
-  }, [filters.email, filters.name, filters.position]);
+  }, [filters.email, filters.firstName, filters.lastName, filters.position]);
 
   const isAdmin = (employee: Employee) =>
     employee.permissions.includes(Permission.ADMIN);
@@ -132,8 +134,17 @@ export default function EmployeeListPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Pretraga po imenu"
-                value={filters.name}
-                onChange={(e) => setFilters({ ...filters, name: e.target.value })}
+                value={filters.firstName}
+                onChange={(e) => setFilters({ ...filters, firstName: e.target.value })}
+                className="pl-9 w-[220px]"
+              />
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Pretraga po prezimenu"
+                value={filters.lastName}
+                onChange={(e) => setFilters({ ...filters, lastName: e.target.value })}
                 className="pl-9 w-[220px]"
               />
             </div>

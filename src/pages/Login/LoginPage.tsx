@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Landmark, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Landmark, Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react';
 import { loginSchema, type LoginFormData } from '../../utils/validationSchemas';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -45,7 +45,16 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-950 via-indigo-900 to-indigo-950 p-4">
-      <Card className="w-full max-w-[440px] shadow-xl">
+      <div className="w-full max-w-[440px] space-y-4">
+        <Button
+          variant="ghost"
+          className="text-indigo-200 hover:text-white hover:bg-white/10"
+          onClick={() => navigate('/')}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Nazad na početnu
+        </Button>
+      <Card className="w-full shadow-xl">
         <CardHeader className="text-center space-y-2">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Landmark className="h-6 w-6 text-primary" />
@@ -124,6 +133,7 @@ export default function LoginPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

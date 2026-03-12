@@ -3,6 +3,17 @@
 describe('Dashboard - Prikaz kartice i statistike', () => {
     describe('Admin korisnik', () => {
         beforeEach(() => {
+            cy.intercept('GET', 'http://localhost:8080/employees*', {
+                statusCode: 200,
+                body: {
+                    content: [],
+                    totalElements: 0,
+                    totalPages: 0,
+                    size: 10,
+                    number: 0,
+                },
+            }).as('getEmployees');
+
             cy.visit('/dashboard', {
                 onBeforeLoad(win) {
                     win.sessionStorage.setItem('accessToken', 'fake-access-token');
@@ -71,7 +82,7 @@ describe('Dashboard - Prikaz kartice i statistike', () => {
                             username: 'user',
                             firstName: 'John',
                             lastName: 'Doe',
-                            permissions: ['USER'],
+                            permissions: ['VIEW_STOCKS'],
                         })
                     );
                 },
@@ -84,10 +95,10 @@ describe('Dashboard - Prikaz kartice i statistike', () => {
             cy.contains('h1', 'Dobrodošli, John!').should('be.visible');
         });
 
-        it('prikazuje statistiku zaposlenih', () => {
-            cy.contains('Ukupno zaposlenih').should('be.visible');
-            cy.contains('Aktivnih zaposlenih').should('be.visible');
-            cy.contains('Neaktivnih zaposlenih').should('be.visible');
+        it('ne prikazuje statistiku zaposlenih', () => {
+            cy.contains('Ukupno zaposlenih').should('not.exist');
+            cy.contains('Aktivnih zaposlenih').should('not.exist');
+            cy.contains('Neaktivnih zaposlenih').should('not.exist');
         });
 
         it('ne prikazuje admin kartice', () => {

@@ -40,15 +40,20 @@ describe('Employee Create - validacija prazne forme', () => {
 
     cy.get('#firstName').should('have.class', 'border-destructive');
     cy.get('#lastName').should('have.class', 'border-destructive');
-    cy.get('#jmbg').should('have.class', 'border-destructive');
     cy.get('#dateOfBirth').should('have.class', 'border-destructive');
+
+    cy.contains('label', 'Pol')
+      .parent()
+      .find('button[role="combobox"]')
+      .should('have.class', 'border-destructive');
 
     cy.get('#email').should('have.class', 'border-destructive');
     cy.get('#phoneNumber').should('have.class', 'border-destructive');
     cy.get('#address').should('have.class', 'border-destructive');
 
     cy.get('#username').should('have.class', 'border-destructive');
-    cy.get('#role').should('have.class', 'border-destructive');
+    cy.get('[data-cy="position-select"]').should('have.class', 'border-destructive');
+    cy.get('[data-cy="department-select"]').should('have.class', 'border-destructive');
 
   });
 

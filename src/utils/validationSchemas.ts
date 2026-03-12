@@ -34,12 +34,6 @@ export const nameSchema = z
   .min(1, 'Ovo polje je obavezno')
   .max(100, 'Maksimalno 100 karaktera');
 
-export const jmbgSchema = z
-  .string()
-  .min(1, 'JMBG je obavezan')
-  .length(13, 'JMBG mora imati tačno 13 cifara')
-  .regex(/^[0-9]{13}$/, 'JMBG mora sadržati samo cifre');
-
 // Login forma
 export const loginSchema = z.object({
   email: emailSchema,
@@ -56,12 +50,10 @@ export const createEmployeeSchema = z.object({
   position: z.string().min(1, 'Pozicija je obavezna'),
   phoneNumber: phoneSchema,
   isActive: z.boolean(),
-  jmbg: jmbgSchema,
   address: z.string().min(1, 'Adresa je obavezna'),
   dateOfBirth: z.string().min(1, 'Datum rođenja je obavezan'),
   gender: z.string().min(1, 'Pol je obavezan'),
   department: z.string().min(1, 'Odeljenje je obavezno'),
-  role: z.string().min(1, 'Uloga je obavezna'),
 });
 export type CreateEmployeeFormData = z.infer<typeof createEmployeeSchema>;
 
@@ -73,12 +65,10 @@ export const editEmployeeSchema = z.object({
   position: z.string().min(1, 'Pozicija je obavezna'),
   phoneNumber: phoneSchema,
   isActive: z.boolean(),
-  jmbg: jmbgSchema,
   address: z.string().min(1, 'Adresa je obavezna'),
   dateOfBirth: z.string().min(1, 'Datum rođenja je obavezan'),
   gender: z.string().min(1, 'Pol je obavezan'),
   department: z.string().min(1, 'Odeljenje je obavezno'),
-  role: z.string().min(1, 'Uloga je obavezna'),
 });
 export type EditEmployeeFormData = z.infer<typeof editEmployeeSchema>;
 

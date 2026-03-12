@@ -38,10 +38,15 @@ export default function DashboardPage() {
   const [stats, setStats] = useState({ total: 0, active: 0, loading: true });
 
   useEffect(() => {
+    if (!isAdmin) {
+      setStats((prev) => ({ ...prev, loading: false }));
+      return;
+    }
+
     const fetchStats = async () => {
       try {
-        const response = await employeeService.getAll({ size: 1 });
-        const active = response.content.filter((emp: any) => emp.isActive).length || 0;
+        const response = await employeeService.getAll({ limit: 100 });
+        const active = response.content.filter((emp) => emp.isActive).length;
         setStats({
           total: response.totalElements || 0,
           active,
@@ -54,7 +59,7 @@ export default function DashboardPage() {
     };
 
     fetchStats();
-  }, []);
+  }, [isAdmin]);
 
   const visibleCards = [
     ...(isAdmin ? adminCards : userCards),
@@ -75,44 +80,46 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Statistics Section */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-8">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Ukupno zaposlenih
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.loading ? '-' : stats.total}</div>
-            <p className="text-xs text-muted-foreground mt-1">u sistemu</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Aktivnih zaposlenih
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.loading ? '-' : stats.active}</div>
-            <p className="text-xs text-muted-foreground mt-1">trenutno aktivnih</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Neaktivnih zaposlenih
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
-              {stats.loading ? '-' : stats.total - stats.active}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">deaktivovanih</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Statistics Section — samo za admine */}
+      {isAdmin && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-8">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Ukupno zaposlenih
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.loading ? '-' : stats.total}</div>
+              <p className="text-xs text-muted-foreground mt-1">u sistemu</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Aktivnih zaposlenih
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{stats.loading ? '-' : stats.active}</div>
+              <p className="text-xs text-muted-foreground mt-1">trenutno aktivnih</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Neaktivnih zaposlenih
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">
+                {stats.loading ? '-' : stats.total - stats.active}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">deaktivovanih</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Action Cards Section */}
       <div>

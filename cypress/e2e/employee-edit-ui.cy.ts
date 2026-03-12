@@ -1,6 +1,6 @@
 describe('Employee Edit - UI poboljšanja', () => {
   it('edit stranica učitava podatke zaposlenog', () => {
-    cy.intercept('GET', '**/api/employees/1', {
+    cy.intercept('GET', '**/employees/1', {
       statusCode: 200,
       body: {
         id: 1,
@@ -21,7 +21,23 @@ describe('Employee Edit - UI poboljšanja', () => {
       },
     }).as('getEmployee');
 
-    cy.visit('/');
+    cy.visit('/', {
+      onBeforeLoad(win) {
+        win.sessionStorage.setItem('accessToken', 'fake-access-token');
+        win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
+        win.sessionStorage.setItem(
+          'user',
+          JSON.stringify({
+            id: 1,
+            email: 'admin@test.com',
+            username: 'admin',
+            firstName: 'Admin',
+            lastName: 'User',
+            permissions: ['ADMIN'],
+          })
+        );
+      },
+    });
 
     cy.window().then((win) => {
       win.history.pushState({}, '', '/admin/employees/1');

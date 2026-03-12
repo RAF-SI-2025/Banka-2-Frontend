@@ -19,20 +19,29 @@ const mockEmployee = {
 describe('Employee Edit - Select dropdown-ovi (FE-05)', () => {
   beforeEach(() => {
     // Mock API za employee podatke
-    cy.intercept('GET', '**/api/employees/1', {
+    cy.intercept('GET', 'http://localhost:8080/employees/1', {
       statusCode: 200,
       body: mockEmployee,
     }).as('getEmployee');
 
-    // Login sa test korisnikom
-    cy.visit('/login');
-    cy.get('input#email').type('test@test.test');
-    cy.get('input#password').type('test');
-    cy.get('button[type="submit"]').click();
-    cy.url().should('include', '/dashboard');
-
-    // Idi na edit stranicu
-    cy.visit('/admin/employees/1');
+    // Postavi admin korisnika u sessionStorage
+    cy.visit('/admin/employees/1', {
+      onBeforeLoad(win) {
+        win.sessionStorage.setItem('accessToken', 'fake-access-token');
+        win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
+        win.sessionStorage.setItem(
+          'user',
+          JSON.stringify({
+            id: 1,
+            email: 'admin@test.com',
+            username: 'admin',
+            firstName: 'Admin',
+            lastName: 'User',
+            permissions: ['ADMIN'],
+          })
+        );
+      },
+    });
     cy.wait('@getEmployee');
   });
 

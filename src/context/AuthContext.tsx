@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import type { AuthUser, LoginRequest } from '../types';
 import { authService } from '../services/authService';
 import { Permission } from '../types';
+import { decodeJwt } from '../utils/jwt';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -58,13 +59,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.setItem('accessToken', response.accessToken);
     sessionStorage.setItem('refreshToken', response.refreshToken);
 
+    const payload = decodeJwt(response.accessToken);
+    if (!payload) {
+      throw new Error('Neispravan token');
+    }
+
+    // JWT sadrži: sub (email), role (ADMIN/CLIENT), active
+    // ADMIN role daje ADMIN permisiju za pristup admin stranicama
+    const permissions: Permission[] = payload.role === 'ADMIN' ? [Permission.ADMIN] : [];
+
+    // Izvlačimo ime iz email-a (marko.petrovic@banka.rs → Marko Petrovic)
+    const emailName = payload.sub.split('@')[0];
+    const nameParts = emailName.split('.');
+    const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
     const authUser: AuthUser = {
-      id: response.user.id,
-      email: response.user.email,
-      username: response.user.username,
-      firstName: response.user.firstName,
-      lastName: response.user.lastName,
-      permissions: response.user.permissions,
+      id: 0,
+      email: payload.sub,
+      username: emailName,
+      firstName: nameParts[0] ? capitalize(nameParts[0]) : '',
+      lastName: nameParts[1] ? capitalize(nameParts[1]) : '',
+      permissions,
     };
 
     sessionStorage.setItem('user', JSON.stringify(authUser));

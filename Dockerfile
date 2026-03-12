@@ -6,6 +6,8 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+# U Docker-u koristimo prazan API URL jer nginx proxy radi forwarding
+ENV VITE_API_URL=""
 RUN npm run build
 
 # ---- Runtime stage ----

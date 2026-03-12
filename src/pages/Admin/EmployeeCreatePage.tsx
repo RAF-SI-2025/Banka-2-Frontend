@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { DateInput } from '@/components/ui/date-input';
 
 const POSITIONS = [
   'Software Developer',
@@ -63,12 +64,10 @@ export default function EmployeeCreatePage() {
       position: '',
       phoneNumber: '',
       isActive: true,
-      jmbg: '',
       address: '',
       dateOfBirth: '',
       gender: '',
       department: '',
-      role: '',
     },
   });
 
@@ -155,28 +154,18 @@ export default function EmployeeCreatePage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="jmbg">JMBG *</Label>
-                <Input
-                  id="jmbg"
-                  placeholder="1234567890123"
-                  maxLength={13}
-                  className={errors.jmbg ? 'border-destructive focus-visible:ring-destructive' : ''}
-                  {...register('jmbg')}
-                />
-                {errors.jmbg && (
-                  <p className="text-sm font-medium text-destructive">
-                    {errors.jmbg.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="dateOfBirth">Datum rođenja *</Label>
-                <Input
-                  id="dateOfBirth"
-                  type="date"
-                  className={errors.dateOfBirth ? 'border-destructive focus-visible:ring-destructive' : ''}
-                  {...register('dateOfBirth')}
+                <Controller
+                  name="dateOfBirth"
+                  control={control}
+                  render={({ field }) => (
+                    <DateInput
+                      id="dateOfBirth"
+                      value={field.value}
+                      onChange={field.onChange}
+                      className={errors.dateOfBirth ? 'border-destructive focus-visible:ring-destructive' : ''}
+                    />
+                  )}
                 />
                 {errors.dateOfBirth && (
                   <p className="text-sm font-medium text-destructive">
@@ -345,20 +334,6 @@ export default function EmployeeCreatePage() {
                 {errors.department && (
                   <p className="text-sm font-medium text-destructive">
                     {errors.department.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role">Uloga *</Label>
-                <Input
-                  id="role"
-                  className={errors.role ? 'border-destructive focus-visible:ring-destructive' : ''}
-                  {...register('role')}
-                />
-                {errors.role && (
-                  <p className="text-sm font-medium text-destructive">
-                    {errors.role.message}
                   </p>
                 )}
               </div>

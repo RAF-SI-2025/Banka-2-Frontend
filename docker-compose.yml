@@ -4,3 +4,10 @@ services:
     container_name: banka2_frontend
     ports:
       - "3000:80"
+    networks:
+      - banka2_net
+
+networks:
+  banka2_net:
+    external: true
+    name: tim2_banka2025_be_default

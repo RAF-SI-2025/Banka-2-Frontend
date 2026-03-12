@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { DateInput } from '@/components/ui/date-input';
 
 const ALL_PERMISSIONS = Object.values(Permission);
 
@@ -128,12 +129,10 @@ export default function EmployeeEditPage() {
           position: data.position,
           phoneNumber: data.phoneNumber,
           isActive: data.isActive,
-          jmbg: data.jmbg,
           address: data.address,
           dateOfBirth: data.dateOfBirth,
           gender: data.gender,
           department: data.department,
-          role: data.role,
         });
       } catch {
         setError('Greška pri učitavanju podataka o zaposlenom.');
@@ -160,8 +159,14 @@ export default function EmployeeEditPage() {
     setError('');
 
     try {
-      await employeeService.update(Number(id), data);
-      await employeeService.updatePermissions(Number(id), permissions);
+      // Permisije se šalju zajedno sa ostalim podacima kroz PUT update
+      await employeeService.update(Number(id), { ...data, permissions });
+
+      // Ako je deaktiviran, pozovi i deactivate endpoint
+      if (!data.isActive && employee?.isActive) {
+        await employeeService.deactivate(Number(id));
+      }
+
       toast.success('Zaposleni uspešno ažuriran!');
       navigate('/admin/employees');
     } catch (err: unknown) {
@@ -236,16 +241,18 @@ export default function EmployeeEditPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="jmbg">JMBG</Label>
-                <Input id="jmbg" {...register('jmbg')} />
-                {errors.jmbg && (
-                  <p className="text-sm text-destructive">{errors.jmbg.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="dateOfBirth">Datum rođenja</Label>
-                <Input id="dateOfBirth" type="date" {...register('dateOfBirth')} />
+                <Controller
+                  name="dateOfBirth"
+                  control={control}
+                  render={({ field }) => (
+                    <DateInput
+                      id="dateOfBirth"
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  )}
+                />
                 {errors.dateOfBirth && (
                   <p className="text-sm text-destructive">{errors.dateOfBirth.message}</p>
                 )}
@@ -318,7 +325,7 @@ export default function EmployeeEditPage() {
         <Card>
           <CardHeader>
             <CardTitle>Posao</CardTitle>
-            <CardDescription>Pozicija, odeljenje, uloga i status zaposlenog.</CardDescription>
+            <CardDescription>Pozicija, odeljenje i status zaposlenog.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -371,13 +378,6 @@ export default function EmployeeEditPage() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="role">Uloga</Label>
-                <Input id="role" {...register('role')} />
-                {errors.role && (
-                  <p className="text-sm text-destructive">{errors.role.message}</p>
-                )}
-              </div>
             </div>
 
             <Separator />
