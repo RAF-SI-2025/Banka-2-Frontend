@@ -1,11 +1,4 @@
-// TODO [FE2-08b] @Antonije - Transferi: Istorija transfera
-//
-// Ova stranica prikazuje hronolosku listu svih transfera korisnika.
-// - transactionService.getTransfers(filters) sa paginacijom
-// - Tabela: datum, sa racuna, na racun, iznos, valuta (from/to), kurs, provizija, status
-// - Filteri: po datumu od-do, racunu
-// - Paginacija
-// - Spec: "Istorija transfera" iz Celine 2
+
 
 import { useEffect, useState } from 'react';
 import { toast } from '@/lib/notify';
