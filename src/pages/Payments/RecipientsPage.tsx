@@ -1,13 +1,3 @@
-// TODO [FE2-06a] @Elena - Primaoci: Lista sacuvanih primalaca placanja
-// TODO [FE2-06b] @Elena - Primaoci: CRUD operacije (dodaj/izmeni/obrisi)
-//
-// Ova stranica omogucava upravljanje listom sacuvanih primalaca placanja.
-// - paymentRecipientService.getAll() za prikaz
-// - CRUD: create, update, delete
-// - Forma za novog primaoca: ime, broj racuna, adresa (opciono), telefon (opciono)
-// - Inline edit ili modal za izmenu
-// - Potvrda pre brisanja (confirm dialog)
-
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -29,26 +19,46 @@ function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+function normalizeValue(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase();
+}
+
 export default function RecipientsPage() {
   const [recipients, setRecipients] = useState<PaymentRecipient[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingRecipient, setEditingRecipient] = useState<PaymentRecipient | null>(null);
+  const [editingRecipientId, setEditingRecipientId] = useState<number | null>(null);
+
   const [searchTerm, setSearchTerm] = useState('');
+
+  const [creating, setCreating] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const createForm = useForm<CreateRecipientFormData>({
     resolver: zodResolver(createRecipientSchema),
-    defaultValues: { name: '', accountNumber: '', address: '', phoneNumber: '' },
+    defaultValues: {
+      name: '',
+      accountNumber: '',
+      address: '',
+      phoneNumber: '',
+    },
   });
 
   const editForm = useForm<EditRecipientFormData>({
     resolver: zodResolver(editRecipientSchema),
-    defaultValues: { name: '', accountNumber: '', address: '', phoneNumber: '' },
+    defaultValues: {
+      name: '',
+      accountNumber: '',
+      address: '',
+      phoneNumber: '',
+    },
   });
 
   const loadRecipients = async () => {
     setLoading(true);
+
     try {
       const data = await paymentRecipientService.getAll();
       setRecipients(asArray<PaymentRecipient>(data));
@@ -65,31 +75,70 @@ export default function RecipientsPage() {
   }, []);
 
   const filteredRecipients = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
+    const term = normalizeValue(searchTerm);
     const safeRecipients = asArray<PaymentRecipient>(recipients);
+
     if (!term) return safeRecipients;
-    return safeRecipients.filter((recipient) => recipient.name.toLowerCase().includes(term));
+
+    return safeRecipients.filter((recipient) => {
+      const name = normalizeValue(recipient.name);
+      const accountNumber = normalizeValue(recipient.accountNumber);
+      const address = normalizeValue(recipient.address);
+      const phoneNumber = normalizeValue(recipient.phoneNumber);
+
+      return (
+        name.includes(term) ||
+        accountNumber.includes(term) ||
+        address.includes(term) ||
+        phoneNumber.includes(term)
+      );
+    });
   }, [recipients, searchTerm]);
 
-  const onCreate = async (data: CreateRecipientFormData) => {
+  const handleToggleCreateForm = () => {
+    const nextValue = !showCreateForm;
+    setShowCreateForm(nextValue);
+
+    if (!nextValue) {
+      createForm.reset({
+        name: '',
+        accountNumber: '',
+        address: '',
+        phoneNumber: '',
+      });
+    }
+  };
+
+  const handleCreate = async (data: CreateRecipientFormData) => {
+    setCreating(true);
+
     try {
       await paymentRecipientService.create({
-        name: data.name,
-        accountNumber: data.accountNumber,
-        address: data.address || undefined,
-        phoneNumber: data.phoneNumber || undefined,
+        name: data.name.trim(),
+        accountNumber: data.accountNumber.trim(),
+        address: data.address?.trim() || '',
+        phoneNumber: data.phoneNumber?.trim() || '',
       });
-      toast.success('Primaoc je uspešno dodat.');
-      createForm.reset();
+
+      toast.success('Primalac je uspešno dodat.');
+      createForm.reset({
+        name: '',
+        accountNumber: '',
+        address: '',
+        phoneNumber: '',
+      });
       setShowCreateForm(false);
       await loadRecipients();
     } catch {
       toast.error('Dodavanje primaoca nije uspelo.');
+    } finally {
+      setCreating(false);
     }
   };
 
   const startEdit = (recipient: PaymentRecipient) => {
-    setEditingRecipient(recipient);
+    setEditingRecipientId(recipient.id);
+
     editForm.reset({
       name: recipient.name,
       accountNumber: recipient.accountNumber,
@@ -98,31 +147,56 @@ export default function RecipientsPage() {
     });
   };
 
-  const onEdit = async (data: EditRecipientFormData) => {
-    if (!editingRecipient) return;
+  const cancelEdit = () => {
+    setEditingRecipientId(null);
+    editForm.reset({
+      name: '',
+      accountNumber: '',
+      address: '',
+      phoneNumber: '',
+    });
+  };
+
+  const handleEdit = async (data: EditRecipientFormData) => {
+    if (!editingRecipientId) return;
+
+    setUpdating(true);
+
     try {
-      await paymentRecipientService.update(editingRecipient.id, {
-        name: data.name,
-        accountNumber: data.accountNumber,
-        address: data.address || undefined,
-        phoneNumber: data.phoneNumber || undefined,
+      await paymentRecipientService.update(editingRecipientId, {
+        name: data.name.trim(),
+        accountNumber: data.accountNumber.trim(),
+        address: data.address?.trim() || '',
+        phoneNumber: data.phoneNumber?.trim() || '',
       });
-      toast.success('Primaoc je uspešno izmenjen.');
-      setEditingRecipient(null);
+
+      toast.success('Primalac je uspešno izmenjen.');
+      cancelEdit();
       await loadRecipients();
     } catch {
       toast.error('Izmena primaoca nije uspela.');
+    } finally {
+      setUpdating(false);
     }
   };
 
-  const onDelete = async (recipient: PaymentRecipient) => {
-    const confirmed = window.confirm(`Da li ste sigurni da želite da obrišete primaoca ${recipient.name}?`);
+  const handleDelete = async (recipient: PaymentRecipient) => {
+    const confirmed = window.confirm(
+      `Da li ste sigurni da želite da obrišete primaoca "${recipient.name}"?`
+    );
+
     if (!confirmed) return;
 
     setDeletingId(recipient.id);
+
     try {
       await paymentRecipientService.delete(recipient.id);
-      toast.success('Primaoc je obrisan.');
+      toast.success('Primalac je obrisan.');
+
+      if (editingRecipientId === recipient.id) {
+        cancelEdit();
+      }
+
       await loadRecipients();
     } catch {
       toast.error('Brisanje primaoca nije uspelo.');
@@ -133,9 +207,10 @@ export default function RecipientsPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="text-3xl font-bold">Primaoci plaćanja</h1>
-        <Button onClick={() => setShowCreateForm((prev) => !prev)}>
+
+        <Button onClick={handleToggleCreateForm}>
           {showCreateForm ? 'Zatvori formu' : 'Dodaj primaoca'}
         </Button>
       </div>
@@ -145,28 +220,67 @@ export default function RecipientsPage() {
           <CardHeader>
             <CardTitle>Novi primalac</CardTitle>
           </CardHeader>
+
           <CardContent>
-            <form className="grid gap-4 md:grid-cols-2" onSubmit={createForm.handleSubmit(onCreate)} noValidate>
+            <form
+              className="grid gap-4 md:grid-cols-2"
+              onSubmit={createForm.handleSubmit(handleCreate)}
+              noValidate
+            >
               <div className="space-y-2">
                 <Label htmlFor="create-name">Ime</Label>
-                <Input id="create-name" {...createForm.register('name')} />
-                {createForm.formState.errors.name && <p className="text-sm text-destructive">{createForm.formState.errors.name.message}</p>}
+                <Input
+                  id="create-name"
+                  placeholder="Unesite ime primaoca"
+                  {...createForm.register('name')}
+                  disabled={creating}
+                />
+                {createForm.formState.errors.name && (
+                  <p className="text-sm text-destructive">
+                    {createForm.formState.errors.name.message}
+                  </p>
+                )}
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="create-account">Broj računa</Label>
-                <Input id="create-account" {...createForm.register('accountNumber')} />
-                {createForm.formState.errors.accountNumber && <p className="text-sm text-destructive">{createForm.formState.errors.accountNumber.message}</p>}
+                <Input
+                  id="create-account"
+                  placeholder="Unesite broj računa"
+                  {...createForm.register('accountNumber')}
+                  disabled={creating}
+                />
+                {createForm.formState.errors.accountNumber && (
+                  <p className="text-sm text-destructive">
+                    {createForm.formState.errors.accountNumber.message}
+                  </p>
+                )}
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="create-address">Adresa</Label>
-                <Input id="create-address" {...createForm.register('address')} />
+                <Input
+                  id="create-address"
+                  placeholder="Unesite adresu"
+                  {...createForm.register('address')}
+                  disabled={creating}
+                />
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="create-phone">Telefon</Label>
-                <Input id="create-phone" {...createForm.register('phoneNumber')} />
+                <Input
+                  id="create-phone"
+                  placeholder="Unesite telefon"
+                  {...createForm.register('phoneNumber')}
+                  disabled={creating}
+                />
               </div>
+
               <div className="md:col-span-2 flex justify-end">
-                <Button type="submit">Sačuvaj primaoca</Button>
+                <Button type="submit" disabled={creating}>
+                  {creating ? 'Čuvanje...' : 'Sačuvaj primaoca'}
+                </Button>
               </div>
             </form>
           </CardContent>
@@ -177,9 +291,10 @@ export default function RecipientsPage() {
         <CardHeader>
           <CardTitle>Sačuvani primaoci</CardTitle>
         </CardHeader>
+
         <CardContent className="space-y-4">
           <Input
-            placeholder="Pretraga po imenu primaoca"
+            placeholder="Pretraga po imenu, računu, adresi ili telefonu"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -187,7 +302,11 @@ export default function RecipientsPage() {
           {loading ? (
             <p className="text-muted-foreground">Učitavanje primalaca...</p>
           ) : filteredRecipients.length === 0 ? (
-            <p className="text-muted-foreground">Nemate sačuvanih primalaca.</p>
+            <p className="text-muted-foreground">
+              {searchTerm.trim()
+                ? 'Nema primalaca koji odgovaraju pretrazi.'
+                : 'Nemate sačuvanih primalaca.'}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -200,69 +319,125 @@ export default function RecipientsPage() {
                     <th className="text-left py-2">Akcije</th>
                   </tr>
                 </thead>
+
                 <tbody>
-                  {filteredRecipients.map((recipient) => (
-                    <tr key={recipient.id} className="border-b">
-                      <td className="py-2">{recipient.name}</td>
-                      <td className="py-2">{recipient.accountNumber}</td>
-                      <td className="py-2">{recipient.address || '-'}</td>
-                      <td className="py-2">{recipient.phoneNumber || '-'}</td>
-                      <td className="py-2">
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" onClick={() => startEdit(recipient)}>Izmeni</Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => onDelete(recipient)}
-                            disabled={deletingId === recipient.id}
-                          >
-                            Obriši
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredRecipients.map((recipient) => {
+                    const isEditing = editingRecipientId === recipient.id;
+                    const isDeleting = deletingId === recipient.id;
+
+                    if (isEditing) {
+                      return (
+                        <tr key={recipient.id} className="border-b bg-muted/20">
+                          <td className="py-2 align-top">
+                            <Input
+                              id={`edit-name-${recipient.id}`}
+                              placeholder="Ime"
+                              {...editForm.register('name')}
+                              disabled={updating}
+                            />
+                            {editForm.formState.errors.name && (
+                              <p className="mt-1 text-sm text-destructive">
+                                {editForm.formState.errors.name.message}
+                              </p>
+                            )}
+                          </td>
+
+                          <td className="py-2 align-top">
+                            <Input
+                              id={`edit-account-${recipient.id}`}
+                              placeholder="Broj računa"
+                              {...editForm.register('accountNumber')}
+                              disabled={updating}
+                            />
+                            {editForm.formState.errors.accountNumber && (
+                              <p className="mt-1 text-sm text-destructive">
+                                {editForm.formState.errors.accountNumber.message}
+                              </p>
+                            )}
+                          </td>
+
+                          <td className="py-2 align-top">
+                            <Input
+                              id={`edit-address-${recipient.id}`}
+                              placeholder="Adresa"
+                              {...editForm.register('address')}
+                              disabled={updating}
+                            />
+                          </td>
+
+                          <td className="py-2 align-top">
+                            <Input
+                              id={`edit-phone-${recipient.id}`}
+                              placeholder="Telefon"
+                              {...editForm.register('phoneNumber')}
+                              disabled={updating}
+                            />
+                          </td>
+
+                          <td className="py-2 align-top">
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={editForm.handleSubmit(handleEdit)}
+                                disabled={updating}
+                              >
+                                {updating ? 'Čuvanje...' : 'Sačuvaj'}
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={cancelEdit}
+                                disabled={updating}
+                              >
+                                Otkaži
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return (
+                      <tr key={recipient.id} className="border-b">
+                        <td className="py-2">{recipient.name}</td>
+                        <td className="py-2">{recipient.accountNumber}</td>
+                        <td className="py-2">{recipient.address || '-'}</td>
+                        <td className="py-2">{recipient.phoneNumber || '-'}</td>
+                        <td className="py-2">
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => startEdit(recipient)}
+                              disabled={isDeleting}
+                            >
+                              Izmeni
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDelete(recipient)}
+                              disabled={isDeleting}
+                            >
+                              {isDeleting ? 'Brisanje...' : 'Obriši'}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </CardContent>
       </Card>
-
-      {editingRecipient && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Izmena primaoca</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form className="grid gap-4 md:grid-cols-2" onSubmit={editForm.handleSubmit(onEdit)} noValidate>
-              <div className="space-y-2">
-                <Label htmlFor="edit-name">Ime</Label>
-                <Input id="edit-name" {...editForm.register('name')} />
-                {editForm.formState.errors.name && <p className="text-sm text-destructive">{editForm.formState.errors.name.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-account">Broj računa</Label>
-                <Input id="edit-account" {...editForm.register('accountNumber')} />
-                {editForm.formState.errors.accountNumber && <p className="text-sm text-destructive">{editForm.formState.errors.accountNumber.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-address">Adresa</Label>
-                <Input id="edit-address" {...editForm.register('address')} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-phone">Telefon</Label>
-                <Input id="edit-phone" {...editForm.register('phoneNumber')} />
-              </div>
-              <div className="md:col-span-2 flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setEditingRecipient(null)}>Otkaži</Button>
-                <Button type="submit">Sačuvaj izmene</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
-
