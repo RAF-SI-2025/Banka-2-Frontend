@@ -1,13 +1,6 @@
-// TODO [FE2-08b] @Antonije - Transferi: Istorija transfera
-//
-// Ova stranica prikazuje hronolosku listu svih transfera korisnika.
-// - transactionService.getTransfers(filters) sa paginacijom
-// - Tabela: datum, sa racuna, na racun, iznos, valuta (from/to), kurs, provizija, status
-// - Filteri: po datumu od-do, racunu
-// - Paginacija
-// - Spec: "Istorija transfera" iz Celine 2
+// FE2-08b: Istorija transfera sa sortiranjem i filterima
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { transactionService } from '@/services/transactionService';
@@ -42,11 +35,14 @@ export default function TransferHistoryPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [accountNumber, setAccountNumber] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const limit = 10;
 
   useEffect(() => {
     const loadAccounts = async () => {
@@ -71,8 +67,9 @@ export default function TransferHistoryPage() {
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
           page,
-          limit: 10,
+          limit,
         });
+
         setTransfers(asArray<Transfer>(response.content));
         setTotalPages(Math.max(1, response.totalPages));
       } catch {
@@ -90,6 +87,14 @@ export default function TransferHistoryPage() {
     setPage(0);
   }, [accountNumber, dateFrom, dateTo]);
 
+  const sortedTransfers = useMemo(() => {
+    return [...asArray<Transfer>(transfers)].sort((a, b) => {
+      const aTime = new Date(a.createdAt).getTime();
+      const bTime = new Date(b.createdAt).getTime();
+      return bTime - aTime;
+    });
+  }, [transfers]);
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <h1 className="text-3xl font-bold">Istorija transfera</h1>
@@ -100,7 +105,9 @@ export default function TransferHistoryPage() {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">
-            <label htmlFor="account-filter" className="text-sm font-medium">Račun</label>
+            <label htmlFor="account-filter" className="text-sm font-medium">
+              Račun
+            </label>
             <select
               id="account-filter"
               title="Račun"
@@ -118,7 +125,9 @@ export default function TransferHistoryPage() {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="date-from" className="text-sm font-medium">Datum od</label>
+            <label htmlFor="date-from" className="text-sm font-medium">
+              Datum od
+            </label>
             <input
               id="date-from"
               type="date"
@@ -129,7 +138,9 @@ export default function TransferHistoryPage() {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="date-to" className="text-sm font-medium">Datum do</label>
+            <label htmlFor="date-to" className="text-sm font-medium">
+              Datum do
+            </label>
             <input
               id="date-to"
               type="date"
@@ -143,9 +154,11 @@ export default function TransferHistoryPage() {
 
       {loading ? (
         <p className="text-muted-foreground">Učitavanje transfera...</p>
-      ) : asArray<Transfer>(transfers).length === 0 ? (
+      ) : sortedTransfers.length === 0 ? (
         <Card>
-          <CardContent className="pt-6 text-muted-foreground">Nema transfera za izabrane filtere.</CardContent>
+          <CardContent className="pt-6 text-muted-foreground">
+            Nema transfera za izabrane filtere.
+          </CardContent>
         </Card>
       ) : (
         <Card>
@@ -153,28 +166,40 @@ export default function TransferHistoryPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-2">Datum</th>
-                  <th className="text-left py-2">Sa računa</th>
-                  <th className="text-left py-2">Na račun</th>
-                  <th className="text-left py-2">Iznos</th>
-                  <th className="text-left py-2">Iz valute</th>
-                  <th className="text-left py-2">U valutu</th>
-                  <th className="text-left py-2">Kurs</th>
-                  <th className="text-left py-2">Provizija</th>
+                  <th className="text-left py-2">Order no</th>
+                  <th className="text-left py-2">From / To</th>
+                  <th className="text-left py-2">Amount</th>
+                  <th className="text-left py-2">Rate</th>
+                  <th className="text-left py-2">Fee</th>
+                  <th className="text-left py-2">Date</th>
                   <th className="text-left py-2">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {asArray<Transfer>(transfers).map((transfer) => (
+                {sortedTransfers.map((transfer, index) => (
                   <tr key={transfer.id} className="border-b">
+                    <td className="py-2">{page * limit + index + 1}</td>
+                    <td className="py-2">
+                      <div className="flex flex-col">
+                        <span>{transfer.fromAccountNumber}</span>
+                        <span className="text-muted-foreground">→ {transfer.toAccountNumber}</span>
+                      </div>
+                    </td>
+                    <td className="py-2">
+                      {formatAmount(transfer.amount)} {transfer.fromCurrency}
+                      {transfer.toCurrency !== transfer.fromCurrency && (
+                        <div className="text-xs text-muted-foreground">
+                          u {transfer.toCurrency}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-2">
+                      {transfer.exchangeRate == null ? '-' : formatAmount(transfer.exchangeRate, 4)}
+                    </td>
+                    <td className="py-2">
+                      {transfer.commission == null ? '-' : formatAmount(transfer.commission)}
+                    </td>
                     <td className="py-2">{formatDateTime(transfer.createdAt)}</td>
-                    <td className="py-2">{transfer.fromAccountNumber}</td>
-                    <td className="py-2">{transfer.toAccountNumber}</td>
-                    <td className="py-2">{formatAmount(transfer.amount)}</td>
-                    <td className="py-2">{transfer.fromCurrency}</td>
-                    <td className="py-2">{transfer.toCurrency}</td>
-                    <td className="py-2">{transfer.exchangeRate == null ? '-' : formatAmount(transfer.exchangeRate, 4)}</td>
-                    <td className="py-2">{transfer.commission == null ? '-' : formatAmount(transfer.commission)}</td>
                     <td className="py-2">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${statusClass(transfer.status)}`}>
                         {transfer.status}
@@ -186,10 +211,19 @@ export default function TransferHistoryPage() {
             </table>
 
             <div className="mt-4 flex items-center justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+              >
                 Prethodna
               </Button>
-              <span className="text-sm text-muted-foreground">Strana {page + 1} / {totalPages}</span>
+
+              <span className="text-sm text-muted-foreground">
+                Strana {page + 1} / {totalPages}
+              </span>
+
               <Button
                 variant="outline"
                 size="sm"
@@ -205,4 +239,3 @@ export default function TransferHistoryPage() {
     </div>
   );
 }
-

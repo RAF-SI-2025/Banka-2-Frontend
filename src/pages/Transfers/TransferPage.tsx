@@ -1,13 +1,4 @@
-// TODO [FE2-08a] @Antonije - Transferi: Kreiranje transfera
-// TODO [FE2-08b] @Antonije - Transferi: Istorija i prikaz kursa/provizije
-//
-// Ova stranica omogucava prenos sredstava izmedju sopstvenih racuna.
-// - Forma: izaberi racun posiljaoca, izaberi racun primaoca, iznos
-// - Ako su valute razlicite => prikazati kurs i konvertovani iznos
-// - react-hook-form + zodResolver(transferSchema)
-// - Nakon submit => transactionService.createTransfer()
-// - Verifikacija putem VerificationModal
-// - Spec: "Interni transfer" iz Celine 2
+// FE2-05/08a: Prenos izmedju racuna sa confirm step-om i provizijom
 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -63,6 +54,8 @@ export default function TransferPage() {
 
   const [showVerification, setShowVerification] = useState(false);
   const [pendingTransactionId, setPendingTransactionId] = useState<number | null>(null);
+  const [showConfirmStep, setShowConfirmStep] = useState(false);
+  const [submittedData, setSubmittedData] = useState<TransferFormData | null>(null);
 
   const [exchangePreview, setExchangePreview] = useState<{
     rate: number;
@@ -206,6 +199,16 @@ export default function TransferPage() {
     return amount > 0 && Number(fromAccountData.availableBalance ?? 0) < Number(amount);
   }, [fromAccountData, amount]);
 
+  const commission = useMemo(() => {
+    if (!amount || amount <= 0) return 0;
+    if (fromAccountData?.currency === toAccountData?.currency) return 0;
+    return amount * 0.01;
+  }, [amount, fromAccountData, toAccountData]);
+
+  const totalDebit = useMemo(() => {
+    return amount > 0 ? amount + commission : 0;
+  }, [amount, commission]);
+
   const onSubmit = async (data: TransferFormData) => {
     if (!fromAccountData) {
       toast.error('Izaberite račun pošiljaoca.');
@@ -232,16 +235,24 @@ export default function TransferPage() {
       return;
     }
 
+    setSubmittedData(data);
+    setShowConfirmStep(true);
+  };
+
+  const handleConfirmTransfer = async () => {
+    if (!submittedData) return;
+
     setIsSubmitting(true);
 
     try {
       const transfer = await transactionService.createTransfer({
-        fromAccountNumber: data.fromAccountNumber,
-        toAccountNumber: data.toAccountNumber,
-        amount: Number(data.amount),
+        fromAccountNumber: submittedData.fromAccountNumber,
+        toAccountNumber: submittedData.toAccountNumber,
+        amount: Number(submittedData.amount),
       });
 
       setPendingTransactionId(transfer.id);
+      setShowConfirmStep(false);
       setShowVerification(true);
       toast.info('Prenos je kreiran. Potrebna je verifikacija.');
     } catch (error: unknown) {
@@ -267,7 +278,7 @@ export default function TransferPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Novi prenos</CardTitle>
+          <CardTitle>{showConfirmStep ? 'Potvrda prenosa' : 'Novi prenos'}</CardTitle>
         </CardHeader>
 
         <CardContent>
@@ -275,6 +286,64 @@ export default function TransferPage() {
             <p className="text-muted-foreground">Učitavanje računa...</p>
           ) : safeAccounts.length === 0 ? (
             <p className="text-muted-foreground">Nemate dostupnih računa za prenos.</p>
+          ) : showConfirmStep && submittedData && fromAccountData && toAccountData ? (
+            <div className="space-y-4">
+              <div className="rounded-md border p-4 space-y-2 text-sm">
+                <p>
+                  <span className="font-medium">Račun pošiljaoca:</span> {fromAccountData.accountNumber} |{' '}
+                  {fromAccountData.currency}
+                </p>
+                <p>
+                  <span className="font-medium">Račun primaoca:</span> {toAccountData.accountNumber} |{' '}
+                  {toAccountData.currency}
+                </p>
+                <p>
+                  <span className="font-medium">Iznos:</span> {formatAmount(submittedData.amount)}{' '}
+                  {fromAccountData.currency}
+                </p>
+
+                {exchangePreview && (
+                  <>
+                    <p>
+                      <span className="font-medium">Kurs:</span> 1 {fromAccountData.currency} ={' '}
+                      {formatAmount(exchangePreview.rate, 4)} {toAccountData.currency}
+                    </p>
+                    <p>
+                      <span className="font-medium">Konvertovani iznos:</span>{' '}
+                      {formatAmount(exchangePreview.convertedAmount)} {toAccountData.currency}
+                    </p>
+                    <p>
+                      <span className="font-medium">Provizija:</span> {formatAmount(commission)}{' '}
+                      {fromAccountData.currency}
+                    </p>
+                    <p>
+                      <span className="font-medium">Ukupno za terećenje:</span> {formatAmount(totalDebit)}{' '}
+                      {fromAccountData.currency}
+                    </p>
+                  </>
+                )}
+
+                {!exchangePreview && (
+                  <p>
+                    <span className="font-medium">Valute:</span> isti kurs nije potreban
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowConfirmStep(false)}
+                  disabled={isSubmitting}
+                >
+                  Nazad
+                </Button>
+                <Button type="button" onClick={handleConfirmTransfer} disabled={isSubmitting}>
+                  {isSubmitting ? 'Kreiranje...' : 'Potvrdi transfer'}
+                </Button>
+              </div>
+            </div>
           ) : (
             <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
               <div className="space-y-2">
@@ -364,6 +433,12 @@ export default function TransferPage() {
                     Konvertovani iznos: {formatAmount(exchangePreview.convertedAmount)}{' '}
                     {toAccountData.currency}
                   </p>
+                  <p>
+                    Provizija: {formatAmount(commission)} {fromAccountData.currency}
+                  </p>
+                  <p>
+                    Ukupno za terećenje: {formatAmount(totalDebit)} {fromAccountData.currency}
+                  </p>
                 </div>
               )}
 
@@ -380,7 +455,7 @@ export default function TransferPage() {
 
               <div className="flex justify-end">
                 <Button type="submit" disabled={isSubmitting || isLoading}>
-                  {isSubmitting ? 'Kreiranje...' : 'Nastavi na verifikaciju'}
+                  Nastavi na potvrdu
                 </Button>
               </div>
             </form>
