@@ -80,6 +80,48 @@ const MOCK_ACCOUNTS = [
   },
 ];
 
+// Transakcije za auto-selektovani racun (265000000000000336 - Poslovni, najvisi balans)
+const MOCK_TRANSACTIONS = {
+  content: [
+    {
+      id: 1, fromAccountNumber: '265000000000000336', toAccountNumber: '265000000000000229',
+      amount: 15000, currency: 'RSD', description: 'Uplata', referenceNumber: 'REF001',
+      paymentCode: '289', paymentPurpose: 'Placanje racuna za struju',
+      recipientName: 'EPS Distribucija', status: 'COMPLETED', createdAt: '2025-03-10',
+    },
+    {
+      id: 2, fromAccountNumber: '265000000000000112', toAccountNumber: '265000000000000336',
+      amount: 50000, currency: 'RSD', description: 'Prenos', referenceNumber: 'REF002',
+      paymentCode: '289', paymentPurpose: 'Prenos sredstava',
+      recipientName: 'Milica Nikolic', status: 'COMPLETED', createdAt: '2025-03-09',
+    },
+    {
+      id: 3, fromAccountNumber: '265000000000000336', toAccountNumber: '265000000000000443',
+      amount: 8500, currency: 'RSD', description: 'Placanje', referenceNumber: 'REF003',
+      paymentCode: '221', paymentPurpose: 'Kupovina online',
+      recipientName: 'Web Shop doo', status: 'PENDING', createdAt: '2025-03-11',
+    },
+    {
+      id: 4, fromAccountNumber: '265000000000000336', toAccountNumber: '265000000000000550',
+      amount: 3000, currency: 'RSD', description: 'Placanje', referenceNumber: 'REF004',
+      paymentCode: '289', paymentPurpose: 'Pretplata na uslugu',
+      recipientName: 'Telekom Srbija', status: 'REJECTED', createdAt: '2025-03-08',
+    },
+  ],
+  totalElements: 4,
+  totalPages: 1,
+  size: 10,
+  number: 0,
+};
+
+const EMPTY_TRANSACTIONS = {
+  content: [],
+  totalElements: 0,
+  totalPages: 0,
+  size: 10,
+  number: 0,
+};
+
 function setupClientSession(win: Cypress.AUTWindow) {
   win.sessionStorage.setItem('accessToken', 'fake-access-token');
   win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
@@ -103,9 +145,17 @@ function interceptAccountsApi() {
   }).as('getAccounts');
 }
 
+function interceptTransactionsApi(response = MOCK_TRANSACTIONS) {
+  cy.intercept('GET', '**/transactions*', {
+    statusCode: 200,
+    body: response,
+  }).as('getTransactions');
+}
+
 describe('Accounts - Lista racuna', () => {
   beforeEach(() => {
     interceptAccountsApi();
+    interceptTransactionsApi();
 
     cy.visit('/accounts', {
       onBeforeLoad(win) {
@@ -121,7 +171,7 @@ describe('Accounts - Lista racuna', () => {
   });
 
   it('prikazuje tabelu sa racunima', () => {
-    cy.get('table').should('be.visible');
+    cy.get('table').first().should('be.visible');
     cy.contains('th', 'Broj racuna').should('be.visible');
     cy.contains('th', 'Naziv').should('be.visible');
     cy.contains('th', 'Tip').should('be.visible');
@@ -131,7 +181,7 @@ describe('Accounts - Lista racuna', () => {
   });
 
   it('prikazuje racune u tabeli', () => {
-    cy.get('table tbody tr').should('have.length.greaterThan', 0);
+    cy.get('table').first().find('tbody tr').should('have.length.greaterThan', 0);
     cy.contains('265-').should('be.visible');
   });
 
@@ -151,7 +201,7 @@ describe('Accounts - Lista racuna', () => {
   });
 
   it('racuni su sortirani po stanju opadajuce', () => {
-    cy.get('table tbody tr').then(($rows) => {
+    cy.get('table').first().find('tbody tr').then(($rows) => {
       const balances: number[] = [];
       $rows.each((_, row) => {
         const cells = Cypress.$(row).find('td');
@@ -167,9 +217,26 @@ describe('Accounts - Lista racuna', () => {
     });
   });
 
+  describe('Selekcija racuna', () => {
+    it('prvi racun je automatski selektovan', () => {
+      cy.get('table').first().find('tbody tr').first().should('have.attr', 'data-selected', 'true');
+    });
+
+    it('klik na drugi racun menja selekciju', () => {
+      cy.get('table').first().find('tbody tr').eq(1).click();
+      cy.get('table').first().find('tbody tr').eq(1).should('have.attr', 'data-selected', 'true');
+      cy.get('table').first().find('tbody tr').first().should('not.have.attr', 'data-selected');
+    });
+
+    it('dupli klik preusmerava na detalje racuna', () => {
+      cy.get('table').first().find('tbody tr').first().dblclick();
+      cy.url().should('include', '/accounts/');
+    });
+  });
+
   describe('Filter po tipu', () => {
     beforeEach(() => {
-      cy.get('button[title="Filteri"]').click();
+      cy.get('button[title="Filteri"]').first().click();
     });
 
     it('prikazuje filter sekciju', () => {
@@ -177,10 +244,10 @@ describe('Accounts - Lista racuna', () => {
     });
 
     it('filtrira po tekucem tipu', () => {
-      cy.get('[role="combobox"]').first().click();
+      cy.contains('[role="combobox"]', 'Svi tipovi').click();
       cy.get('[role="option"]').contains('Tekuci').click();
 
-      cy.get('table tbody tr', { timeout: 10000 }).should(($rows) => {
+      cy.get('table').first().find('tbody tr', { timeout: 10000 }).should(($rows) => {
         expect($rows.length).to.be.greaterThan(0);
         $rows.each((_, row) => {
           expect(Cypress.$(row).text()).to.include('Tekuci');
@@ -189,10 +256,10 @@ describe('Accounts - Lista racuna', () => {
     });
 
     it('filtrira po deviznom tipu', () => {
-      cy.get('[role="combobox"]').first().click();
+      cy.contains('[role="combobox"]', 'Svi tipovi').click();
       cy.get('[role="option"]').contains('Devizni').click();
 
-      cy.get('table tbody tr', { timeout: 10000 }).should(($rows) => {
+      cy.get('table').first().find('tbody tr', { timeout: 10000 }).should(($rows) => {
         expect($rows.length).to.be.greaterThan(0);
         $rows.each((_, row) => {
           expect(Cypress.$(row).text()).to.include('Devizni');
@@ -201,10 +268,10 @@ describe('Accounts - Lista racuna', () => {
     });
 
     it('filtrira po poslovnom tipu', () => {
-      cy.get('[role="combobox"]').first().click();
+      cy.contains('[role="combobox"]', 'Svi tipovi').click();
       cy.get('[role="option"]').contains('Poslovni').click();
 
-      cy.get('table tbody tr', { timeout: 10000 }).should(($rows) => {
+      cy.get('table').first().find('tbody tr', { timeout: 10000 }).should(($rows) => {
         expect($rows.length).to.be.greaterThan(0);
         $rows.each((_, row) => {
           expect(Cypress.$(row).text()).to.include('Poslovni');
@@ -213,52 +280,54 @@ describe('Accounts - Lista racuna', () => {
     });
 
     it('prikazuje sve tipove kada se izabere Svi tipovi', () => {
-      cy.get('[role="combobox"]').first().click();
+      cy.contains('[role="combobox"]', 'Svi tipovi').click();
       cy.get('[role="option"]').contains('Tekuci').click();
 
-      cy.get('[role="combobox"]').first().click();
+      cy.contains('[role="combobox"]', 'Tekuci').click();
       cy.get('[role="option"]').contains('Svi tipovi').click();
 
-      cy.get('table tbody tr').should('have.length.greaterThan', 3);
+      cy.get('table').first().find('tbody tr').should('have.length.greaterThan', 3);
     });
   });
 
   describe('Paginacija', () => {
     it('menja broj redova po stranici', () => {
       cy.contains('Redova po stranici:')
+        .first()
         .parent()
         .find('[role="combobox"]')
         .click();
       cy.get('[role="option"]').contains('5').click();
 
-      cy.get('table tbody tr').should('have.length.at.most', 5);
+      cy.get('table').first().find('tbody tr').should('have.length.at.most', 5);
     });
 
     it('navigira na sledecu stranicu', () => {
       cy.contains('Redova po stranici:')
+        .first()
         .parent()
         .find('[role="combobox"]')
         .click();
       cy.get('[role="option"]').contains('5').click();
 
-      cy.get('button').filter(':has(svg.lucide-chevron-right)').click();
-      cy.contains('6–').should('be.visible');
+      cy.get('table').first().parent().parent().find('button:has(svg.lucide-chevron-right)').click();
+      cy.get('table').first().parent().parent().contains('6–').should('be.visible');
     });
   });
 
   describe('Formatiranje podataka', () => {
     it('stanje je formatirano u sr-RS formatu', () => {
-      cy.get('table tbody tr').first().find('td').eq(3).invoke('text').should('match', /\d{1,3}(\.\d{3})*(,\d{2})/);
+      cy.get('table').first().find('tbody tr').first().find('td').eq(3).invoke('text').should('match', /\d{1,3}(\.\d{3})*(,\d{2})/);
     });
 
     it('broj racuna ima ispravan format (265-...)', () => {
-      cy.get('table tbody tr').each(($row) => {
+      cy.get('table').first().find('tbody tr').each(($row) => {
         cy.wrap($row).find('td').first().invoke('text').should('match', /^265-/);
       });
     });
 
     it('svaki racun ima prikazanu valutu', () => {
-      cy.get('table tbody tr').each(($row) => {
+      cy.get('table').first().find('tbody tr').each(($row) => {
         cy.wrap($row).find('td').eq(4).invoke('text').should('match', /^(RSD|EUR|USD)$/);
       });
     });
@@ -314,47 +383,49 @@ describe('Accounts - Lista racuna', () => {
   describe('Paginacija - napredni testovi', () => {
     it('navigira na prethodnu stranicu', () => {
       cy.contains('Redova po stranici:')
+        .first()
         .parent()
         .find('[role="combobox"]')
         .click();
       cy.get('[role="option"]').contains('5').click();
 
-      cy.get('button').filter(':has(svg.lucide-chevron-right)').click();
-      cy.contains('6–').should('be.visible');
+      cy.get('table').first().parent().parent().find('button:has(svg.lucide-chevron-right)').click();
+      cy.get('table').first().parent().parent().contains('6–').should('be.visible');
 
-      cy.get('button').filter(':has(svg.lucide-chevron-left)').click();
-      cy.contains('1–').should('be.visible');
+      cy.get('table').first().parent().parent().find('button:has(svg.lucide-chevron-left)').click();
+      cy.get('table').first().parent().parent().contains('1–').should('be.visible');
     });
 
     it('dugme za prethodnu stranicu je onemoguceno na prvoj stranici', () => {
-      cy.get('button').filter(':has(svg.lucide-chevron-left)').should('be.disabled');
+      cy.get('table').first().parent().parent().find('button:has(svg.lucide-chevron-left)').should('be.disabled');
     });
 
     it('prikazuje tacan opseg zapisa (npr. 1-10 od 11)', () => {
-      cy.get('.text-muted-foreground').contains(/\d+–\d+ od \d+/).should('be.visible');
+      cy.get('table').first().parent().parent().find('.text-muted-foreground').contains(/\d+–\d+ od \d+/).should('be.visible');
     });
 
     it('resetuje na prvu stranicu kada se promeni filter', () => {
       cy.contains('Redova po stranici:')
+        .first()
         .parent()
         .find('[role="combobox"]')
         .click();
       cy.get('[role="option"]').contains('5').click();
 
-      cy.get('button').filter(':has(svg.lucide-chevron-right)').click();
-      cy.contains('6–').should('be.visible');
+      cy.get('table').first().parent().parent().find('button:has(svg.lucide-chevron-right)').click();
+      cy.get('table').first().parent().parent().contains('6–').should('be.visible');
 
-      cy.get('button[title="Filteri"]').click();
-      cy.get('[role="combobox"]').first().click();
+      cy.get('button[title="Filteri"]').first().click();
+      cy.contains('[role="combobox"]', 'Svi tipovi').click();
       cy.get('[role="option"]').contains('Tekuci').click();
 
-      cy.get('.text-muted-foreground').contains(/1–/).should('be.visible');
+      cy.get('table').first().parent().parent().find('.text-muted-foreground').contains(/1–/).should('be.visible');
     });
   });
 
   describe('Navigacija', () => {
-    it('klik na red preusmerava na detalje racuna', () => {
-      cy.get('table tbody tr').first().click();
+    it('dupli klik na red preusmerava na detalje racuna', () => {
+      cy.get('table').first().find('tbody tr').first().dblclick();
       cy.url().should('include', '/accounts/');
     });
 
@@ -369,7 +440,216 @@ describe('Accounts - Lista racuna', () => {
     });
 
     it('redovi tabele imaju kursor pointer', () => {
-      cy.get('table tbody tr').first().should('have.class', 'cursor-pointer');
+      cy.get('table').first().find('tbody tr').first().should('have.class', 'cursor-pointer');
+    });
+  });
+});
+
+describe('Accounts - Transakcije za selektovani racun', () => {
+  beforeEach(() => {
+    interceptAccountsApi();
+    interceptTransactionsApi();
+
+    cy.visit('/accounts', {
+      onBeforeLoad(win) {
+        setupClientSession(win);
+      },
+    });
+
+    cy.contains('Racuni', { timeout: 10000 }).should('be.visible');
+  });
+
+  it('prikazuje panel sa transakcijama', () => {
+    cy.contains('Transakcije').should('be.visible');
+  });
+
+  it('prikazuje naziv selektovanog racuna u naslovu panela', () => {
+    cy.contains('Transakcije').parent().should('contain.text', '265-');
+  });
+
+  it('prikazuje tabelu transakcija', () => {
+    cy.get('table').eq(1).should('be.visible');
+    cy.get('table').eq(1).find('th').should('contain.text', 'Datum');
+    cy.get('table').eq(1).find('th').should('contain.text', 'Svrha');
+    cy.get('table').eq(1).find('th').should('contain.text', 'Iznos');
+    cy.get('table').eq(1).find('th').should('contain.text', 'Status');
+  });
+
+  it('prikazuje transakcije u tabeli', () => {
+    cy.get('table').eq(1).find('tbody tr').should('have.length', 4);
+  });
+
+  it('prikazuje status badge za transakciju', () => {
+    cy.get('table').eq(1).within(() => {
+      cy.contains('Zavrsena').should('exist');
+      cy.contains('Na cekanju').should('exist');
+      cy.contains('Odbijena').should('exist');
+    });
+  });
+
+  it('prikazuje svrhu placanja', () => {
+    cy.get('table').eq(1).within(() => {
+      cy.contains('Placanje racuna za struju').should('exist');
+    });
+  });
+
+  it('oznacava odlazne transakcije crvenom bojom', () => {
+    cy.get('table').eq(1).find('tbody tr').first().within(() => {
+      cy.get('.text-destructive').should('exist');
+    });
+  });
+
+  it('oznacava dolazne transakcije zelenom bojom', () => {
+    cy.get('table').eq(1).find('tbody tr').eq(1).within(() => {
+      cy.get('.text-green-600').should('exist');
+    });
+  });
+
+  it('menja transakcije kada se selektuje drugi racun', () => {
+    const otherTransactions = {
+      content: [
+        {
+          id: 10, fromAccountNumber: '265000000000000229', toAccountNumber: '265000000000000112',
+          amount: 500, currency: 'EUR', description: 'Uplata EUR', referenceNumber: 'REF010',
+          paymentCode: '289', paymentPurpose: 'Devizni prenos',
+          recipientName: 'Stefan Jovanovic', status: 'COMPLETED', createdAt: '2025-03-12',
+        },
+      ],
+      totalElements: 1,
+      totalPages: 1,
+      size: 10,
+      number: 0,
+    };
+
+    cy.intercept('GET', '**/transactions*', {
+      statusCode: 200,
+      body: otherTransactions,
+    }).as('getTransactionsOther');
+
+    cy.get('table').first().find('tbody tr').eq(1).click();
+
+    cy.wait('@getTransactionsOther');
+    cy.get('table').eq(1).find('tbody tr').should('have.length', 1);
+    cy.get('table').eq(1).contains('Devizni prenos').should('exist');
+  });
+
+  describe('Filteri transakcija', () => {
+    beforeEach(() => {
+      cy.get('button[title="Filteri transakcija"]').click();
+    });
+
+    it('prikazuje filter sekciju sa statusom i datumima', () => {
+      cy.contains('Status').should('be.visible');
+      cy.contains('Datum od').should('be.visible');
+      cy.contains('Datum do').should('be.visible');
+    });
+
+    it('prikazuje dugme za resetovanje filtera', () => {
+      cy.contains('Resetuj').should('be.visible');
+    });
+
+    it('filtrira po statusu', () => {
+      const filteredTransactions = {
+        content: [MOCK_TRANSACTIONS.content[2]],
+        totalElements: 1,
+        totalPages: 1,
+        size: 10,
+        number: 0,
+      };
+
+      cy.intercept('GET', '**/transactions*status=PENDING*', {
+        statusCode: 200,
+        body: filteredTransactions,
+      }).as('getFilteredTransactions');
+
+      // Click the status select (second combobox in filter area - first is account type)
+      cy.contains('Svi statusi').click();
+      cy.get('[role="option"]').contains('Na cekanju').click();
+
+      cy.wait('@getFilteredTransactions');
+      cy.get('table').eq(1).find('tbody tr').should('have.length', 1);
+    });
+
+    it('resetuje filtere klikom na Resetuj', () => {
+      cy.contains('Svi statusi').click();
+      cy.get('[role="option"]').contains('Na cekanju').click();
+
+      cy.contains('Resetuj').click();
+      // After reset, it should re-fetch all transactions
+      cy.get('table').eq(1).find('tbody tr').should('have.length', 4);
+    });
+  });
+
+  describe('Prazno stanje transakcija', () => {
+    it('prikazuje poruku kada nema transakcija', () => {
+      interceptTransactionsApi(EMPTY_TRANSACTIONS);
+
+      cy.visit('/accounts', {
+        onBeforeLoad(win) {
+          setupClientSession(win);
+        },
+      });
+
+      cy.contains('Nema transakcija za ovaj racun', { timeout: 10000 }).should('be.visible');
+    });
+
+    it('prikazuje link za uklanjanje filtera kada nema rezultata sa filterima', () => {
+      interceptAccountsApi();
+
+      cy.intercept('GET', '**/transactions*', {
+        statusCode: 200,
+        body: EMPTY_TRANSACTIONS,
+      }).as('getEmptyTransactions');
+
+      cy.visit('/accounts', {
+        onBeforeLoad(win) {
+          setupClientSession(win);
+        },
+      });
+
+      cy.contains('Nema transakcija za ovaj racun', { timeout: 10000 }).should('be.visible');
+      // Open filters and set one to trigger the "remove filters" link
+      cy.get('button[title="Filteri transakcija"]').click();
+      cy.contains('Svi statusi').click();
+      cy.get('[role="option"]').contains('Na cekanju').click();
+
+      cy.contains('Ukloni filtere').should('be.visible');
+    });
+  });
+
+  describe('Greska pri ucitavanju transakcija', () => {
+    it('prikazuje poruku greske', () => {
+      interceptAccountsApi();
+      cy.intercept('GET', '**/transactions*', {
+        statusCode: 500,
+        body: { message: 'Internal Server Error' },
+      }).as('getTransactionsError');
+
+      cy.visit('/accounts', {
+        onBeforeLoad(win) {
+          setupClientSession(win);
+        },
+      });
+
+      cy.contains('Greska pri ucitavanju transakcija', { timeout: 10000 }).should('be.visible');
+    });
+  });
+
+  describe('Bez transakcijskog panela kada nema racuna', () => {
+    it('ne prikazuje panel transakcija kada nema racuna', () => {
+      cy.intercept('GET', '**/accounts/my', {
+        statusCode: 200,
+        body: [],
+      }).as('getAccountsEmpty');
+
+      cy.visit('/accounts', {
+        onBeforeLoad(win) {
+          setupClientSession(win);
+        },
+      });
+
+      cy.contains('Nema pronadjenih racuna', { timeout: 10000 }).should('be.visible');
+      cy.contains('Transakcije').should('not.exist');
     });
   });
 });
