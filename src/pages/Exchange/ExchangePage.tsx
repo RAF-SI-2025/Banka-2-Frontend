@@ -1,4 +1,4 @@
-// TODO [FE2-09a] @Antonije - Menjacnica: Kursna lista
+
 // TODO [FE2-09b] @Antonije - Menjacnica: Kalkulator konverzije
 //
 // Ova stranica prikazuje kursnu listu i omogucava konverziju valuta.
@@ -21,6 +21,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 
+const SUPPORTED_CURRENCIES = ['RSD', 'EUR', 'CHF', 'USD', 'GBP', 'JPY', 'CAD', 'AUD'] as const;
+
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
@@ -32,8 +34,39 @@ function formatAmount(value: number | null | undefined, decimals = 2): string {
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return '-';
+
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('sr-RS');
+  if (Number.isNaN(date.getTime())) return '-';
+
+  return date.toLocaleDateString('sr-RS');
+}
+
+function normalizeExchangeRates(rates: ExchangeRate[]): ExchangeRate[] {
+  const safeRates = asArray<ExchangeRate>(rates);
+
+  const filteredRates = safeRates.filter((rate) =>
+    SUPPORTED_CURRENCIES.includes(rate.currency as (typeof SUPPORTED_CURRENCIES)[number])
+  );
+
+  const hasRsd = filteredRates.some((rate) => rate.currency === 'RSD');
+  const fallbackDate = filteredRates[0]?.date ?? new Date().toISOString();
+
+  const ratesWithBase = hasRsd
+    ? filteredRates
+    : [
+        {
+          currency: 'RSD',
+          buyRate: 1,
+          sellRate: 1,
+          middleRate: 1,
+          date: fallbackDate,
+        } as ExchangeRate,
+        ...filteredRates,
+      ];
+
+  return SUPPORTED_CURRENCIES.map((currency) =>
+    ratesWithBase.find((rate) => rate.currency === currency)
+  ).filter((rate): rate is ExchangeRate => Boolean(rate));
 }
 
 export default function ExchangePage() {
@@ -66,10 +99,13 @@ export default function ExchangePage() {
           currencyService.getExchangeRates(),
           accountService.getMyAccounts(),
         ]);
-        const safeRates = asArray<ExchangeRate>(exchangeRates);
+
+        const safeRates = normalizeExchangeRates(asArray<ExchangeRate>(exchangeRates));
         const safeAccounts = asArray<Account>(myAccounts);
+
         setRates(safeRates);
         setAccounts(safeAccounts);
+
         if (safeAccounts.length > 0) {
           setValue('accountNumber', safeAccounts[0].accountNumber);
         }
@@ -81,6 +117,7 @@ export default function ExchangePage() {
         setLoading(false);
       }
     };
+
     load();
   }, [setValue]);
 
@@ -135,15 +172,23 @@ export default function ExchangePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {asArray<ExchangeRate>(rates).map((rate) => (
-                    <tr key={rate.currency} className="border-b">
-                      <td className="py-2">{rate.currency}</td>
-                      <td className="py-2">{formatAmount(rate.buyRate, 4)}</td>
-                      <td className="py-2">{formatAmount(rate.sellRate, 4)}</td>
-                      <td className="py-2">{formatAmount(rate.middleRate, 4)}</td>
-                      <td className="py-2">{formatDate(rate.date)}</td>
+                  {rates.length > 0 ? (
+                    rates.map((rate) => (
+                      <tr key={rate.currency} className="border-b">
+                        <td className="py-2">{rate.currency}</td>
+                        <td className="py-2">{formatAmount(rate.buyRate, 4)}</td>
+                        <td className="py-2">{formatAmount(rate.sellRate, 4)}</td>
+                        <td className="py-2">{formatAmount(rate.middleRate, 4)}</td>
+                        <td className="py-2">{formatDate(rate.date)}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="py-4 text-center text-muted-foreground">
+                        Nema dostupnih kurseva.
+                      </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </CardContent>
@@ -160,36 +205,71 @@ export default function ExchangePage() {
             <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit(onSubmit)} noValidate>
               <div className="space-y-2">
                 <Label htmlFor="fromCurrency">Iz valute</Label>
-                <select id="fromCurrency" title="Iz valute" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register('fromCurrency')}>
-                  {['RSD', 'EUR', 'CHF', 'USD', 'GBP', 'JPY', 'CAD', 'AUD'].map((currency) => (
-                    <option key={currency} value={currency}>{currency}</option>
+                <select
+                  id="fromCurrency"
+                  title="Iz valute"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register('fromCurrency')}
+                >
+                  {SUPPORTED_CURRENCIES.map((currency) => (
+                    <option key={currency} value={currency}>
+                      {currency}
+                    </option>
                   ))}
                 </select>
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="toCurrency">U valutu</Label>
-                <select id="toCurrency" title="U valutu" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register('toCurrency')}>
-                  {['RSD', 'EUR', 'CHF', 'USD', 'GBP', 'JPY', 'CAD', 'AUD'].map((currency) => (
-                    <option key={currency} value={currency}>{currency}</option>
+                <select
+                  id="toCurrency"
+                  title="U valutu"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register('toCurrency')}
+                >
+                  {SUPPORTED_CURRENCIES.map((currency) => (
+                    <option key={currency} value={currency}>
+                      {currency}
+                    </option>
                   ))}
                 </select>
-                {errors.toCurrency && <p className="text-sm text-destructive">{errors.toCurrency.message}</p>}
+                {errors.toCurrency && (
+                  <p className="text-sm text-destructive">{errors.toCurrency.message}</p>
+                )}
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="amount">Iznos</Label>
-                <input id="amount" type="number" step="0.01" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register('amount', { valueAsNumber: true })} />
+                <input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register('amount', { valueAsNumber: true })}
+                />
                 {errors.amount && <p className="text-sm text-destructive">{errors.amount.message}</p>}
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="accountNumber">Račun</Label>
-                <select id="accountNumber" title="Račun" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register('accountNumber')}>
+                <select
+                  id="accountNumber"
+                  title="Račun"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register('accountNumber')}
+                >
                   <option value="">Izaberite račun</option>
                   {eligibleAccounts.map((account) => (
-                    <option key={account.id} value={account.accountNumber}>{account.accountNumber} ({account.currency})</option>
+                    <option key={account.id} value={account.accountNumber}>
+                      {account.accountNumber} ({account.currency})
+                    </option>
                   ))}
                 </select>
-                {errors.accountNumber && <p className="text-sm text-destructive">{errors.accountNumber.message}</p>}
+                {errors.accountNumber && (
+                  <p className="text-sm text-destructive">{errors.accountNumber.message}</p>
+                )}
               </div>
+
               <div className="md:col-span-2 flex justify-end">
                 <Button type="submit">Konvertuj</Button>
               </div>
@@ -198,7 +278,8 @@ export default function ExchangePage() {
             {result && (
               <div className="mt-4 rounded-md border p-3 text-sm">
                 <p>
-                  {watch('amount')} {watch('fromCurrency')} = {formatAmount(result.convertedAmount)} {watch('toCurrency')} po kursu {formatAmount(result.rate, 4)}
+                  {watch('amount')} {watch('fromCurrency')} = {formatAmount(result.convertedAmount)}{' '}
+                  {watch('toCurrency')} po kursu {formatAmount(result.rate, 4)}
                 </p>
               </div>
             )}
@@ -208,4 +289,3 @@ export default function ExchangePage() {
     </div>
   );
 }
-
