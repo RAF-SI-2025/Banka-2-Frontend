@@ -6,11 +6,12 @@ import {
   ArrowLeft,
   ArrowUpRight,
   ArrowDownLeft,
-  Loader2,
   Pencil,
   CreditCard,
   ArrowLeftRight,
   History,
+  Wallet,
+  Inbox,
 } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
@@ -177,8 +178,30 @@ export default function AccountDetailsPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="space-y-6 py-6">
+        <div className="h-8 w-40 rounded bg-muted animate-pulse" />
+        <div className="h-10 w-64 rounded bg-muted animate-pulse" />
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                  <div className="h-6 w-32 rounded bg-muted animate-pulse" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex gap-4">
+                <div className="h-4 w-full rounded bg-muted animate-pulse" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -189,7 +212,13 @@ export default function AccountDetailsPage() {
         <Button variant="ghost" onClick={() => navigate('/accounts')}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Nazad na racune
         </Button>
-        <p className="text-muted-foreground">Racun nije pronadjen.</p>
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="rounded-full bg-muted p-4 mb-3">
+            <Inbox className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <p className="font-medium text-muted-foreground">Racun nije pronadjen</p>
+          <p className="text-sm text-muted-foreground mt-1">Racun koji trazite ne postoji ili je uklonjen.</p>
+        </div>
       </div>
     );
   }
@@ -202,21 +231,27 @@ export default function AccountDetailsPage() {
       </Button>
 
       {/* Header */}
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-bold">{account.name || 'Detalji racuna'}</h1>
-        <Badge variant={statusVariant[account.status]}>
-          {statusLabels[account.status] || account.status}
-        </Badge>
-        <Badge variant="info">
-          {accountTypeLabels[account.accountType] || account.accountType}
-        </Badge>
+      <div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Wallet className="h-6 w-6 text-primary" />
+          <h1 className="text-3xl font-bold tracking-tight">{account.name || 'Detalji racuna'}</h1>
+          <Badge variant={statusVariant[account.status]}>
+            {statusLabels[account.status] || account.status}
+          </Badge>
+          <Badge variant="info">
+            {accountTypeLabels[account.accountType] || account.accountType}
+          </Badge>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">{formatAccountNumber(account.accountNumber)}</p>
       </div>
-      <p className="text-muted-foreground">{formatAccountNumber(account.accountNumber)}</p>
 
       {/* Balance card */}
       <Card>
         <CardHeader>
-          <CardTitle>Stanje racuna</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <CardTitle>Stanje racuna</CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -243,7 +278,10 @@ export default function AccountDetailsPage() {
       {/* Limits card */}
       <Card>
         <CardHeader>
-          <CardTitle>Limiti i potrosnja</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <CardTitle>Limiti i potrosnja</CardTitle>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-3">
@@ -274,7 +312,7 @@ export default function AccountDetailsPage() {
               <Input id="monthlyLimit" type="number" value={monthlyLimit} onChange={(e) => setMonthlyLimit(e.target.value)} />
             </div>
           </div>
-          <Button onClick={saveLimits} disabled={isSavingLimits}>
+          <Button onClick={saveLimits} disabled={isSavingLimits} className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all">
             {isSavingLimits ? 'Cuvanje...' : 'Sacuvaj limite'}
           </Button>
         </CardContent>
@@ -283,7 +321,10 @@ export default function AccountDetailsPage() {
       {/* Actions card */}
       <Card>
         <CardHeader>
-          <CardTitle>Akcije</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <CardTitle>Akcije</CardTitle>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-2">
@@ -315,11 +356,20 @@ export default function AccountDetailsPage() {
       {/* Recent transactions */}
       <Card>
         <CardHeader>
-          <CardTitle>Poslednje transakcije</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <CardTitle>Poslednje transakcije</CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
           {transactions.length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground">Nema transakcija za ovaj racun.</p>
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="rounded-full bg-muted p-3 mb-3">
+                <Inbox className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="font-medium text-muted-foreground">Nema transakcija za ovaj racun</p>
+              <p className="text-sm text-muted-foreground mt-1">Transakcije ce se pojaviti nakon prve uplate ili placanja.</p>
+            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -336,7 +386,7 @@ export default function AccountDetailsPage() {
                 {transactions.map((tx) => {
                   const isOutgoing = tx.fromAccountNumber === account.accountNumber;
                   return (
-                    <TableRow key={tx.id}>
+                    <TableRow key={tx.id} className="hover:bg-muted/50 transition-colors">
                       <TableCell>
                         {isOutgoing ? (
                           <ArrowUpRight className="h-4 w-4 text-destructive" />
@@ -346,7 +396,7 @@ export default function AccountDetailsPage() {
                       </TableCell>
                       <TableCell className="whitespace-nowrap">{formatDate(tx.createdAt)}</TableCell>
                       <TableCell>
-                        {tx.recipientName || '—'}
+                        {tx.recipientName || '\u2014'}
                         <span className="block text-xs text-muted-foreground">
                           {isOutgoing
                             ? formatAccountNumber(tx.toAccountNumber)
@@ -357,7 +407,7 @@ export default function AccountDetailsPage() {
                         {tx.paymentPurpose}
                       </TableCell>
                       <TableCell className={`text-right font-medium whitespace-nowrap ${isOutgoing ? 'text-destructive' : 'text-green-600'}`}>
-                        {isOutgoing ? '−' : '+'}{formatBalance(tx.amount, tx.currency)}
+                        {isOutgoing ? '\u2212' : '+'}{formatBalance(tx.amount, tx.currency)}
                       </TableCell>
                       <TableCell>
                         <Badge variant={txStatusVariant[tx.status]}>

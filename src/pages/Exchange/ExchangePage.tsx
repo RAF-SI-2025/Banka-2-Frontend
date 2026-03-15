@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { RefreshCw, Inbox } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { currencyService } from '@/services/currencyService';
@@ -158,12 +159,30 @@ export default function ExchangePage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <h1 className="text-3xl font-bold">Menjačnica</h1>
+      <div>
+        <div className="flex items-center gap-2">
+          <RefreshCw className="h-6 w-6 text-primary" />
+          <h1 className="text-3xl font-bold tracking-tight">Menjacnica</h1>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">Pregledajte kursnu listu i izvrsiti konverziju valuta.</p>
+      </div>
 
       <section>
         <h2 className="text-xl font-semibold mb-4">Kursna lista</h2>
         {loading ? (
-          <p className="text-muted-foreground">Učitavanje kursne liste...</p>
+          <Card>
+            <CardContent className="pt-4 space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex gap-4">
+                  <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                  <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         ) : (
           <Card>
             <CardContent className="pt-4 overflow-x-auto">
@@ -180,7 +199,7 @@ export default function ExchangePage() {
                 <tbody>
                   {rates.length > 0 ? (
                     rates.map((rate) => (
-                      <tr key={rate.currency} className="border-b">
+                      <tr key={rate.currency} className="border-b hover:bg-muted/50 transition-colors">
                         <td className="py-2">{rate.currency}</td>
                         <td className="py-2">{formatAmount(rate.buyRate, 4)}</td>
                         <td className="py-2">{formatAmount(rate.sellRate, 4)}</td>
@@ -190,8 +209,14 @@ export default function ExchangePage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5} className="py-4 text-center text-muted-foreground">
-                        Nema dostupnih kurseva.
+                      <td colSpan={5} className="py-12">
+                        <div className="flex flex-col items-center justify-center text-center">
+                          <div className="rounded-full bg-muted p-3 mb-3">
+                            <Inbox className="h-6 w-6 text-muted-foreground" />
+                          </div>
+                          <p className="font-medium text-muted-foreground">Nema dostupnih kurseva</p>
+                          <p className="text-sm text-muted-foreground mt-1">Pokusajte ponovo kasnije.</p>
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -205,7 +230,10 @@ export default function ExchangePage() {
       <section>
         <Card>
           <CardHeader>
-            <CardTitle>Konverzija</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <CardTitle>Konverzija</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit(onSubmit)} noValidate>
@@ -262,14 +290,14 @@ export default function ExchangePage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="accountNumber">Račun</Label>
+                <Label htmlFor="accountNumber">Racun</Label>
                 <select
                   id="accountNumber"
-                  title="Račun"
+                  title="Racun"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register('accountNumber')}
                 >
-                  <option value="">Izaberite račun</option>
+                  <option value="">Izaberite racun</option>
                   {eligibleAccounts.map((account) => (
                     <option key={account.id} value={account.accountNumber}>
                       {account.accountNumber} ({account.currency})
@@ -282,7 +310,7 @@ export default function ExchangePage() {
               </div>
 
               <div className="md:col-span-2 flex justify-end">
-                <Button type="submit">Konvertuj</Button>
+                <Button type="submit" className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all">Konvertuj</Button>
               </div>
             </form>
 

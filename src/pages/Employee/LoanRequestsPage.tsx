@@ -8,6 +8,7 @@
 // - Spec: "Zahtevi za kredit" iz Celine 2 (employee section)
 
 import { useEffect, useMemo, useState } from 'react';
+import { ShieldCheck, Inbox } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,7 +59,7 @@ export default function LoanRequestsPage() {
       );
       setLoanRequests(asArray<LoanRequest>(response.content));
     } catch {
-      toast.error('Neuspešno učitavanje zahteva za kredit.');
+      toast.error('Neuspesno ucitavanje zahteva za kredit.');
       setLoanRequests([]);
     } finally {
       setLoading(false);
@@ -113,18 +114,27 @@ export default function LoanRequestsPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <h1 className="text-3xl font-bold">Zahtevi za kredit</h1>
+      <div>
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-6 w-6 text-primary" />
+          <h1 className="text-3xl font-bold tracking-tight">Zahtevi za kredit</h1>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">Pregledajte i obradite zahteve za kredit klijenata.</p>
+      </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Filter po statusu</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <CardTitle>Filter po statusu</CardTitle>
+          </div>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           <Button variant={statusFilter === 'ALL' ? 'default' : 'outline'} onClick={() => setStatusFilter('ALL')}>
             Svi ({counts.all})
           </Button>
           <Button variant={statusFilter === 'PENDING' ? 'default' : 'outline'} onClick={() => setStatusFilter('PENDING')}>
-            Na čekanju ({counts.pending})
+            Na cekanju ({counts.pending})
           </Button>
           <Button variant={statusFilter === 'APPROVED' ? 'default' : 'outline'} onClick={() => setStatusFilter('APPROVED')}>
             Odobreni ({counts.approved})
@@ -136,10 +146,33 @@ export default function LoanRequestsPage() {
       </Card>
 
       {loading ? (
-        <p className="text-muted-foreground">Učitavanje zahteva...</p>
+        <Card>
+          <CardContent className="pt-6 space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex gap-4">
+                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                <div className="h-4 flex-1 rounded bg-muted animate-pulse" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       ) : asArray<LoanRequest>(loanRequests).length === 0 ? (
         <Card>
-          <CardContent className="pt-6 text-muted-foreground">Nema zahteva za izabrani filter.</CardContent>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="rounded-full bg-muted p-3 mb-3">
+                <Inbox className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="font-medium text-muted-foreground">Nema zahteva za izabrani filter</p>
+              <p className="text-sm text-muted-foreground mt-1">Pokusajte sa drugim statusom filtera.</p>
+            </div>
+          </CardContent>
         </Card>
       ) : (
         <Card>
@@ -165,7 +198,7 @@ export default function LoanRequestsPage() {
 
                   return (
                     <>
-                      <tr key={request.id} className="border-b align-top">
+                      <tr key={request.id} className="border-b align-top hover:bg-muted/50 transition-colors">
                         <td className="py-2">{request.clientName || request.clientEmail || '-'}</td>
                         <td className="py-2">{request.loanType}</td>
                         <td className="py-2">{request.interestRateType}</td>
@@ -192,6 +225,7 @@ export default function LoanRequestsPage() {
                                   size="sm"
                                   onClick={() => handleApprove(request.id)}
                                   disabled={processingId === request.id}
+                                  className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
                                 >
                                   Odobri
                                 </Button>
@@ -216,10 +250,10 @@ export default function LoanRequestsPage() {
                           <td className="py-3 px-2" colSpan={8}>
                             <div className="grid gap-2 md:grid-cols-2 text-sm">
                               <p>Svrha: <span className="font-medium">{request.loanPurpose}</span></p>
-                              <p>Račun: <span className="font-medium">{request.accountNumber}</span></p>
+                              <p>Racun: <span className="font-medium">{request.accountNumber}</span></p>
                               <p>Telefon: <span className="font-medium">{request.phoneNumber}</span></p>
                               <p>Status zaposlenja: <span className="font-medium">{request.employmentStatus || '-'}</span></p>
-                              <p>Mesečni prihod: <span className="font-medium">{request.monthlyIncome ?? '-'}</span></p>
+                              <p>Mesecni prihod: <span className="font-medium">{request.monthlyIncome ?? '-'}</span></p>
                               <p>Stalno zaposlen: <span className="font-medium">{request.permanentEmployment ? 'Da' : 'Ne'}</span></p>
                             </div>
 
@@ -249,7 +283,7 @@ export default function LoanRequestsPage() {
                                       setRejectReason('');
                                     }}
                                   >
-                                    Otkaži
+                                    Otkazi
                                   </Button>
                                 </div>
                               </div>
@@ -268,5 +302,3 @@ export default function LoanRequestsPage() {
     </div>
   );
 }
-
-

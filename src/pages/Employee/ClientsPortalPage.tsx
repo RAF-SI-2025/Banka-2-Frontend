@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { BookUser, Inbox } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { clientService } from '@/services/clientService';
@@ -38,7 +39,7 @@ function getErrorMessage(defaultMessage: string, error: unknown): string {
     }
 
     if (status === 404) {
-      return 'Traženi resurs nije pronađen.';
+      return 'Trazeni resurs nije pronadjen.';
     }
   }
 
@@ -133,7 +134,7 @@ export default function ClientsPortalPage() {
     } catch (error) {
       setClients([]);
       setTotalPages(1);
-      toast.error(getErrorMessage('Neuspešno učitavanje klijenata.', error));
+      toast.error(getErrorMessage('Neuspesno ucitavanje klijenata.', error));
     } finally {
       setListLoading(false);
     }
@@ -162,7 +163,7 @@ export default function ClientsPortalPage() {
       setClientAccounts(accounts);
     } catch (error) {
       resetDetailsState();
-      toast.error(getErrorMessage('Neuspešno učitavanje klijenta iz rute.', error));
+      toast.error(getErrorMessage('Neuspesno ucitavanje klijenta iz rute.', error));
     } finally {
       setDetailsLoading(false);
     }
@@ -213,7 +214,7 @@ export default function ClientsPortalPage() {
       setSelectedClient(updatedClient);
       fillEditForm(updatedClient);
       setIsEditing(false);
-      toast.success('Klijent uspešno izmenjen.');
+      toast.success('Klijent uspesno izmenjen.');
 
       await loadClients();
       const accounts = await loadClientAccounts(updatedClient.email);
@@ -255,11 +256,20 @@ export default function ClientsPortalPage() {
 
   return (
     <div className="container mx-auto space-y-6 py-6">
-      <h1 className="text-3xl font-bold">Portal klijenata</h1>
+      <div>
+        <div className="flex items-center gap-2">
+          <BookUser className="h-6 w-6 text-primary" />
+          <h1 className="text-3xl font-bold tracking-tight">Portal klijenata</h1>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">Pretrazujte, pregledajte i uredujte podatke klijenata.</p>
+      </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Pretraga i lista klijenata</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <CardTitle>Pretraga i lista klijenata</CardTitle>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <Input
@@ -269,7 +279,17 @@ export default function ClientsPortalPage() {
           />
 
           {listLoading ? (
-            <p className="text-muted-foreground">Učitavanje klijenata...</p>
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex gap-4">
+                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                  <div className="h-4 w-40 rounded bg-muted animate-pulse" />
+                  <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                  <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -285,13 +305,19 @@ export default function ClientsPortalPage() {
                 <tbody>
                   {clients.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-6 text-center text-muted-foreground">
-                        Nema klijenata za prikaz.
+                      <td colSpan={5} className="py-6">
+                        <div className="flex flex-col items-center justify-center text-center">
+                          <div className="rounded-full bg-muted p-3 mb-3">
+                            <Inbox className="h-6 w-6 text-muted-foreground" />
+                          </div>
+                          <p className="font-medium text-muted-foreground">Nema klijenata za prikaz</p>
+                          <p className="text-sm text-muted-foreground mt-1">Pokusajte sa drugim terminom pretrage.</p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
                     clients.map((client) => (
-                      <tr key={client.id} className="border-b">
+                      <tr key={client.id} className="border-b hover:bg-muted/50 transition-colors">
                         <td className="py-2">{client.firstName}</td>
                         <td className="py-2">{client.lastName}</td>
                         <td className="py-2">{client.email}</td>
@@ -333,7 +359,7 @@ export default function ClientsPortalPage() {
               onClick={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))}
               disabled={page >= totalPages - 1 || listLoading}
             >
-              Sledeća
+              Sledeca
             </Button>
           </div>
         </CardContent>
@@ -342,7 +368,10 @@ export default function ClientsPortalPage() {
       {selectedClient && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Detalji klijenta</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <CardTitle>Detalji klijenta</CardTitle>
+            </div>
             <Button variant="outline" size="sm" onClick={handleBackToList}>
               Zatvori detalje
             </Button>
@@ -350,7 +379,14 @@ export default function ClientsPortalPage() {
 
           <CardContent className="space-y-4">
             {detailsLoading && (
-              <p className="text-sm text-muted-foreground">Učitavanje detalja...</p>
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex gap-4">
+                    <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                    <div className="h-4 w-48 rounded bg-muted animate-pulse" />
+                  </div>
+                ))}
+              </div>
             )}
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -405,7 +441,7 @@ export default function ClientsPortalPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="client-date-of-birth">Datum rođenja</Label>
+                <Label htmlFor="client-date-of-birth">Datum rodjenja</Label>
                 <Input
                   id="client-date-of-birth"
                   value={editForm.dateOfBirth}
@@ -432,27 +468,33 @@ export default function ClientsPortalPage() {
                 </Button>
               ) : (
                 <>
-                  <Button onClick={saveClient} disabled={saving}>
-                    {saving ? 'Čuvanje...' : 'Sačuvaj'}
+                  <Button onClick={saveClient} disabled={saving} className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all">
+                    {saving ? 'Cuvanje...' : 'Sacuvaj'}
                   </Button>
                   <Button variant="outline" onClick={handleCancelEdit} disabled={saving}>
-                    Otkaži
+                    Otkazi
                   </Button>
                 </>
               )}
             </div>
 
             <div className="space-y-2">
-              <h3 className="font-semibold">Računi klijenta</h3>
+              <h3 className="font-semibold">Racuni klijenta</h3>
 
               {clientAccounts.length === 0 ? (
-                <p className="text-muted-foreground">Nema računa za ovog klijenta.</p>
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <div className="rounded-full bg-muted p-3 mb-3">
+                    <Inbox className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="font-medium text-muted-foreground">Nema racuna za ovog klijenta</p>
+                  <p className="text-sm text-muted-foreground mt-1">Klijent trenutno nema otvorene racune.</p>
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b">
-                        <th className="py-2 text-left">Broj računa</th>
+                        <th className="py-2 text-left">Broj racuna</th>
                         <th className="py-2 text-left">Tip</th>
                         <th className="py-2 text-left">Valuta</th>
                         <th className="py-2 text-left">Stanje</th>
@@ -462,7 +504,7 @@ export default function ClientsPortalPage() {
                     </thead>
                     <tbody>
                       {clientAccounts.map((account) => (
-                        <tr key={account.id} className="border-b">
+                        <tr key={account.id} className="border-b hover:bg-muted/50 transition-colors">
                           <td className="py-2">{account.accountNumber}</td>
                           <td className="py-2">{account.accountType}</td>
                           <td className="py-2">{account.currency}</td>

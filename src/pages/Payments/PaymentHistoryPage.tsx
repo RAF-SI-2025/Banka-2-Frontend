@@ -7,6 +7,8 @@ import { transactionService } from '@/services/transactionService';
 import type { Account, Transaction, TransactionStatus } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { History, Inbox } from 'lucide-react';
 
 type SortField = 'date' | 'amount' | 'status';
 type SortDirection = 'asc' | 'desc';
@@ -15,12 +17,11 @@ function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
-function statusClass(status: TransactionStatus): string {
-  if (status === 'COMPLETED') return 'bg-green-100 text-green-700';
-  if (status === 'PENDING') return 'bg-yellow-100 text-yellow-700';
-  if (status === 'REJECTED') return 'bg-red-100 text-red-700';
-  if (status === 'CANCELLED') return 'bg-muted text-muted-foreground';
-  return 'bg-muted text-muted-foreground';
+function statusBadgeVariant(status: TransactionStatus) {
+  if (status === 'COMPLETED') return 'success' as const;
+  if (status === 'PENDING') return 'warning' as const;
+  if (status === 'REJECTED') return 'destructive' as const;
+  return 'secondary' as const;
 }
 
 function formatAmount(value: number | null | undefined, decimals = 2): string {
@@ -75,7 +76,7 @@ export default function PaymentHistoryPage() {
         const data = await accountService.getMyAccounts();
         setAccounts(asArray<Account>(data));
       } catch {
-        toast.error('Neuspešno učitavanje računa.');
+        toast.error('Neuspesno ucitavanje racuna.');
         setAccounts([]);
       }
     };
@@ -89,7 +90,7 @@ export default function PaymentHistoryPage() {
 
       try {
         if (amountMin && amountMax && Number(amountMin) > Number(amountMax)) {
-          toast.error('Minimalni iznos ne može biti veći od maksimalnog.');
+          toast.error('Minimalni iznos ne moze biti veci od maksimalnog.');
           setTransactions([]);
           setTotalPages(1);
           setLoading(false);
@@ -97,7 +98,7 @@ export default function PaymentHistoryPage() {
         }
 
         if (dateFrom && dateTo && new Date(dateFrom) > new Date(dateTo)) {
-          toast.error('Datum "od" ne može biti posle datuma "do".');
+          toast.error('Datum "od" ne moze biti posle datuma "do".');
           setTransactions([]);
           setTotalPages(1);
           setLoading(false);
@@ -118,7 +119,7 @@ export default function PaymentHistoryPage() {
         setTransactions(asArray<Transaction>(response.content));
         setTotalPages(Math.max(1, response.totalPages ?? 1));
       } catch {
-        toast.error('Neuspešno učitavanje plaćanja.');
+        toast.error('Neuspesno ucitavanje placanja.');
         setTransactions([]);
         setTotalPages(1);
       } finally {
@@ -195,27 +196,33 @@ export default function PaymentHistoryPage() {
 
       doc.setFontSize(12);
       doc.text(`Datum: ${formatDateTime(tx.createdAt)}`, 14, 35);
-      doc.text(`Sa računa: ${tx.fromAccountNumber}`, 14, 45);
-      doc.text(`Na račun: ${tx.toAccountNumber}`, 14, 55);
+      doc.text(`Sa racuna: ${tx.fromAccountNumber}`, 14, 45);
+      doc.text(`Na racun: ${tx.toAccountNumber}`, 14, 55);
       doc.text(`Iznos: ${formatAmount(tx.amount)} ${tx.currency}`, 14, 65);
       doc.text(`Status: ${tx.status}`, 14, 75);
       doc.text(`Svrha: ${tx.paymentPurpose || '-'}`, 14, 85);
       doc.text(`Opis: ${tx.description || '-'}`, 14, 95);
       doc.text(`Primalac: ${tx.recipientName || '-'}`, 14, 105);
-      doc.text(`Šifra plaćanja: ${tx.paymentCode || '-'}`, 14, 115);
+      doc.text(`Sifra placanja: ${tx.paymentCode || '-'}`, 14, 115);
       doc.text(`Referentni broj: ${tx.referenceNumber || '-'}`, 14, 125);
       doc.text(`Model: ${tx.model || '-'}`, 14, 135);
       doc.text(`Poziv na broj: ${tx.callNumber || '-'}`, 14, 145);
 
       doc.save(`potvrda-transakcije-${tx.id}.pdf`);
     } catch {
-      toast.error('Neuspešno generisanje PDF potvrde.');
+      toast.error('Neuspesno generisanje PDF potvrde.');
     }
   };
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <h1 className="text-3xl font-bold">Pregled plaćanja</h1>
+      <div>
+        <div className="flex items-center gap-2">
+          <History className="h-6 w-6 text-primary" />
+          <h1 className="text-3xl font-bold tracking-tight">Pregled placanja</h1>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">Pregledajte istoriju svih vasih placanja i transakcija.</p>
+      </div>
 
       <Card>
         <CardHeader>
@@ -224,11 +231,11 @@ export default function PaymentHistoryPage() {
         <CardContent className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">
             <label className="text-sm font-medium" htmlFor="accountFilter">
-              Račun
+              Racun
             </label>
             <select
               id="accountFilter"
-              title="Račun"
+              title="Racun"
               value={accountFilter}
               onChange={(e) => setAccountFilter(e.target.value)}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -360,8 +367,8 @@ export default function PaymentHistoryPage() {
               onChange={(e) => setSortDirection(e.target.value as SortDirection)}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="desc">Opadajuće</option>
-              <option value="asc">Rastuće</option>
+              <option value="desc">Opadajuce</option>
+              <option value="asc">Rastuce</option>
             </select>
           </div>
 
@@ -374,11 +381,31 @@ export default function PaymentHistoryPage() {
       </Card>
 
       {loading ? (
-        <p className="text-muted-foreground">Učitavanje transakcija...</p>
+        <Card>
+          <CardContent className="pt-6 space-y-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center gap-4">
+                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-36 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-36 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                <div className="h-5 w-20 rounded-full bg-muted animate-pulse" />
+                <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+                <div className="h-8 w-24 rounded bg-muted animate-pulse" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       ) : sortedTransactions.length === 0 ? (
         <Card>
-          <CardContent className="pt-6 text-muted-foreground">
-            Nema transakcija za izabrane filtere.
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+                <Inbox className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-semibold">Nema transakcija</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Nema transakcija za izabrane filtere.</p>
+            </div>
           </CardContent>
         </Card>
       ) : (
@@ -388,8 +415,8 @@ export default function PaymentHistoryPage() {
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-2">Datum</th>
-                  <th className="text-left py-2">Sa računa</th>
-                  <th className="text-left py-2">Na račun</th>
+                  <th className="text-left py-2">Sa racuna</th>
+                  <th className="text-left py-2">Na racun</th>
                   <th className="text-left py-2">Iznos</th>
                   <th className="text-left py-2">Status</th>
                   <th className="text-left py-2">Svrha</th>
@@ -402,7 +429,7 @@ export default function PaymentHistoryPage() {
                     <td colSpan={7} className="p-0">
                       <table className="w-full text-sm">
                         <tbody>
-                          <tr className="border-b">
+                          <tr className="border-b hover:bg-muted/50 transition-colors">
                             <td className="py-2">{formatDateTime(tx.createdAt)}</td>
                             <td className="py-2">{tx.fromAccountNumber}</td>
                             <td className="py-2">{tx.toAccountNumber}</td>
@@ -410,9 +437,9 @@ export default function PaymentHistoryPage() {
                               {formatAmount(tx.amount)} {tx.currency}
                             </td>
                             <td className="py-2">
-                              <span className={`px-2 py-1 rounded text-xs font-medium ${statusClass(tx.status)}`}>
+                              <Badge variant={statusBadgeVariant(tx.status)}>
                                 {tx.status}
-                              </span>
+                              </Badge>
                             </td>
                             <td className="py-2">{tx.paymentPurpose}</td>
                             <td className="py-2">
@@ -429,7 +456,7 @@ export default function PaymentHistoryPage() {
                                   size="sm"
                                   onClick={() => printTransaction(tx)}
                                 >
-                                  Štampaj potvrdu
+                                  Stampaj potvrdu
                                 </Button>
                               </div>
                             </td>
@@ -446,7 +473,7 @@ export default function PaymentHistoryPage() {
                                     Primalac: <span className="font-medium">{tx.recipientName || '-'}</span>
                                   </p>
                                   <p>
-                                    Šifra plaćanja: <span className="font-medium">{tx.paymentCode || '-'}</span>
+                                    Sifra placanja: <span className="font-medium">{tx.paymentCode || '-'}</span>
                                   </p>
                                   <p>
                                     Referentni broj:{' '}
@@ -495,7 +522,7 @@ export default function PaymentHistoryPage() {
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                 disabled={page >= totalPages - 1}
               >
-                Sledeća
+                Sledeca
               </Button>
             </div>
           </CardContent>

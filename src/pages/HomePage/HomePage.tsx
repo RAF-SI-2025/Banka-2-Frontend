@@ -7,7 +7,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/lib/notify';
-import { Users, UserPlus, Building2, BookUser, ShieldCheck, FileText, TrendingUp } from 'lucide-react';
+import {
+  Users, UserPlus, Building2, BookUser, ShieldCheck, FileText,
+  Wallet, ArrowUpRight, ArrowDownLeft, Send, RefreshCw,
+  CreditCard, TrendingUp, TrendingDown,
+} from 'lucide-react';
 import { accountService } from '@/services/accountService';
 import { currencyService } from '@/services/currencyService';
 import { paymentRecipientService } from '@/services/paymentRecipientService';
@@ -15,20 +19,24 @@ import { transactionService } from '@/services/transactionService';
 import { employeeService } from '@/services/employeeService';
 import type { Account, ExchangeRate, PaymentRecipient, Transaction } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
 import { useAuth } from '@/context/AuthContext';
 
 function formatAmount(value: number | null | undefined, decimals = 2): string {
   const num = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+  return Number.isFinite(num) ? num.toLocaleString('sr-RS', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) : (0).toFixed(decimals);
 }
 
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return '-';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('sr-RS');
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('sr-RS', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function asArray<T>(value: unknown): T[] {
@@ -43,43 +51,56 @@ interface AdminCard {
 }
 
 const adminCards: AdminCard[] = [
-  {
-    title: 'Lista zaposlenih',
-    description: 'Pregled i upravljanje zaposlenima.',
-    path: '/admin/employees',
-    icon: <Users className="h-7 w-7" />,
-  },
-  {
-    title: 'Novi zaposleni',
-    description: 'Kreiranje naloga za zaposlenog.',
-    path: '/admin/employees/new',
-    icon: <UserPlus className="h-7 w-7" />,
-  },
-  {
-    title: 'Portal računa',
-    description: 'Otvaranje i pregled klijentskih računa.',
-    path: '/employee/accounts',
-    icon: <Building2 className="h-7 w-7" />,
-  },
-  {
-    title: 'Portal klijenata',
-    description: 'Pregled klijenata i njihovih računa.',
-    path: '/employee/clients',
-    icon: <BookUser className="h-7 w-7" />,
-  },
-  {
-    title: 'Zahtevi za kredit',
-    description: 'Obrada klijentskih zahteva za kredit.',
-    path: '/employee/loan-requests',
-    icon: <ShieldCheck className="h-7 w-7" />,
-  },
-  {
-    title: 'Svi krediti',
-    description: 'Pregled svih aktivnih i završenih kredita.',
-    path: '/employee/loans',
-    icon: <FileText className="h-7 w-7" />,
-  },
+  { title: 'Lista zaposlenih', description: 'Pregled i upravljanje zaposlenima.', path: '/admin/employees', icon: <Users className="h-5 w-5" /> },
+  { title: 'Novi zaposleni', description: 'Kreiranje naloga za zaposlenog.', path: '/admin/employees/new', icon: <UserPlus className="h-5 w-5" /> },
+  { title: 'Portal računa', description: 'Otvaranje i pregled klijentskih računa.', path: '/employee/accounts', icon: <Building2 className="h-5 w-5" /> },
+  { title: 'Portal klijenata', description: 'Pregled klijenata i njihovih računa.', path: '/employee/clients', icon: <BookUser className="h-5 w-5" /> },
+  { title: 'Zahtevi za kredit', description: 'Obrada klijentskih zahteva za kredit.', path: '/employee/loan-requests', icon: <ShieldCheck className="h-5 w-5" /> },
+  { title: 'Svi krediti', description: 'Pregled svih aktivnih i završenih kredita.', path: '/employee/loans', icon: <FileText className="h-5 w-5" /> },
 ];
+
+// Skeleton components
+function CardSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="h-6 w-32 animate-pulse rounded bg-muted" />
+        <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function TableSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <Card>
+      <CardContent className="pt-4 space-y-3">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="flex gap-4">
+            <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+            <div className="h-4 flex-1 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-16 animate-pulse rounded bg-muted" />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+const currencyColors: Record<string, string> = {
+  RSD: 'text-blue-600 dark:text-blue-400',
+  EUR: 'text-indigo-600 dark:text-indigo-400',
+  USD: 'text-green-600 dark:text-green-400',
+  CHF: 'text-red-600 dark:text-red-400',
+  GBP: 'text-purple-600 dark:text-purple-400',
+  JPY: 'text-orange-600 dark:text-orange-400',
+  CAD: 'text-rose-600 dark:text-rose-400',
+  AUD: 'text-teal-600 dark:text-teal-400',
+};
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -174,64 +195,86 @@ export default function HomePage() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <h1 className="text-3xl font-bold">Dobrodošli{user?.firstName ? `, ${user.firstName}` : ''}</h1>
+    <div className="space-y-8">
+      {/* Welcome */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">
+          Dobrodošli{user?.firstName ? `, ${user.firstName}` : ''}
+        </h1>
+        <p className="mt-1 text-muted-foreground">
+          {isAdmin ? 'Upravljajte sistemom i pratite aktivnosti.' : 'Pregledajte račune, transakcije i upravljajte finansijama.'}
+        </p>
+      </div>
 
+      {/* Admin section */}
       {isAdmin && (
-        <section className="space-y-4">
-          <div className="flex items-center gap-2">
-            <img src="/logo.svg" alt="Banka 2025" className="h-7 w-7" />
-            <h2 className="text-xl font-semibold">Admin pregled</h2>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Card>
-              <CardHeader className="pb-2">
+        <section className="space-y-6">
+          {/* Stats */}
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Card className="relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent" />
+              <CardHeader className="relative flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Ukupno zaposlenih</CardTitle>
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                  <Users className="h-4 w-4" />
+                </div>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{adminStats.loading ? '-' : adminStats.total}</div>
+              <CardContent className="relative">
+                <div className="text-3xl font-bold">{adminStats.loading ? '-' : adminStats.total}</div>
+                <p className="mt-1 text-xs text-muted-foreground">registrovanih u sistemu</p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Aktivnih zaposlenih</CardTitle>
+            <Card className="relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent" />
+              <CardHeader className="relative flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Aktivnih</CardTitle>
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <TrendingUp className="h-4 w-4" />
+                </div>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">{adminStats.loading ? '-' : adminStats.active}</div>
+              <CardContent className="relative">
+                <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{adminStats.loading ? '-' : adminStats.active}</div>
+                <p className="mt-1 text-xs text-muted-foreground">trenutno aktivnih</p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Neaktivnih zaposlenih</CardTitle>
+            <Card className="relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent" />
+              <CardHeader className="relative flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Neaktivnih</CardTitle>
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400">
+                  <TrendingDown className="h-4 w-4" />
+                </div>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-orange-600">
+              <CardContent className="relative">
+                <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">
                   {adminStats.loading ? '-' : Math.max(adminStats.total - adminStats.active, 0)}
                 </div>
+                <p className="mt-1 text-xs text-muted-foreground">deaktiviranih naloga</p>
               </CardContent>
             </Card>
           </div>
 
+          {/* Admin quick actions */}
           <div>
-            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <TrendingUp className="h-7 w-7" />
-              Brze admin akcije
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <h2 className="text-lg font-semibold mb-3">Brze admin akcije</h2>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {adminCards.map((card) => (
                 <Card
                   key={card.path}
-                  className="cursor-pointer transition-all hover:shadow-md hover:-translate-y-1"
+                  className="group cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-indigo-500/5 hover:-translate-y-0.5 hover:border-indigo-500/20"
                   onClick={() => navigate(card.path)}
                 >
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <span className="text-primary">{card.icon}</span>
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                        {card.icon}
+                      </div>
                       {card.title}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="text-sm text-muted-foreground">{card.description}</CardContent>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">{card.description}</p>
+                  </CardContent>
                 </Card>
               ))}
             </div>
@@ -239,23 +282,51 @@ export default function HomePage() {
         </section>
       )}
 
+      {/* Accounts */}
       <section>
-        <h2 className="text-xl font-semibold mb-4">Moji računi</h2>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Moji računi</h2>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate('/accounts')}>Svi računi</Button>
+        </div>
         {loading ? (
-          <p className="text-muted-foreground">Učitavanje računa...</p>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <CardSkeleton /><CardSkeleton /><CardSkeleton />
+          </div>
         ) : accounts.length === 0 ? (
-          <p className="text-muted-foreground">Nemate otvorenih računa.</p>
+          <Card className="py-12">
+            <CardContent className="flex flex-col items-center text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
+                <Wallet className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="font-medium">Nemate otvorenih računa</p>
+              <p className="text-sm text-muted-foreground mt-1">Kontaktirajte banku za otvaranje računa.</p>
+            </CardContent>
+          </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {accounts.map((account) => (
-              <Card key={account.id} className="cursor-pointer" onClick={() => navigate(`/accounts/${account.id}`)}>
+              <Card
+                key={account.id}
+                className="group cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
+                onClick={() => navigate(`/accounts/${account.id}`)}
+              >
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">{account.name || `${account.accountType} račun`}</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-medium">{account.name || `${account.accountType} račun`}</CardTitle>
+                    <Badge variant="outline" className="text-xs">{account.accountType}</Badge>
+                  </div>
+                  <CardDescription className="font-mono text-xs">{account.accountNumber}</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-1 text-sm">
-                  <p>{account.accountNumber}</p>
-                  <p>Tip: <span className="font-medium">{account.accountType}</span></p>
-                  <p>Stanje: <span className="font-medium">{formatAmount(account.balance)} {account.currency}</span></p>
+                <CardContent>
+                  <div className={`text-2xl font-bold ${currencyColors[account.currency] || ''}`}>
+                    {formatAmount(account.balance)} <span className="text-sm font-semibold">{account.currency}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Raspoloživo: {formatAmount(account.availableBalance)} {account.currency}
+                  </p>
                 </CardContent>
               </Card>
             ))}
@@ -263,125 +334,186 @@ export default function HomePage() {
         )}
       </section>
 
+      {/* Recent transactions */}
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Poslednje transakcije</h2>
-          <Button variant="outline" onClick={() => navigate('/payments/history')}>Vidi sve</Button>
+          <div className="flex items-center gap-2">
+            <RefreshCw className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Poslednje transakcije</h2>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate('/payments/history')}>Vidi sve</Button>
         </div>
         {loading ? (
-          <p className="text-muted-foreground">Učitavanje transakcija...</p>
+          <TableSkeleton rows={5} />
         ) : transactions.length === 0 ? (
-          <p className="text-muted-foreground">Nema nedavnih transakcija.</p>
+          <Card className="py-12">
+            <CardContent className="flex flex-col items-center text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
+                <RefreshCw className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="font-medium">Nema nedavnih transakcija</p>
+              <p className="text-sm text-muted-foreground mt-1">Vaše transakcije će se prikazati ovde.</p>
+            </CardContent>
+          </Card>
         ) : (
           <Card>
-            <CardContent className="pt-4 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2">Datum</th>
-                    <th className="text-left py-2">Primalac</th>
-                    <th className="text-left py-2">Iznos</th>
-                    <th className="text-left py-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transactions.map((tx) => (
-                    <tr key={tx.id} className="border-b">
-                      <td className="py-2">{formatDateTime(tx.createdAt)}</td>
-                      <td className="py-2">{tx.recipientName}</td>
-                      <td className="py-2">{formatAmount(tx.amount)} {tx.currency}</td>
-                      <td className="py-2">{tx.status}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10" />
+                  <TableHead>Datum</TableHead>
+                  <TableHead>Primalac</TableHead>
+                  <TableHead className="text-right">Iznos</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {transactions.map((tx) => {
+                  const isOutgoing = true; // default assumption for payments
+                  return (
+                    <TableRow key={tx.id} className="group">
+                      <TableCell>
+                        {isOutgoing
+                          ? <ArrowUpRight className="h-4 w-4 text-red-500" />
+                          : <ArrowDownLeft className="h-4 w-4 text-emerald-500" />}
+                      </TableCell>
+                      <TableCell className="text-sm">{formatDateTime(tx.createdAt)}</TableCell>
+                      <TableCell className="font-medium text-sm">{tx.recipientName || '-'}</TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {formatAmount(tx.amount)} {tx.currency}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            tx.status === 'COMPLETED' ? 'success'
+                              : tx.status === 'PENDING' ? 'warning'
+                              : tx.status === 'REJECTED' ? 'destructive'
+                              : 'secondary'
+                          }
+                          className="text-xs"
+                        >
+                          {tx.status === 'COMPLETED' ? 'Završena'
+                            : tx.status === 'PENDING' ? 'Na čekanju'
+                            : tx.status === 'REJECTED' ? 'Odbijena'
+                            : tx.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </Card>
         )}
       </section>
 
-      <section>
-        <h2 className="text-xl font-semibold mb-4">Brzo plaćanje</h2>
-        <Card>
-          <CardContent className="pt-4 grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="quickFrom">Račun</Label>
-              <select
-                id="quickFrom"
-                title="Račun"
-                value={quickFrom}
-                onChange={(e) => setQuickFrom(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Izaberite račun</option>
-                {accounts.map((account) => (
-                  <option key={account.id} value={account.accountNumber}>{account.accountNumber}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="quickRecipient">Primalac</Label>
-              <select
-                id="quickRecipient"
-                title="Primalac"
-                value={quickRecipient}
-                onChange={(e) => setQuickRecipient(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Izaberite primaoca</option>
-                {recipients.map((recipient) => (
-                  <option key={recipient.id} value={recipient.id}>{recipient.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="quickAmount">Iznos</Label>
-              <Input id="quickAmount" type="number" value={quickAmount} onChange={(e) => setQuickAmount(e.target.value)} />
-            </div>
-            <div className="md:col-span-3 flex justify-end">
-              <Button onClick={goToQuickPayment}>Plati</Button>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Kursna lista</h2>
-          <Button variant="outline" onClick={() => navigate('/exchange')}>Menjačnica</Button>
-        </div>
-        {loading ? (
-          <p className="text-muted-foreground">Učitavanje kurseva...</p>
-        ) : exchangeRates.length === 0 ? (
-          <p className="text-muted-foreground">Kursna lista nije dostupna.</p>
-        ) : (
+      {/* Quick payment + exchange in 2 columns */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Quick payment */}
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <Send className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Brzo plaćanje</h2>
+          </div>
           <Card>
-            <CardContent className="pt-4 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2">Valuta</th>
-                    <th className="text-left py-2">Kupovni</th>
-                    <th className="text-left py-2">Prodajni</th>
-                    <th className="text-left py-2">Srednji</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <CardContent className="pt-6 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="quickFrom" className="text-xs font-medium">Sa računa</Label>
+                <select
+                  id="quickFrom"
+                  title="Račun"
+                  value={quickFrom}
+                  onChange={(e) => setQuickFrom(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  <option value="">Izaberite račun</option>
+                  {accounts.map((account) => (
+                    <option key={account.id} value={account.accountNumber}>
+                      {account.accountNumber} ({account.currency})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quickRecipient" className="text-xs font-medium">Primalac</Label>
+                <select
+                  id="quickRecipient"
+                  title="Primalac"
+                  value={quickRecipient}
+                  onChange={(e) => setQuickRecipient(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  <option value="">Izaberite primaoca</option>
+                  {recipients.map((recipient) => (
+                    <option key={recipient.id} value={recipient.id}>{recipient.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quickAmount" className="text-xs font-medium">Iznos</Label>
+                <Input id="quickAmount" type="number" placeholder="0.00" value={quickAmount} onChange={(e) => setQuickAmount(e.target.value)} />
+              </div>
+              <Button
+                className="w-full bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
+                onClick={goToQuickPayment}
+              >
+                <Send className="mr-2 h-4 w-4" />
+                Nastavi na plaćanje
+              </Button>
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* Exchange rates */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">Kursna lista</h2>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => navigate('/exchange')}>Menjačnica</Button>
+          </div>
+          {loading ? (
+            <TableSkeleton rows={4} />
+          ) : exchangeRates.length === 0 ? (
+            <Card className="py-12">
+              <CardContent className="flex flex-col items-center text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
+                  <RefreshCw className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="font-medium">Kursna lista nije dostupna</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Valuta</TableHead>
+                    <TableHead className="text-right">Kupovni</TableHead>
+                    <TableHead className="text-right">Prodajni</TableHead>
+                    <TableHead className="text-right">Srednji</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {exchangeRates.map((rate) => (
-                    <tr key={rate.currency} className="border-b">
-                      <td className="py-2">{rate.currency}</td>
-                      <td className="py-2">{formatAmount(rate.buyRate, 4)}</td>
-                      <td className="py-2">{formatAmount(rate.sellRate, 4)}</td>
-                      <td className="py-2">{formatAmount(rate.middleRate, 4)}</td>
-                    </tr>
+                    <TableRow key={rate.currency}>
+                      <TableCell>
+                        <span className={`font-semibold ${currencyColors[rate.currency] || ''}`}>
+                          {rate.currency}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{formatAmount(rate.buyRate, 4)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatAmount(rate.sellRate, 4)}</TableCell>
+                      <TableCell className="text-right tabular-nums font-medium">{formatAmount(rate.middleRate, 4)}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        )}
-      </section>
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
-

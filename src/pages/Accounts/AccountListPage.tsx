@@ -5,12 +5,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   SlidersHorizontal,
-  Loader2,
   ChevronLeft,
   ChevronRight,
   ArrowUpRight,
   ArrowDownLeft,
   RotateCcw,
+  Wallet,
 } from 'lucide-react';
 import type { Account, AccountType, Transaction, TransactionStatus, TransactionFilters } from '@/types/celina2';
 import type { PaginatedResponse } from '@/types';
@@ -200,7 +200,13 @@ export default function AccountListPage() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Racuni</h1>
+        <div>
+          <div className="flex items-center gap-2">
+            <Wallet className="h-6 w-6 text-primary" />
+            <h1 className="text-3xl font-bold tracking-tight">Računi</h1>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">Pregled svih računa i transakcija.</p>
+        </div>
         <div className="flex items-center gap-2">
           <Button
             variant={showFilters ? 'secondary' : 'outline'}
@@ -244,9 +250,20 @@ export default function AccountListPage() {
 
       {/* Accounts table */}
       {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <Card>
+          <CardContent className="pt-4 space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 py-2">
+                <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+                <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
+                <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+                <div className="h-4 w-12 animate-pulse rounded bg-muted" />
+                <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       ) : (
         <Card>
           <Table>
@@ -263,8 +280,14 @@ export default function AccountListPage() {
             <TableBody>
               {paginatedAccounts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                    Nema pronadjenih racuna
+                  <TableCell colSpan={6} className="h-32 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                        <Wallet className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <p className="font-medium">Nema pronađenih računa</p>
+                      <p className="text-sm text-muted-foreground">Pokušajte sa drugim filterima.</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -445,8 +468,17 @@ export default function AccountListPage() {
 
             {/* Transaction table */}
             {txLoading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <div className="space-y-3 py-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+                    <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+                    <div className="h-4 flex-1 animate-pulse rounded bg-muted" />
+                    <div className="h-4 w-16 animate-pulse rounded bg-muted" />
+                    <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+                    <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
+                  </div>
+                ))}
               </div>
             ) : transactions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">

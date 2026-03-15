@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { FileText } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { creditService } from '@/services/creditService';
@@ -75,7 +76,7 @@ export default function LoanApplicationPage() {
         }
       } catch {
         if (!mounted) return;
-        toast.error('Neuspešno učitavanje računa.');
+        toast.error('Neuspesno ucitavanje racuna.');
         setAccounts([]);
       } finally {
         if (mounted) setIsLoadingAccounts(false);
@@ -154,7 +155,7 @@ export default function LoanApplicationPage() {
         permanentEmployment: data.permanentEmployment,
         employmentPeriod: data.employmentPeriod,
       });
-      toast.success('Zahtev za kredit je uspešno poslat.');
+      toast.success('Zahtev za kredit je uspesno poslat.');
       navigate('/loans');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
@@ -166,11 +167,20 @@ export default function LoanApplicationPage() {
 
   return (
     <div className="container mx-auto py-6 max-w-2xl">
-      <h1 className="text-3xl font-bold mb-6">Zahtev za kredit</h1>
+      <div className="mb-6">
+        <div className="flex items-center gap-2">
+          <FileText className="h-6 w-6 text-primary" />
+          <h1 className="text-3xl font-bold tracking-tight">Zahtev za kredit</h1>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">Popunite formular za podnoscenje zahteva za kredit.</p>
+      </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Podaci zahteva</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <CardTitle>Podaci zahteva</CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
@@ -186,7 +196,7 @@ export default function LoanApplicationPage() {
                   <option value="STAMBENI">Stambeni</option>
                   <option value="AUTO">Auto</option>
                   <option value="STUDENTSKI">Studentski</option>
-                  <option value="REFINANSIRAJUCI">Refinansirajući</option>
+                  <option value="REFINANSIRAJUCI">Refinansirajuci</option>
                 </select>
               </div>
 
@@ -252,14 +262,14 @@ export default function LoanApplicationPage() {
                 {errors.repaymentPeriod && <p className="text-sm text-destructive">{errors.repaymentPeriod.message}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="accountNumber">Račun za isplatu</Label>
+                <Label htmlFor="accountNumber">Racun za isplatu</Label>
                 <select
                   id="accountNumber"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register('accountNumber')}
                   disabled={isLoadingAccounts}
                 >
-                  <option value="">Izaberite račun</option>
+                  <option value="">Izaberite racun</option>
                   {filteredAccounts.map((account) => (
                     <option key={account.id} value={account.accountNumber}>
                       {account.accountNumber} | {account.currency}
@@ -284,7 +294,7 @@ export default function LoanApplicationPage() {
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="monthlyIncome">Mesečni prihod</Label>
+                <Label htmlFor="monthlyIncome">Mesecni prihod</Label>
                 <Input
                   id="monthlyIncome"
                   type="number"
@@ -313,19 +323,19 @@ export default function LoanApplicationPage() {
 
             <div className="rounded-md border p-4 text-sm space-y-1">
               <p>
-                Godišnja kamatna stopa (simulacija): <span className="font-semibold">{annualRate.toFixed(2)}%</span>
+                Godisnja kamatna stopa (simulacija): <span className="font-semibold">{annualRate.toFixed(2)}%</span>
               </p>
               <p>
-                Mesečna rata: <span className="font-semibold">{monthlyPayment.toFixed(2)} {selectedCurrency}</span>
+                Mesecna rata: <span className="font-semibold">{monthlyPayment.toFixed(2)} {selectedCurrency}</span>
               </p>
               <p>
-                Ukupno za vraćanje: <span className="font-semibold">{totalRepayment.toFixed(2)} {selectedCurrency}</span>
+                Ukupno za vracanje: <span className="font-semibold">{totalRepayment.toFixed(2)} {selectedCurrency}</span>
               </p>
             </div>
 
             <div className="flex justify-end">
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Slanje...' : 'Pošalji zahtev'}
+              <Button type="submit" disabled={isSubmitting} className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all">
+                {isSubmitting ? 'Slanje...' : 'Posalji zahtev'}
               </Button>
             </div>
           </form>
@@ -334,4 +344,3 @@ export default function LoanApplicationPage() {
     </div>
   );
 }
-

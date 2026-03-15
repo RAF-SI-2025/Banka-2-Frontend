@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Plus } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { clientService } from '@/services/clientService';
@@ -73,7 +74,7 @@ export default function CreateAccountPage() {
 
     return [
       { value: 'STANDARDNI', label: 'Standardni' },
-      { value: 'STEDNI', label: 'Štedni' },
+      { value: 'STEDNI', label: 'Stedni' },
       { value: 'PENZIONERSKI', label: 'Penzionerski' },
       { value: 'ZA_MLADE', label: 'Za mlade' },
       { value: 'STUDENTSKI', label: 'Studentski' },
@@ -144,11 +145,11 @@ export default function CreateAccountPage() {
         firmCountry: data.accountType === 'POSLOVNI' ? data.firmCountry : undefined,
       });
 
-      toast.success('Račun uspešno kreiran.');
+      toast.success('Racun uspesno kreiran.');
       navigate('/employee/accounts');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || 'Kreiranje računa nije uspelo.');
+      toast.error(error.response?.data?.message || 'Kreiranje racuna nije uspelo.');
     } finally {
       setIsSubmitting(false);
     }
@@ -156,11 +157,20 @@ export default function CreateAccountPage() {
 
   return (
     <div className="container mx-auto py-6 max-w-2xl">
-      <h1 className="text-3xl font-bold mb-6">Kreiranje računa</h1>
+      <div className="mb-6">
+        <div className="flex items-center gap-2">
+          <Plus className="h-6 w-6 text-primary" />
+          <h1 className="text-3xl font-bold tracking-tight">Kreiranje racuna</h1>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">Kreirajte novi bankovni racun za klijenta.</p>
+      </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Novi račun</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <CardTitle>Novi racun</CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
           <form className="space-y-5" onSubmit={handleSubmit(onSubmit)} noValidate>
@@ -190,24 +200,24 @@ export default function CreateAccountPage() {
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="accountType">Tip računa</Label>
+                <Label htmlFor="accountType">Tip racuna</Label>
                 <select
                   id="accountType"
-                  title="Tip računa"
+                  title="Tip racuna"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register('accountType')}
                 >
-                  <option value="TEKUCI">Tekući</option>
+                  <option value="TEKUCI">Tekuci</option>
                   <option value="DEVIZNI">Devizni</option>
                   <option value="POSLOVNI">Poslovni</option>
                 </select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="accountSubtype">Podvrsta računa</Label>
+                <Label htmlFor="accountSubtype">Podvrsta racuna</Label>
                 <select
                   id="accountSubtype"
-                  title="Podvrsta računa"
+                  title="Podvrsta racuna"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register('accountSubtype')}
                 >
@@ -256,7 +266,7 @@ export default function CreateAccountPage() {
 
             <label className="inline-flex items-center gap-2 text-sm">
               <input type="checkbox" {...register('createCard')} />
-              Napravi karticu uz račun
+              Napravi karticu uz racun
             </label>
 
             {accountType === 'POSLOVNI' && (
@@ -269,7 +279,7 @@ export default function CreateAccountPage() {
                     {errors.companyName && <p className="text-sm text-destructive">{errors.companyName.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="registrationNumber">Matični broj</Label>
+                    <Label htmlFor="registrationNumber">Maticni broj</Label>
                     <Input id="registrationNumber" {...register('registrationNumber')} />
                     {errors.registrationNumber && <p className="text-sm text-destructive">{errors.registrationNumber.message}</p>}
                   </div>
@@ -282,7 +292,7 @@ export default function CreateAccountPage() {
                     {errors.taxId && <p className="text-sm text-destructive">{errors.taxId.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="activityCode">Šifra delatnosti</Label>
+                    <Label htmlFor="activityCode">Sifra delatnosti</Label>
                     <Input id="activityCode" {...register('activityCode')} placeholder="62.01" />
                     {errors.activityCode && <p className="text-sm text-destructive">{errors.activityCode.message}</p>}
                   </div>
@@ -300,7 +310,7 @@ export default function CreateAccountPage() {
                     {errors.firmCity && <p className="text-sm text-destructive">{errors.firmCity.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="firmCountry">Država</Label>
+                    <Label htmlFor="firmCountry">Drzava</Label>
                     <Input id="firmCountry" {...register('firmCountry')} />
                     {errors.firmCountry && <p className="text-sm text-destructive">{errors.firmCountry.message}</p>}
                   </div>
@@ -309,8 +319,8 @@ export default function CreateAccountPage() {
             )}
 
             <div className="flex justify-end">
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Kreiranje...' : 'Kreiraj račun'}
+              <Button type="submit" disabled={isSubmitting} className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all">
+                {isSubmitting ? 'Kreiranje...' : 'Kreiraj racun'}
               </Button>
             </div>
           </form>
@@ -319,5 +329,3 @@ export default function CreateAccountPage() {
     </div>
   );
 }
-
-

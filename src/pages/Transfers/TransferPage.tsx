@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import VerificationModal from '@/components/shared/VerificationModal';
+import { ArrowLeftRight, Wallet } from 'lucide-react';
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -93,7 +94,7 @@ export default function TransferPage() {
         setAccounts(safeAccounts);
 
         if (safeAccounts.length === 0) {
-          toast.error('Nemate dostupnih računa za prenos.');
+          toast.error('Nemate dostupnih racuna za prenos.');
           return;
         }
 
@@ -112,7 +113,7 @@ export default function TransferPage() {
       } catch (error) {
         if (!mounted) return;
 
-        toast.error(getErrorMessage(error, 'Neuspešno učitavanje računa.'));
+        toast.error(getErrorMessage(error, 'Neuspesno ucitavanje racuna.'));
         setAccounts([]);
       } finally {
         if (mounted) {
@@ -211,27 +212,27 @@ export default function TransferPage() {
 
   const onSubmit = async (data: TransferFormData) => {
     if (!fromAccountData) {
-      toast.error('Izaberite račun pošiljaoca.');
+      toast.error('Izaberite racun posiljaoca.');
       return;
     }
 
     if (!toAccountData) {
-      toast.error('Izaberite račun primaoca.');
+      toast.error('Izaberite racun primaoca.');
       return;
     }
 
     if (data.fromAccountNumber === data.toAccountNumber) {
-      toast.error('Račun pošiljaoca i primaoca ne mogu biti isti.');
+      toast.error('Racun posiljaoca i primaoca ne mogu biti isti.');
       return;
     }
 
     if (Number(data.amount) <= 0) {
-      toast.error('Iznos mora biti veći od nule.');
+      toast.error('Iznos mora biti veci od nule.');
       return;
     }
 
     if (insufficientFunds) {
-      toast.error('Nemate dovoljno raspoloživih sredstava na izabranom računu.');
+      toast.error('Nemate dovoljno raspolozivih sredstava na izabranom racunu.');
       return;
     }
 
@@ -268,33 +269,59 @@ export default function TransferPage() {
 
   const handleVerificationSuccess = () => {
     setShowVerification(false);
-    toast.success('Prenos je uspešno verifikovan.');
+    toast.success('Prenos je uspesno verifikovan.');
     navigate('/accounts');
   };
 
   return (
     <div className="container mx-auto max-w-2xl py-6">
-      <h1 className="mb-6 text-3xl font-bold">Prenos između računa</h1>
+      <div>
+        <div className="flex items-center gap-2">
+          <ArrowLeftRight className="h-6 w-6 text-primary" />
+          <h1 className="text-3xl font-bold tracking-tight">Prenos izmedju racuna</h1>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">Prenesite sredstva izmedju vasih racuna brzo i sigurno.</p>
+      </div>
 
-      <Card>
+      <Card className="mt-6">
         <CardHeader>
           <CardTitle>{showConfirmStep ? 'Potvrda prenosa' : 'Novi prenos'}</CardTitle>
         </CardHeader>
 
         <CardContent>
           {isLoading ? (
-            <p className="text-muted-foreground">Učitavanje računa...</p>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+                <div className="h-10 w-full rounded bg-muted animate-pulse" />
+              </div>
+              <div className="h-12 w-full rounded-md bg-muted animate-pulse" />
+              <div className="space-y-2">
+                <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+                <div className="h-10 w-full rounded bg-muted animate-pulse" />
+              </div>
+              <div className="space-y-2">
+                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                <div className="h-10 w-full rounded bg-muted animate-pulse" />
+              </div>
+            </div>
           ) : safeAccounts.length === 0 ? (
-            <p className="text-muted-foreground">Nemate dostupnih računa za prenos.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+                <Wallet className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-semibold">Nema dostupnih racuna</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Nemate dostupnih racuna za prenos.</p>
+            </div>
           ) : showConfirmStep && submittedData && fromAccountData && toAccountData ? (
             <div className="space-y-4">
               <div className="rounded-md border p-4 space-y-2 text-sm">
                 <p>
-                  <span className="font-medium">Račun pošiljaoca:</span> {fromAccountData.accountNumber} |{' '}
+                  <span className="font-medium">Racun posiljaoca:</span> {fromAccountData.accountNumber} |{' '}
                   {fromAccountData.currency}
                 </p>
                 <p>
-                  <span className="font-medium">Račun primaoca:</span> {toAccountData.accountNumber} |{' '}
+                  <span className="font-medium">Racun primaoca:</span> {toAccountData.accountNumber} |{' '}
                   {toAccountData.currency}
                 </p>
                 <p>
@@ -317,7 +344,7 @@ export default function TransferPage() {
                       {fromAccountData.currency}
                     </p>
                     <p>
-                      <span className="font-medium">Ukupno za terećenje:</span> {formatAmount(totalDebit)}{' '}
+                      <span className="font-medium">Ukupno za terecenje:</span> {formatAmount(totalDebit)}{' '}
                       {fromAccountData.currency}
                     </p>
                   </>
@@ -339,7 +366,12 @@ export default function TransferPage() {
                 >
                   Nazad
                 </Button>
-                <Button type="button" onClick={handleConfirmTransfer} disabled={isSubmitting}>
+                <Button
+                  type="button"
+                  onClick={handleConfirmTransfer}
+                  disabled={isSubmitting}
+                  className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
+                >
                   {isSubmitting ? 'Kreiranje...' : 'Potvrdi transfer'}
                 </Button>
               </div>
@@ -347,15 +379,15 @@ export default function TransferPage() {
           ) : (
             <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
               <div className="space-y-2">
-                <Label htmlFor="fromAccount">Račun pošiljaoca</Label>
+                <Label htmlFor="fromAccount">Racun posiljaoca</Label>
                 <select
                   id="fromAccount"
-                  title="Račun pošiljaoca"
+                  title="Racun posiljaoca"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register('fromAccountNumber')}
                   disabled={isSubmitting}
                 >
-                  <option value="">Izaberite račun</option>
+                  <option value="">Izaberite racun</option>
                   {safeAccounts.map((account) => (
                     <option key={account.id} value={account.accountNumber}>
                       {account.accountNumber} | {formatAmount(account.availableBalance)}{' '}
@@ -373,22 +405,22 @@ export default function TransferPage() {
               {fromAccountData && (
                 <div className="rounded-md border p-3 text-sm">
                   <p>
-                    Raspoloživo stanje: {formatAmount(fromAccountData.availableBalance)}{' '}
+                    Raspolozivo stanje: {formatAmount(fromAccountData.availableBalance)}{' '}
                     {fromAccountData.currency}
                   </p>
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="toAccount">Račun primaoca</Label>
+                <Label htmlFor="toAccount">Racun primaoca</Label>
                 <select
                   id="toAccount"
-                  title="Račun primaoca"
+                  title="Racun primaoca"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register('toAccountNumber')}
                   disabled={isSubmitting}
                 >
-                  <option value="">Izaberite račun</option>
+                  <option value="">Izaberite racun</option>
                   {toAccountOptions.map((account) => (
                     <option key={account.id} value={account.accountNumber}>
                       {account.accountNumber} | {formatAmount(account.availableBalance)}{' '}
@@ -418,7 +450,7 @@ export default function TransferPage() {
                 )}
                 {insufficientFunds && (
                   <p className="text-sm text-destructive">
-                    Nemate dovoljno raspoloživih sredstava na računu pošiljaoca.
+                    Nemate dovoljno raspolozivih sredstava na racunu posiljaoca.
                   </p>
                 )}
               </div>
@@ -437,7 +469,7 @@ export default function TransferPage() {
                     Provizija: {formatAmount(commission)} {fromAccountData.currency}
                   </p>
                   <p>
-                    Ukupno za terećenje: {formatAmount(totalDebit)} {fromAccountData.currency}
+                    Ukupno za terecenje: {formatAmount(totalDebit)} {fromAccountData.currency}
                   </p>
                 </div>
               )}
@@ -454,7 +486,11 @@ export default function TransferPage() {
                 )}
 
               <div className="flex justify-end">
-                <Button type="submit" disabled={isSubmitting || isLoading}>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || isLoading}
+                  className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
+                >
                   Nastavi na potvrdu
                 </Button>
               </div>

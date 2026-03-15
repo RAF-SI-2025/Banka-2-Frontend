@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Users, UserPlus } from 'lucide-react';
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -63,7 +64,7 @@ export default function RecipientsPage() {
       const data = await paymentRecipientService.getAll();
       setRecipients(asArray<PaymentRecipient>(data));
     } catch {
-      toast.error('Neuspešno učitavanje primalaca.');
+      toast.error('Neuspesno ucitavanje primalaca.');
       setRecipients([]);
     } finally {
       setLoading(false);
@@ -120,7 +121,7 @@ export default function RecipientsPage() {
         phoneNumber: data.phoneNumber?.trim() || '',
       });
 
-      toast.success('Primalac je uspešno dodat.');
+      toast.success('Primalac je uspesno dodat.');
       createForm.reset({
         name: '',
         accountNumber: '',
@@ -170,7 +171,7 @@ export default function RecipientsPage() {
         phoneNumber: data.phoneNumber?.trim() || '',
       });
 
-      toast.success('Primalac je uspešno izmenjen.');
+      toast.success('Primalac je uspesno izmenjen.');
       cancelEdit();
       await loadRecipients();
     } catch {
@@ -182,7 +183,7 @@ export default function RecipientsPage() {
 
   const handleDelete = async (recipient: PaymentRecipient) => {
     const confirmed = window.confirm(
-      `Da li ste sigurni da želite da obrišete primaoca "${recipient.name}"?`
+      `Da li ste sigurni da zelite da obrisete primaoca "${recipient.name}"?`
     );
 
     if (!confirmed) return;
@@ -207,11 +208,26 @@ export default function RecipientsPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-3xl font-bold">Primaoci plaćanja</h1>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <Users className="h-6 w-6 text-primary" />
+            <h1 className="text-3xl font-bold tracking-tight">Primaoci placanja</h1>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">Upravljajte listom sacuvanih primalaca za brza placanja.</p>
+        </div>
 
-        <Button onClick={handleToggleCreateForm}>
-          {showCreateForm ? 'Zatvori formu' : 'Dodaj primaoca'}
+        <Button
+          onClick={handleToggleCreateForm}
+          className={showCreateForm ? '' : 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all'}
+          variant={showCreateForm ? 'outline' : 'default'}
+        >
+          {showCreateForm ? 'Zatvori formu' : (
+            <>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Dodaj primaoca
+            </>
+          )}
         </Button>
       </div>
 
@@ -243,10 +259,10 @@ export default function RecipientsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="create-account">Broj računa</Label>
+                <Label htmlFor="create-account">Broj racuna</Label>
                 <Input
                   id="create-account"
-                  placeholder="Unesite broj računa"
+                  placeholder="Unesite broj racuna"
                   {...createForm.register('accountNumber')}
                   disabled={creating}
                 />
@@ -278,8 +294,12 @@ export default function RecipientsPage() {
               </div>
 
               <div className="md:col-span-2 flex justify-end">
-                <Button type="submit" disabled={creating}>
-                  {creating ? 'Čuvanje...' : 'Sačuvaj primaoca'}
+                <Button
+                  type="submit"
+                  disabled={creating}
+                  className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
+                >
+                  {creating ? 'Cuvanje...' : 'Sacuvaj primaoca'}
                 </Button>
               </div>
             </form>
@@ -289,31 +309,49 @@ export default function RecipientsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Sačuvani primaoci</CardTitle>
+          <CardTitle>Sacuvani primaoci</CardTitle>
         </CardHeader>
 
         <CardContent className="space-y-4">
           <Input
-            placeholder="Pretraga po imenu, računu, adresi ili telefonu"
+            placeholder="Pretraga po imenu, racunu, adresi ili telefonu"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
 
           {loading ? (
-            <p className="text-muted-foreground">Učitavanje primalaca...</p>
+            <div className="space-y-3">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+                  <div className="h-4 w-40 rounded bg-muted animate-pulse" />
+                  <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                  <div className="h-8 w-28 rounded bg-muted animate-pulse" />
+                </div>
+              ))}
+            </div>
           ) : filteredRecipients.length === 0 ? (
-            <p className="text-muted-foreground">
-              {searchTerm.trim()
-                ? 'Nema primalaca koji odgovaraju pretrazi.'
-                : 'Nemate sačuvanih primalaca.'}
-            </p>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+                <Users className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-semibold">
+                {searchTerm.trim() ? 'Nema rezultata pretrage' : 'Nema sacuvanih primalaca'}
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {searchTerm.trim()
+                  ? 'Nema primalaca koji odgovaraju pretrazi.'
+                  : 'Dodajte prvog primaoca klikom na dugme iznad.'}
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-2">Ime</th>
-                    <th className="text-left py-2">Broj računa</th>
+                    <th className="text-left py-2">Broj racuna</th>
                     <th className="text-left py-2">Adresa</th>
                     <th className="text-left py-2">Telefon</th>
                     <th className="text-left py-2">Akcije</th>
@@ -345,7 +383,7 @@ export default function RecipientsPage() {
                           <td className="py-2 align-top">
                             <Input
                               id={`edit-account-${recipient.id}`}
-                              placeholder="Broj računa"
+                              placeholder="Broj racuna"
                               {...editForm.register('accountNumber')}
                               disabled={updating}
                             />
@@ -381,8 +419,9 @@ export default function RecipientsPage() {
                                 size="sm"
                                 onClick={editForm.handleSubmit(handleEdit)}
                                 disabled={updating}
+                                className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
                               >
-                                {updating ? 'Čuvanje...' : 'Sačuvaj'}
+                                {updating ? 'Cuvanje...' : 'Sacuvaj'}
                               </Button>
 
                               <Button
@@ -392,7 +431,7 @@ export default function RecipientsPage() {
                                 onClick={cancelEdit}
                                 disabled={updating}
                               >
-                                Otkaži
+                                Otkazi
                               </Button>
                             </div>
                           </td>
@@ -401,7 +440,7 @@ export default function RecipientsPage() {
                     }
 
                     return (
-                      <tr key={recipient.id} className="border-b">
+                      <tr key={recipient.id} className="border-b hover:bg-muted/50 transition-colors">
                         <td className="py-2">{recipient.name}</td>
                         <td className="py-2">{recipient.accountNumber}</td>
                         <td className="py-2">{recipient.address || '-'}</td>
@@ -425,7 +464,7 @@ export default function RecipientsPage() {
                               onClick={() => handleDelete(recipient)}
                               disabled={isDeleting}
                             >
-                              {isDeleting ? 'Brisanje...' : 'Obriši'}
+                              {isDeleting ? 'Brisanje...' : 'Obrisi'}
                             </Button>
                           </div>
                         </td>

@@ -8,6 +8,7 @@
 // - Spec: "Svi krediti" iz Celine 2 (employee section)
 
 import { useEffect, useState } from 'react';
+import { FileText, Inbox } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -59,7 +60,7 @@ export default function AllLoansPage() {
         setLoans(asArray<Loan>(response.content));
         setTotalPages(Math.max(1, response.totalPages));
       } catch {
-        toast.error('Neuspešno učitavanje kredita.');
+        toast.error('Neuspesno ucitavanje kredita.');
         setLoans([]);
       } finally {
         setLoading(false);
@@ -75,11 +76,20 @@ export default function AllLoansPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <h1 className="text-3xl font-bold">Svi krediti</h1>
+      <div>
+        <div className="flex items-center gap-2">
+          <FileText className="h-6 w-6 text-primary" />
+          <h1 className="text-3xl font-bold tracking-tight">Svi krediti</h1>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">Pregled svih kredita u bankarskom sistemu sa filterima.</p>
+      </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Filteri</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <CardTitle>Filteri</CardTitle>
+          </div>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
@@ -97,7 +107,7 @@ export default function AllLoansPage() {
               <option value="STAMBENI">Stambeni</option>
               <option value="AUTO">Auto</option>
               <option value="STUDENTSKI">Studentski</option>
-              <option value="REFINANSIRAJUCI">Refinansirajući</option>
+              <option value="REFINANSIRAJUCI">Refinansirajuci</option>
             </select>
           </div>
 
@@ -113,7 +123,7 @@ export default function AllLoansPage() {
             >
               <option value="ALL">Svi</option>
               <option value="ACTIVE">Aktivni</option>
-              <option value="PENDING">Na čekanju</option>
+              <option value="PENDING">Na cekanju</option>
               <option value="APPROVED">Odobreni</option>
               <option value="REJECTED">Odbijeni</option>
               <option value="CLOSED">Zatvoreni</option>
@@ -123,10 +133,32 @@ export default function AllLoansPage() {
       </Card>
 
       {loading ? (
-        <p className="text-muted-foreground">Učitavanje...</p>
+        <Card>
+          <CardContent className="pt-6 space-y-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex gap-4">
+                <div className="h-4 w-12 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       ) : asArray<Loan>(loans).length === 0 ? (
         <Card>
-          <CardContent className="pt-6 text-muted-foreground">Nema kredita za izabrane filtere.</CardContent>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="rounded-full bg-muted p-3 mb-3">
+                <Inbox className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="font-medium text-muted-foreground">Nema kredita za izabrane filtere</p>
+              <p className="text-sm text-muted-foreground mt-1">Pokusajte sa drugacijim filterima.</p>
+            </div>
+          </CardContent>
         </Card>
       ) : (
         <Card>
@@ -137,7 +169,7 @@ export default function AllLoansPage() {
                   <th className="text-left py-2">ID</th>
                   <th className="text-left py-2">Tip</th>
                   <th className="text-left py-2">Iznos</th>
-                  <th className="text-left py-2">Mesečna rata</th>
+                  <th className="text-left py-2">Mesecna rata</th>
                   <th className="text-left py-2">Preostali dug</th>
                   <th className="text-left py-2">Status</th>
                   <th className="text-left py-2">Akcija</th>
@@ -145,7 +177,7 @@ export default function AllLoansPage() {
               </thead>
               <tbody>
                 {asArray<Loan>(loans).map((loan) => (
-                  <tr key={loan.id} className="border-b">
+                  <tr key={loan.id} className="border-b hover:bg-muted/50 transition-colors">
                     <td className="py-2">{loan.loanNumber || loan.id}</td>
                     <td className="py-2">{loan.loanType}</td>
                     <td className="py-2">{formatAmount(loan.amount)} {loan.currency}</td>
@@ -179,7 +211,7 @@ export default function AllLoansPage() {
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                 disabled={page >= totalPages - 1}
               >
-                Sledeća
+                Sledeca
               </Button>
             </div>
           </CardContent>
@@ -189,13 +221,16 @@ export default function AllLoansPage() {
       {selectedLoan && (
         <Card>
           <CardHeader>
-            <CardTitle>Detalji kredita #{selectedLoan.loanNumber || selectedLoan.id}</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <CardTitle>Detalji kredita #{selectedLoan.loanNumber || selectedLoan.id}</CardTitle>
+            </div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p>Tip: <span className="font-medium">{selectedLoan.loanType}</span></p>
             <p>Nominalna kamata: <span className="font-medium">{formatAmount(selectedLoan.nominalRate)}%</span></p>
             <p>Efektivna kamata: <span className="font-medium">{formatAmount(selectedLoan.effectiveRate)}%</span></p>
-            <p>Početak: <span className="font-medium">{formatDate(selectedLoan.startDate)}</span></p>
+            <p>Pocetak: <span className="font-medium">{formatDate(selectedLoan.startDate)}</span></p>
             <p>Kraj: <span className="font-medium">{formatDate(selectedLoan.endDate)}</span></p>
             <div className="pt-2">
               <Button variant="outline" size="sm" onClick={() => setSelectedLoan(null)}>
@@ -208,5 +243,3 @@ export default function AllLoansPage() {
     </div>
   );
 }
-
-

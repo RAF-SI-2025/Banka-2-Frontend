@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
-  Loader2,
   Search,
   Plus,
   CreditCard as CreditCardIcon,
@@ -178,7 +177,13 @@ export default function AccountCardsPage() {
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Portal kartica</h1>
+        <div>
+          <div className="flex items-center gap-2">
+            <CreditCardIcon className="h-6 w-6 text-primary" />
+            <h1 className="text-3xl font-bold tracking-tight">Portal kartica</h1>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">Pregledajte i upravljajte karticama za odabrani racun.</p>
+        </div>
       </div>
 
       {/* Search */}
@@ -198,7 +203,7 @@ export default function AccountCardsPage() {
             </div>
           </div>
           <Button onClick={searchCards} disabled={loading}>
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+            <Search className="mr-2 h-4 w-4" />
             Pretrazi
           </Button>
           <Button variant="outline" onClick={() => setShowCreateCard(!showCreateCard)}>
@@ -236,8 +241,8 @@ export default function AccountCardsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={createNewCard} disabled={isCreating || !newCardType}>
-              {isCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+            <Button onClick={createNewCard} disabled={isCreating || !newCardType} className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all">
+              <Plus className="mr-2 h-4 w-4" />
               Kreiraj karticu
             </Button>
             <Button variant="ghost" onClick={() => { setShowCreateCard(false); setNewCardType(''); }}>
@@ -256,18 +261,36 @@ export default function AccountCardsPage() {
 
       {/* Cards table */}
       {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <Card className="p-4">
+          <div className="space-y-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex gap-4 items-center">
+                <div className="h-4 w-36 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                <div className="h-4 flex-1 rounded bg-muted animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </Card>
       ) : !account ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <CreditCardIcon className="h-12 w-12 mb-3 opacity-30" />
-          <p>Pretrazite racun da biste videli kartice</p>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="rounded-full bg-muted p-4 mb-3">
+            <CreditCardIcon className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <p className="font-medium text-muted-foreground">Pretrazite racun da biste videli kartice</p>
+          <p className="text-sm text-muted-foreground mt-1">Unesite broj racuna i kliknite na pretragu.</p>
         </div>
       ) : cards.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <CreditCardIcon className="h-12 w-12 mb-3 opacity-30" />
-          <p>Nema kartica za ovaj racun</p>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="rounded-full bg-muted p-4 mb-3">
+            <CreditCardIcon className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <p className="font-medium text-muted-foreground">Nema kartica za ovaj racun</p>
+          <p className="text-sm text-muted-foreground mt-1">Kreirajte novu karticu pomocu dugmeta iznad.</p>
         </div>
       ) : (
         <Card>
@@ -285,7 +308,7 @@ export default function AccountCardsPage() {
             </TableHeader>
             <TableBody>
               {cards.map((card) => (
-                <TableRow key={card.id}>
+                <TableRow key={card.id} className="hover:bg-muted/50 transition-colors">
                   <TableCell className="font-mono">{maskCardNumber(card.cardNumber)}</TableCell>
                   <TableCell>
                     <Badge variant="info">{cardTypeLabels[card.cardType] || card.cardType}</Badge>

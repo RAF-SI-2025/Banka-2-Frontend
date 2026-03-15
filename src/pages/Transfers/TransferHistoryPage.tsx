@@ -7,17 +7,18 @@ import { transactionService } from '@/services/transactionService';
 import type { Account, Transfer } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Repeat, Inbox } from 'lucide-react';
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
-function statusClass(status: string): string {
-  if (status === 'COMPLETED') return 'bg-green-100 text-green-700';
-  if (status === 'PENDING') return 'bg-yellow-100 text-yellow-700';
-  if (status === 'REJECTED') return 'bg-red-100 text-red-700';
-  if (status === 'CANCELLED') return 'bg-muted text-muted-foreground';
-  return 'bg-muted text-muted-foreground';
+function statusBadgeVariant(status: string) {
+  if (status === 'COMPLETED') return 'success' as const;
+  if (status === 'PENDING') return 'warning' as const;
+  if (status === 'REJECTED') return 'destructive' as const;
+  return 'secondary' as const;
 }
 
 function formatAmount(value: number | null | undefined, decimals = 2): string {
@@ -50,7 +51,7 @@ export default function TransferHistoryPage() {
         const data = await accountService.getMyAccounts();
         setAccounts(asArray<Account>(data));
       } catch {
-        toast.error('Neuspešno učitavanje računa.');
+        toast.error('Neuspesno ucitavanje racuna.');
         setAccounts([]);
       }
     };
@@ -73,7 +74,7 @@ export default function TransferHistoryPage() {
         setTransfers(asArray<Transfer>(response.content));
         setTotalPages(Math.max(1, response.totalPages));
       } catch {
-        toast.error('Neuspešno učitavanje istorije transfera.');
+        toast.error('Neuspesno ucitavanje istorije transfera.');
         setTransfers([]);
       } finally {
         setLoading(false);
@@ -97,7 +98,13 @@ export default function TransferHistoryPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <h1 className="text-3xl font-bold">Istorija transfera</h1>
+      <div>
+        <div className="flex items-center gap-2">
+          <Repeat className="h-6 w-6 text-primary" />
+          <h1 className="text-3xl font-bold tracking-tight">Istorija transfera</h1>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">Pregledajte sve prenose izmedju vasih racuna.</p>
+      </div>
 
       <Card>
         <CardHeader>
@@ -106,16 +113,16 @@ export default function TransferHistoryPage() {
         <CardContent className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">
             <label htmlFor="account-filter" className="text-sm font-medium">
-              Račun
+              Racun
             </label>
             <select
               id="account-filter"
-              title="Račun"
+              title="Racun"
               value={accountNumber}
               onChange={(e) => setAccountNumber(e.target.value)}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="">Svi računi</option>
+              <option value="">Svi racuni</option>
               {asArray<Account>(accounts).map((account) => (
                 <option key={account.id} value={account.accountNumber}>
                   {account.accountNumber}
@@ -153,11 +160,31 @@ export default function TransferHistoryPage() {
       </Card>
 
       {loading ? (
-        <p className="text-muted-foreground">Učitavanje transfera...</p>
+        <Card>
+          <CardContent className="pt-6 space-y-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center gap-4">
+                <div className="h-4 w-10 rounded bg-muted animate-pulse" />
+                <div className="h-8 w-40 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                <div className="h-5 w-20 rounded-full bg-muted animate-pulse" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       ) : sortedTransfers.length === 0 ? (
         <Card>
-          <CardContent className="pt-6 text-muted-foreground">
-            Nema transfera za izabrane filtere.
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+                <Inbox className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-semibold">Nema transfera</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Nema transfera za izabrane filtere.</p>
+            </div>
           </CardContent>
         </Card>
       ) : (
@@ -177,12 +204,12 @@ export default function TransferHistoryPage() {
               </thead>
               <tbody>
                 {sortedTransfers.map((transfer, index) => (
-                  <tr key={transfer.id} className="border-b">
+                  <tr key={transfer.id} className="border-b hover:bg-muted/50 transition-colors">
                     <td className="py-2">{page * limit + index + 1}</td>
                     <td className="py-2">
                       <div className="flex flex-col">
                         <span>{transfer.fromAccountNumber}</span>
-                        <span className="text-muted-foreground">→ {transfer.toAccountNumber}</span>
+                        <span className="text-muted-foreground">{'\u2192'} {transfer.toAccountNumber}</span>
                       </div>
                     </td>
                     <td className="py-2">
@@ -201,9 +228,9 @@ export default function TransferHistoryPage() {
                     </td>
                     <td className="py-2">{formatDateTime(transfer.createdAt)}</td>
                     <td className="py-2">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${statusClass(transfer.status)}`}>
+                      <Badge variant={statusBadgeVariant(transfer.status)}>
                         {transfer.status}
-                      </span>
+                      </Badge>
                     </td>
                   </tr>
                 ))}
@@ -230,7 +257,7 @@ export default function TransferHistoryPage() {
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                 disabled={page >= totalPages - 1}
               >
-                Sledeća
+                Sledeca
               </Button>
             </div>
           </CardContent>

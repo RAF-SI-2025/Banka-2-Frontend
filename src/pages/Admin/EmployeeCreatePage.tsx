@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeft, UserPlus, Loader2 } from 'lucide-react';
+import { ArrowLeft, UserPlus, Loader2, User, Phone, Briefcase } from 'lucide-react';
 import { createEmployeeSchema, type CreateEmployeeFormData } from '../../utils/validationSchemas';
 import { employeeService } from '../../services/employeeService';
 import { toast } from '@/lib/notify';
@@ -121,7 +121,11 @@ export default function EmployeeCreatePage() {
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Lični podaci</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <User className="h-4 w-4 text-indigo-500" />
+              <CardTitle>Lični podaci</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -206,7 +210,11 @@ export default function EmployeeCreatePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Kontakt</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <Phone className="h-4 w-4 text-indigo-500" />
+              <CardTitle>Kontakt</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -259,7 +267,11 @@ export default function EmployeeCreatePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Posao</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <Briefcase className="h-4 w-4 text-indigo-500" />
+              <CardTitle>Posao</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -359,7 +371,7 @@ export default function EmployeeCreatePage() {
           </CardContent>
         </Card>
 
-        <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-4 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:-mx-6 sm:px-6">
+        <div className="sticky bottom-0 z-10 -mx-4 rounded-t-xl border-t bg-background/80 px-4 py-4 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.1)] backdrop-blur-lg sm:-mx-6 sm:px-6">
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <Button
               type="button"
@@ -373,6 +385,7 @@ export default function EmployeeCreatePage() {
               type="submit"
               data-cy="createBtn"
               disabled={isSubmitting}
+              className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20"
             >
               {isSubmitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

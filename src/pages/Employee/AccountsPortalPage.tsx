@@ -4,12 +4,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   SlidersHorizontal,
-  Loader2,
   ChevronLeft,
   ChevronRight,
   Plus,
   CreditCard,
   Search,
+  Wallet,
+  Inbox,
 } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
@@ -131,7 +132,13 @@ export default function AccountsPortalPage() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Portal racuna</h1>
+        <div>
+          <div className="flex items-center gap-2">
+            <Wallet className="h-6 w-6 text-primary" />
+            <h1 className="text-3xl font-bold tracking-tight">Portal racuna</h1>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">Upravljajte svim bankovnim racunima klijenata.</p>
+        </div>
         <div className="flex items-center gap-2">
           <Button
             variant={showFilters ? 'secondary' : 'outline'}
@@ -141,7 +148,7 @@ export default function AccountsPortalPage() {
           >
             <SlidersHorizontal className="h-4 w-4" />
           </Button>
-          <Button onClick={() => navigate('/employee/accounts/new')}>
+          <Button onClick={() => navigate('/employee/accounts/new')} className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all">
             <Plus className="mr-2 h-4 w-4" /> Kreiraj racun
           </Button>
         </div>
@@ -210,9 +217,21 @@ export default function AccountsPortalPage() {
 
       {/* Accounts table */}
       {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <Card className="p-4">
+          <div className="space-y-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex gap-4 items-center">
+                <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-40 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                <div className="h-4 flex-1 rounded bg-muted animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </Card>
       ) : (
         <Card>
           <Table>
@@ -230,13 +249,19 @@ export default function AccountsPortalPage() {
             <TableBody>
               {accounts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                    Nema pronadjenih racuna
+                  <TableCell colSpan={7} className="h-24">
+                    <div className="flex flex-col items-center justify-center text-center py-4">
+                      <div className="rounded-full bg-muted p-3 mb-3">
+                        <Inbox className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                      <p className="font-medium text-muted-foreground">Nema pronadjenih racuna</p>
+                      <p className="text-sm text-muted-foreground mt-1">Pokusajte sa drugim filterima.</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
                 accounts.map((account) => (
-                  <TableRow key={account.id}>
+                  <TableRow key={account.id} className="hover:bg-muted/50 transition-colors">
                     <TableCell>{account.ownerName}</TableCell>
                     <TableCell className="font-medium">
                       {formatAccountNumber(account.accountNumber)}

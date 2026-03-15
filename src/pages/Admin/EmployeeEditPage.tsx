@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeft, Save, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, User, Phone, Briefcase, Shield, UserX } from 'lucide-react';
 import { editEmployeeSchema, type EditEmployeeFormData } from '../../utils/validationSchemas';
 import { employeeService } from '../../services/employeeService';
 import type { Employee } from '../../types';
@@ -60,32 +60,120 @@ const DEPARTMENTS = [
 function EditPageSkeleton() {
   return (
     <div className="space-y-6" data-testid="employee-edit-skeleton">
+      {/* Back button skeleton */}
       <div className="h-10 w-36 animate-pulse rounded-md bg-muted" />
 
+      {/* Header skeleton */}
       <div className="space-y-2">
-        <div className="h-8 w-72 max-w-full animate-pulse rounded-md bg-muted" />
-        <div className="h-4 w-96 max-w-full animate-pulse rounded-md bg-muted" />
+        <div className="h-9 w-80 max-w-full animate-pulse rounded-lg bg-muted" />
+        <div className="h-4 w-[28rem] max-w-full animate-pulse rounded-md bg-muted/70" />
       </div>
 
-      {[1, 2, 3, 4].map((section) => (
-        <Card key={section}>
-          <CardHeader className="space-y-2">
-            <div className="h-6 w-40 animate-pulse rounded-md bg-muted" />
-            <div className="h-4 w-64 max-w-full animate-pulse rounded-md bg-muted" />
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {Array.from({ length: 6 }).map((_, index) => (
-                <div key={index} className="space-y-2">
-                  <div className="h-4 w-24 animate-pulse rounded-md bg-muted" />
-                  <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+      {/* Personal info card skeleton */}
+      <Card>
+        <CardHeader className="space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 animate-pulse rounded-full bg-muted" />
+            <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+            <div className="h-6 w-32 animate-pulse rounded-md bg-muted" />
+          </div>
+          <div className="h-4 w-56 max-w-full animate-pulse rounded-md bg-muted/60" />
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="space-y-2">
+                <div className="h-4 w-16 animate-pulse rounded bg-muted/70" />
+                <div className="h-10 w-full animate-pulse rounded-md bg-muted/50" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
+      {/* Contact card skeleton */}
+      <Card>
+        <CardHeader className="space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 animate-pulse rounded-full bg-muted" />
+            <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+            <div className="h-6 w-24 animate-pulse rounded-md bg-muted" />
+          </div>
+          <div className="h-4 w-64 max-w-full animate-pulse rounded-md bg-muted/60" />
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {[1, 2].map((i) => (
+              <div key={i} className="space-y-2">
+                <div className="h-4 w-20 animate-pulse rounded bg-muted/70" />
+                <div className="h-10 w-full animate-pulse rounded-md bg-muted/50" />
+              </div>
+            ))}
+            <div className="space-y-2 sm:col-span-2">
+              <div className="h-4 w-14 animate-pulse rounded bg-muted/70" />
+              <div className="h-10 w-full animate-pulse rounded-md bg-muted/50" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Work card skeleton */}
+      <Card>
+        <CardHeader className="space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 animate-pulse rounded-full bg-muted" />
+            <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+            <div className="h-6 w-20 animate-pulse rounded-md bg-muted" />
+          </div>
+          <div className="h-4 w-72 max-w-full animate-pulse rounded-md bg-muted/60" />
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {[1, 2].map((i) => (
+              <div key={i} className="space-y-2">
+                <div className="h-4 w-20 animate-pulse rounded bg-muted/70" />
+                <div className="h-10 w-full animate-pulse rounded-md bg-muted/50" />
+              </div>
+            ))}
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-2">
+              <div className="h-5 w-36 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-64 animate-pulse rounded bg-muted/60" />
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="h-6 w-10 animate-pulse rounded-full bg-muted" />
+              <div className="h-6 w-16 animate-pulse rounded-full bg-muted" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Permissions card skeleton */}
+      <Card>
+        <CardHeader className="space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 animate-pulse rounded-full bg-muted" />
+            <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+            <div className="h-6 w-28 animate-pulse rounded-md bg-muted" />
+          </div>
+          <div className="h-4 w-72 max-w-full animate-pulse rounded-md bg-muted/60" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Separator />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-lg border p-3">
+                <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+                <div className="h-4 w-28 animate-pulse rounded bg-muted/60" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Footer buttons skeleton */}
       <div className="flex justify-end gap-3">
         <div className="h-10 w-24 animate-pulse rounded-md bg-muted" />
         <div className="h-10 w-40 animate-pulse rounded-md bg-muted" />
@@ -183,9 +271,21 @@ export default function EmployeeEditPage() {
 
   if (!employee) {
     return (
-      <Alert variant="destructive">
-        <AlertDescription>Zaposleni nije pronađen.</AlertDescription>
-      </Alert>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
+          <UserX className="h-10 w-10 text-muted-foreground" />
+        </div>
+        <div className="text-center">
+          <h2 className="text-xl font-semibold">Zaposleni nije pronađen</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Traženi zaposleni ne postoji ili je uklonjen iz sistema.
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => navigate('/admin/employees')}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Nazad na listu
+        </Button>
+      </div>
     );
   }
 
@@ -219,7 +319,11 @@ export default function EmployeeEditPage() {
       >
         <Card>
           <CardHeader>
-            <CardTitle>Lični podaci</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <User className="h-4 w-4 text-indigo-500" />
+              <CardTitle>Lični podaci</CardTitle>
+            </div>
             <CardDescription>Osnovne informacije o zaposlenom.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -290,7 +394,11 @@ export default function EmployeeEditPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Kontakt</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <Phone className="h-4 w-4 text-indigo-500" />
+              <CardTitle>Kontakt</CardTitle>
+            </div>
             <CardDescription>Kontakt podaci i adresa zaposlenog.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -324,7 +432,11 @@ export default function EmployeeEditPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Posao</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <Briefcase className="h-4 w-4 text-indigo-500" />
+              <CardTitle>Posao</CardTitle>
+            </div>
             <CardDescription>Pozicija, odeljenje i status zaposlenog.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -382,9 +494,9 @@ export default function EmployeeEditPage() {
 
             <Separator />
 
-            <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
-                <p className="font-medium">Status zaposlenog</p>
+                <p className="font-semibold">Status zaposlenog</p>
                 <p className="text-sm text-muted-foreground">
                   Odredite da li je zaposleni trenutno aktivan u sistemu.
                 </p>
@@ -396,7 +508,10 @@ export default function EmployeeEditPage() {
                 render={({ field }) => (
                   <div className="flex items-center gap-3">
                     <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    <Badge variant={field.value ? 'default' : 'destructive'}>
+                    <Badge
+                      variant={field.value ? 'default' : 'destructive'}
+                      className={field.value ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white' : ''}
+                    >
                       {field.value ? 'Aktivan' : 'Neaktivan'}
                     </Badge>
                   </div>
@@ -408,7 +523,11 @@ export default function EmployeeEditPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Permisije</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <Shield className="h-4 w-4 text-indigo-500" />
+              <CardTitle>Permisije</CardTitle>
+            </div>
             <CardDescription>Izaberite dozvole koje zaposleni ima u sistemu.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -418,7 +537,7 @@ export default function EmployeeEditPage() {
                 <label
                   key={perm}
                   htmlFor={`perm-${perm}`}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40"
+                  className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-primary/5"
                 >
                   <Checkbox
                     id={`perm-${perm}`}
@@ -440,7 +559,11 @@ export default function EmployeeEditPage() {
           >
             Otkaži
           </Button>
-          <Button type="submit" disabled={saving}>
+          <Button
+            type="submit"
+            disabled={saving}
+            className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20"
+          >
             {saving ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (

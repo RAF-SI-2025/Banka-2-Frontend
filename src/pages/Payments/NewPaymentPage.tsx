@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import VerificationModal from '@/components/shared/VerificationModal';
+import { SendHorizonal } from 'lucide-react';
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -91,7 +92,7 @@ export default function NewPaymentPage() {
         }
       } catch {
         if (!mounted) return;
-        toast.error('Neuspešno učitavanje računa ili primalaca.');
+        toast.error('Neuspesno ucitavanje racuna ili primalaca.');
         setAccounts([]);
         setRecipients([]);
       } finally {
@@ -138,10 +139,10 @@ export default function NewPaymentPage() {
 
       setPendingTransactionId(result.id);
       setShowVerification(true);
-      toast.info('Plaćanje je kreirano. Potrebna je verifikacija.');
+      toast.info('Placanje je kreirano. Potrebna je verifikacija.');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || 'Kreiranje plaćanja nije uspelo.');
+      toast.error(error.response?.data?.message || 'Kreiranje placanja nije uspelo.');
     } finally {
       setIsSubmitting(false);
     }
@@ -152,26 +153,65 @@ export default function NewPaymentPage() {
 
   return (
     <div className="container mx-auto py-6 max-w-2xl">
-      <h1 className="text-3xl font-bold mb-6">Novi platni nalog</h1>
+      <div>
+        <div className="flex items-center gap-2">
+          <SendHorizonal className="h-6 w-6 text-primary" />
+          <h1 className="text-3xl font-bold tracking-tight">Novi platni nalog</h1>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">Popunite podatke za kreiranje novog platnog naloga.</p>
+      </div>
 
-      <Card>
+      <Card className="mt-6">
         <CardHeader>
-          <CardTitle>Nalog za plaćanje</CardTitle>
+          <CardTitle>Nalog za placanje</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-muted-foreground">Učitavanje podataka...</p>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+                <div className="h-10 w-full rounded bg-muted animate-pulse" />
+              </div>
+              <div className="space-y-2">
+                <div className="h-4 w-40 rounded bg-muted animate-pulse" />
+                <div className="h-10 w-full rounded bg-muted animate-pulse" />
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                  <div className="h-10 w-full rounded bg-muted animate-pulse" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                  <div className="h-10 w-full rounded bg-muted animate-pulse" />
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                  <div className="h-10 w-full rounded bg-muted animate-pulse" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                  <div className="h-10 w-full rounded bg-muted animate-pulse" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+                <div className="h-[88px] w-full rounded bg-muted animate-pulse" />
+              </div>
+            </div>
           ) : (
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
               <div className="space-y-2">
-                <Label htmlFor="fromAccount">Račun platioca</Label>
+                <Label htmlFor="fromAccount">Racun platioca</Label>
                 <select
                   id="fromAccount"
-                  title="Račun platioca"
+                  title="Racun platioca"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register('fromAccountNumber')}
                 >
-                  <option value="">Izaberite račun</option>
+                  <option value="">Izaberite racun</option>
                   {asArray<Account>(accounts).map((account) => (
                     <option key={account.id} value={account.accountNumber}>
                       {account.name || account.accountType} | {account.accountNumber} | {formatAmount(account.availableBalance)}{' '}
@@ -185,10 +225,10 @@ export default function NewPaymentPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="savedRecipient">Sačuvani primalac (opciono)</Label>
+                <Label htmlFor="savedRecipient">Sacuvani primalac (opciono)</Label>
                 <select
                   id="savedRecipient"
-                  title="Sačuvani primalac"
+                  title="Sacuvani primalac"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   onChange={(e) => {
                     const accountNumber = e.target.value;
@@ -196,7 +236,7 @@ export default function NewPaymentPage() {
                     setValue('toAccountNumber', accountNumber, { shouldValidate: true });
                   }}
                 >
-                  <option value="">Bez šablona</option>
+                  <option value="">Bez sablona</option>
                   {asArray<PaymentRecipient>(recipients).map((recipient) => (
                     <option key={recipient.id} value={recipient.accountNumber}>
                       {recipient.name} | {recipient.accountNumber}
@@ -207,7 +247,7 @@ export default function NewPaymentPage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="toAccount">Račun primaoca</Label>
+                  <Label htmlFor="toAccount">Racun primaoca</Label>
                   <Input id="toAccount" {...register('toAccountNumber')} placeholder="18 cifara" />
                   {errors.toAccountNumber && (
                     <p className="text-sm text-destructive">{errors.toAccountNumber.message}</p>
@@ -227,19 +267,19 @@ export default function NewPaymentPage() {
                   {errors.amount && <p className="text-sm text-destructive">{errors.amount.message}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="paymentCode">Šifra plaćanja</Label>
+                  <Label htmlFor="paymentCode">Sifra placanja</Label>
                   <Input id="paymentCode" {...register('paymentCode')} placeholder="289" />
                   {errors.paymentCode && <p className="text-sm text-destructive">{errors.paymentCode.message}</p>}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="purpose">Svrha plaćanja</Label>
+                <Label htmlFor="purpose">Svrha placanja</Label>
                 <textarea
                   id="purpose"
                   className="flex min-h-[88px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register('paymentPurpose')}
-                  placeholder="Unesite svrhu plaćanja"
+                  placeholder="Unesite svrhu placanja"
                 />
                 {errors.paymentPurpose && <p className="text-sm text-destructive">{errors.paymentPurpose.message}</p>}
               </div>
@@ -260,11 +300,15 @@ export default function NewPaymentPage() {
               </div>
 
               <div className="rounded-md border p-3 text-sm text-muted-foreground">
-                Valuta odabranog računa: <span className="font-semibold text-foreground">{fromAccountCurrency || '-'}</span>
+                Valuta odabranog racuna: <span className="font-semibold text-foreground">{fromAccountCurrency || '-'}</span>
               </div>
 
               <div className="flex justify-end">
-                <Button type="submit" disabled={isSubmitting}>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
+                >
                   {isSubmitting ? 'Kreiranje...' : 'Nastavi na verifikaciju'}
                 </Button>
               </div>
@@ -285,5 +329,3 @@ export default function NewPaymentPage() {
     </div>
   );
 }
-
-
