@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Landmark,
   Shield,
   Users,
   CreditCard,
@@ -56,7 +55,16 @@ const features = [
   },
 ];
 
-const currencies = ['RSD', 'EUR', 'USD', 'CHF', 'GBP', 'JPY', 'CAD', 'AUD'];
+const currencies = [
+  { code: 'RSD', symbol: 'дин' },
+  { code: 'EUR', symbol: '€' },
+  { code: 'USD', symbol: '$' },
+  { code: 'CHF', symbol: '₣' },
+  { code: 'GBP', symbol: '£' },
+  { code: 'JPY', symbol: '¥' },
+  { code: 'CAD', symbol: 'C$' },
+  { code: 'AUD', symbol: 'A$' },
+];
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 
@@ -108,6 +116,13 @@ export default function LandingPage() {
   const backendStatus = useBackendStatus();
   const featuresAnim = useInView();
   const ctaAnim = useInView();
+  const [scrollY, setScrollY] = useState(0);
+
+  useEffect(() => {
+    const onScroll = () => setScrollY(window.scrollY);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const statusLabel = backendStatus === 'checking' ? 'Provera servera...'
     : backendStatus === 'online' ? 'Server aktivan'
@@ -141,11 +156,14 @@ export default function LandingPage() {
       <nav className="sticky top-0 z-50 border-b border-slate-200/80 dark:border-white/[0.06] bg-white/80 dark:bg-[#070b24]/70 backdrop-blur-xl transition-colors">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/25">
-              <Landmark className="h-[18px] w-[18px] text-white" />
-            </div>
+            <img
+              src="/logo.svg"
+              alt="BANKA 2025 • TIM 2"
+              className="h-11 w-11 transition-transform duration-100"
+              style={{ transform: `rotateY(${scrollY * 0.5}deg)` }}
+            />
             <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
-              Banka 2025
+              BANKA 2025 <span className="text-indigo-500 dark:text-indigo-400">•</span> TIM 2
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -174,11 +192,11 @@ export default function LandingPage() {
       </nav>
 
       {/* --- Hero --- */}
-      <section className="relative z-10 mx-auto max-w-6xl px-6 pb-8 pt-16 text-center sm:pt-24 lg:pt-32">
+      <section className="relative z-10 mx-auto flex min-h-[calc(100svh-4rem-3.5rem)] max-w-6xl flex-col items-center justify-center px-6 text-center">
         {/* Dotted world map */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-[url('/landing_page_bg.png')] bg-center bg-no-repeat bg-contain opacity-[0.25] dark:opacity-[0.12]"
+          className="pointer-events-none absolute -inset-[10%] bg-[url('/landing_page_bg.png')] bg-center bg-no-repeat bg-contain opacity-[0.25] dark:opacity-[0.12]"
         />
         {/* Radial glow behind heading */}
         <div
@@ -248,8 +266,8 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Scroll indicator */}
-        <div className="mt-16 flex animate-float justify-center sm:mt-24">
+        {/* Scroll indicator - positioned at bottom of hero */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 animate-float">
           <div className="flex h-8 w-5 items-start justify-center rounded-full border border-slate-300 dark:border-white/20 p-1">
             <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 dark:bg-white/60" />
           </div>
@@ -257,16 +275,20 @@ export default function LandingPage() {
       </section>
 
       {/* --- Currency ticker --- */}
-      <div className="relative z-10 border-y border-slate-200/80 dark:border-white/[0.06] bg-white/40 dark:bg-white/[0.02] py-4 backdrop-blur-sm">
+      <div className="relative z-10 -mt-8 border-y border-slate-200/80 dark:border-white/[0.06] bg-white/40 dark:bg-white/[0.02] py-5 backdrop-blur-sm">
         <div className="overflow-hidden">
-          <div className="animate-slide-left flex w-max items-center gap-12">
+          <div className="animate-slide-left flex w-max items-center gap-6">
             {[...currencies, ...currencies, ...currencies, ...currencies].map((c, i) => (
               <span
-                key={`${c}-${i}`}
-                className="flex items-center gap-2 text-sm font-medium tracking-widest text-slate-400 dark:text-slate-500 select-none"
+                key={`${c.code}-${i}`}
+                className="flex items-center gap-6 select-none"
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-500/50" />
-                {c}
+                <span className="text-lg font-bold tracking-widest text-slate-500 dark:text-slate-400">
+                  {c.code}
+                </span>
+                <span className="text-xl text-indigo-400/60 dark:text-indigo-500/50">
+                  {c.symbol}
+                </span>
               </span>
             ))}
           </div>
@@ -351,9 +373,7 @@ export default function LandingPage() {
             />
 
             <div className="relative flex flex-col items-center gap-6 px-8 py-16 text-center sm:py-20">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/20 backdrop-blur-sm">
-                <Landmark className="h-7 w-7 text-white" />
-              </div>
+              <img src="/logo.svg" alt="Banka 2025" className="h-[72px] w-[72px]" />
               <h3 className="text-2xl font-bold text-white sm:text-4xl">
                 Spremni da počnete?
               </h3>
@@ -378,11 +398,9 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl px-6 py-8">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-indigo-500/80 to-violet-600/80">
-                <Landmark className="h-3.5 w-3.5 text-white" />
-              </div>
+              <img src="/logo.svg" alt="Banka 2025" className="h-9 w-9" />
               <span className="text-sm font-semibold text-slate-600 dark:text-slate-400">
-                Banka 2025
+                BANKA 2025 <span className="text-indigo-500/60">•</span> TIM 2
               </span>
             </div>
             <p className="text-xs text-slate-400 dark:text-slate-600">

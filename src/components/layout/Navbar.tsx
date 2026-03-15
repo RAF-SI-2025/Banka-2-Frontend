@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  Landmark, Home, Users, LogOut, User, Sun, Moon, Monitor,
+  Home, Users, LogOut, User, Sun, Moon, Monitor,
   Wallet, CreditCard, ArrowLeftRight, RefreshCw, Receipt, BookUser,
   Building2, ShieldCheck, FileText, History,
 } from 'lucide-react';
@@ -137,8 +137,8 @@ export default function Navbar() {
           className="mr-2 flex shrink-0 cursor-pointer items-center gap-2 font-bold"
           onClick={() => navigate('/home')}
         >
-          <Landmark className="h-5 w-5" />
-          <span className="text-lg">Banka 2025</span>
+          <img src="/logo.svg" alt="Banka 2025" className="h-9 w-9" />
+          <span className="text-lg">BANKA 2025 <span className="opacity-50">•</span> TIM 2</span>
         </div>
 
         <nav className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto whitespace-nowrap">
@@ -182,7 +182,7 @@ export default function Navbar() {
               size="icon"
               className="shrink-0 hover:bg-primary-foreground/10"
             >
-              <Avatar className="h-8 w-8">
+              <Avatar className="h-9 w-9">
                 <AvatarFallback className="bg-primary-foreground/20 text-primary-foreground text-xs">
                   <User className="h-4 w-4" />
                 </AvatarFallback>

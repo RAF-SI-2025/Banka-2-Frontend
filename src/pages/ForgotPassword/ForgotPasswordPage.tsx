@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Landmark, MailCheck, Loader2, ArrowLeft } from 'lucide-react';
+import { MailCheck, Loader2, ArrowLeft } from 'lucide-react';
 import {
   forgotPasswordSchema,
   type ForgotPasswordFormData,
@@ -57,9 +57,7 @@ export default function ForgotPasswordPage() {
 
         <Card className="shadow-2xl shadow-indigo-500/5">
           <CardHeader className="text-center space-y-2">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/25">
-              <Landmark className="h-6 w-6 text-white" />
-            </div>
+            <img src="/logo.svg" alt="Banka 2025" className="mx-auto h-16 w-16" />
             <CardTitle className="text-xl">Zaboravljena lozinka</CardTitle>
           </CardHeader>
           <CardContent>

@@ -11,7 +11,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/lib/notify';
-import { Users, UserPlus, Building2, BookUser, ShieldCheck, FileText, Landmark, TrendingUp } from 'lucide-react';
+import { Users, UserPlus, Building2, BookUser, ShieldCheck, FileText, TrendingUp } from 'lucide-react';
 import { accountService } from '@/services/accountService';
 import { currencyService } from '@/services/currencyService';
 import { paymentRecipientService } from '@/services/paymentRecipientService';
@@ -51,37 +51,37 @@ const adminCards: AdminCard[] = [
     title: 'Lista zaposlenih',
     description: 'Pregled i upravljanje zaposlenima.',
     path: '/admin/employees',
-    icon: <Users className="h-6 w-6" />,
+    icon: <Users className="h-7 w-7" />,
   },
   {
     title: 'Novi zaposleni',
     description: 'Kreiranje naloga za zaposlenog.',
     path: '/admin/employees/new',
-    icon: <UserPlus className="h-6 w-6" />,
+    icon: <UserPlus className="h-7 w-7" />,
   },
   {
     title: 'Portal računa',
     description: 'Otvaranje i pregled klijentskih računa.',
     path: '/employee/accounts',
-    icon: <Building2 className="h-6 w-6" />,
+    icon: <Building2 className="h-7 w-7" />,
   },
   {
     title: 'Portal klijenata',
     description: 'Pregled klijenata i njihovih računa.',
     path: '/employee/clients',
-    icon: <BookUser className="h-6 w-6" />,
+    icon: <BookUser className="h-7 w-7" />,
   },
   {
     title: 'Zahtevi za kredit',
     description: 'Obrada klijentskih zahteva za kredit.',
     path: '/employee/loan-requests',
-    icon: <ShieldCheck className="h-6 w-6" />,
+    icon: <ShieldCheck className="h-7 w-7" />,
   },
   {
     title: 'Svi krediti',
     description: 'Pregled svih aktivnih i završenih kredita.',
     path: '/employee/loans',
-    icon: <FileText className="h-6 w-6" />,
+    icon: <FileText className="h-7 w-7" />,
   },
 ];
 
@@ -184,7 +184,7 @@ export default function HomePage() {
       {isAdmin && (
         <section className="space-y-4">
           <div className="flex items-center gap-2">
-            <Landmark className="h-5 w-5 text-primary" />
+            <img src="/logo.svg" alt="Banka 2025" className="h-7 w-7" />
             <h2 className="text-xl font-semibold">Admin pregled</h2>
           </div>
 
@@ -219,7 +219,7 @@ export default function HomePage() {
 
           <div>
             <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
+              <TrendingUp className="h-7 w-7" />
               Brze admin akcije
             </h3>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Users, UserPlus, Landmark, TrendingUp } from 'lucide-react';
+import { Users, UserPlus, TrendingUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -69,14 +69,12 @@ export default function DashboardPage() {
     <div className="max-w-6xl mx-auto">
       {/* Welcome Section */}
       <div className="text-center mb-8 space-y-2">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-          <Landmark className="h-7 w-7 text-primary" />
-        </div>
+        <img src="/logo.svg" alt="Banka 2025" className="mx-auto h-[72px] w-[72px]" />
         <h1 className="text-3xl font-bold tracking-tight">
           Dobrodošli, {user?.firstName}!
         </h1>
         <p className="text-muted-foreground">
-          Banka 2025 - Interni portal
+          BANKA 2025 • TIM 2 — Interni portal
         </p>
       </div>
 

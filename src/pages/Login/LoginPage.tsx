@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Landmark, Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react';
 import { loginSchema, type LoginFormData } from '../../utils/validationSchemas';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [logoSpin, setLogoSpin] = useState(false);
 
   const {
     register,
@@ -58,10 +59,14 @@ export default function LoginPage() {
 
         <Card className="shadow-2xl shadow-indigo-500/5">
           <CardHeader className="text-center space-y-2">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/25">
-              <Landmark className="h-6 w-6 text-white" />
-            </div>
-            <CardTitle className="text-2xl">Banka 2025</CardTitle>
+            <img
+              src="/logo.svg"
+              alt="BANKA 2025 • TIM 2"
+              className="mx-auto h-16 w-16 cursor-pointer transition-transform duration-700 ease-in-out"
+              style={{ transform: logoSpin ? 'rotateY(360deg)' : 'rotateY(0deg)' }}
+              onClick={() => { setLogoSpin(true); setTimeout(() => setLogoSpin(false), 700); }}
+            />
+            <CardTitle className="text-2xl">BANKA 2025 <span className="text-indigo-500">•</span> TIM 2</CardTitle>
             <CardDescription>Prijavite se na vaš nalog</CardDescription>
           </CardHeader>
           <CardContent>
