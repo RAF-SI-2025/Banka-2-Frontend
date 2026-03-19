@@ -54,7 +54,6 @@ export default function LoanListPage() {
         const data = await creditService.getMyLoans();
         setLoans(asArray<Loan>(data));
       } catch {
-        toast.error('Neuspesno ucitavanje kredita.');
         setLoans([]);
       } finally {
         setLoading(false);
