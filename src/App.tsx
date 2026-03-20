@@ -39,6 +39,16 @@ import AllLoansPage from './pages/Employee/AllLoansPage';
 import AccountRequestsPage from './pages/Employee/AccountRequestsPage';
 import CardRequestsPage from './pages/Employee/CardRequestsPage';
 
+// Celina 3 - Berza
+import SecuritiesListPage from './pages/Securities/SecuritiesListPage';
+import SecuritiesDetailsPage from './pages/Securities/SecuritiesDetailsPage';
+import CreateOrderPage from './pages/Orders/CreateOrderPage';
+import OrdersListPage from './pages/Orders/OrdersListPage';
+import MyOrdersPage from './pages/Orders/MyOrdersPage';
+import PortfolioPage from './pages/Portfolio/PortfolioPage';
+import ActuaryManagementPage from './pages/Actuary/ActuaryManagementPage';
+import TaxPortalPage from './pages/Tax/TaxPortalPage';
+
 export default function App() {
   return (
     <Routes>
@@ -112,6 +122,24 @@ export default function App() {
           </Route>
           <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/employee/loans" element={<AllLoansPage />} />
+          </Route>
+
+          {/* Celina 3 - Berza rute (aktuari + klijenti sa permisijom) */}
+          <Route path="/securities" element={<SecuritiesListPage />} />
+          <Route path="/securities/:id" element={<SecuritiesDetailsPage />} />
+          <Route path="/orders/new" element={<CreateOrderPage />} />
+          <Route path="/orders/my" element={<MyOrdersPage />} />
+          <Route path="/portfolio" element={<PortfolioPage />} />
+
+          {/* Celina 3 - Supervizor/Admin portali */}
+          <Route element={<ProtectedRoute adminOnly />}>
+            <Route path="/employee/orders" element={<OrdersListPage />} />
+          </Route>
+          <Route element={<ProtectedRoute adminOnly />}>
+            <Route path="/employee/actuaries" element={<ActuaryManagementPage />} />
+          </Route>
+          <Route element={<ProtectedRoute adminOnly />}>
+            <Route path="/employee/tax" element={<TaxPortalPage />} />
           </Route>
         </Route>
       </Route>
