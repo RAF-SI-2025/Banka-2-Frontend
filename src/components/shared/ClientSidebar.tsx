@@ -97,6 +97,8 @@ export default function ClientSidebar() {
       { label: 'Portal klijenata', path: '/employee/clients', icon: <Users className="h-4 w-4" /> },
       { label: 'Zahtevi za kredit', path: '/employee/loan-requests', icon: <ShieldCheck className="h-4 w-4" /> },
       { label: 'Svi krediti', path: '/employee/loans', icon: <FileText className="h-4 w-4" /> },
+      { label: 'Upravljanje aktuarima', path: '/employee/actuaries', icon: <Users className="h-4 w-4" /> },
+      { label: 'Praćenje poreza', path: '/employee/tax', icon: <Receipt className="h-4 w-4" /> },
     ],
     []
   );
@@ -177,25 +179,25 @@ export default function ClientSidebar() {
           </div>
 
           {!isEmployeeOrAdmin && (
-          <div className="space-y-2">
-            <p className="px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Moje finansije
-            </p>
+            <div className="space-y-2">
+              <p className="px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Moje finansije
+              </p>
 
-            <div className="space-y-1">
-              {clientLinks.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={linkClassName}
-                  onClick={() => setOpen(false)}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </NavLink>
-              ))}
+              <div className="space-y-1">
+                {clientLinks.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    className={linkClassName}
+                    onClick={() => setOpen(false)}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </NavLink>
+                ))}
+              </div>
             </div>
-          </div>
           )}
 
           {isEmployeeOrAdmin && (

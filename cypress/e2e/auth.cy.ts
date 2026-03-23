@@ -31,7 +31,7 @@ describe('Auth flows', () => {
     cy.get('#password').should('have.class', 'border-destructive');
   });
 
-  it('login uspeh preusmerava na dashboard', () => {
+  it('login uspeh preusmerava na pocetnu', () => {
     const accessToken = createJwt('ADMIN');
 
     cy.intercept('POST', '**/auth/login', {
@@ -50,7 +50,7 @@ describe('Auth flows', () => {
     cy.contains('Prijavi se').click();
 
     cy.wait('@login');
-    cy.url().should('include', '/dashboard');
+    cy.url().should('include', '/home');
 
     cy.window().then((win) => {
       expect(win.sessionStorage.getItem('accessToken')).to.eq(accessToken);

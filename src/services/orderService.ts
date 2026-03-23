@@ -1,5 +1,5 @@
 import api from './api';
-import { Order, CreateOrderRequest, PaginatedResponse } from '../types/celina3';
+import type { Order, CreateOrderRequest, PaginatedResponse } from '../types/celina3';
 
 // FIXME: Svi endpointi cekaju backend implementaciju iz Sprint 3
 

@@ -63,15 +63,12 @@ describe('FE2-18c - Client sidebar navigation', () => {
     cy.location('pathname').should('eq', '/accounts');
   });
 
-  it('prikazuje top menu sekcije', () => {
-    cy.contains('header', 'Početna').should('be.visible');
-    cy.contains('header', 'Računi').should('be.visible');
-    cy.contains('header', 'Plaćanja').should('be.visible');
-    cy.contains('header', 'Primaoci').should('be.visible');
-    cy.contains('header', 'Prenosi').should('be.visible');
-    cy.contains('header', 'Istorija').should('be.visible');
-    cy.contains('header', 'Menjačnica').scrollIntoView().should('be.visible');
-    cy.contains('header', 'Kartice').scrollIntoView().should('be.visible');
-    cy.contains('header', 'Krediti').scrollIntoView().should('be.visible');
+  it('prikazuje sidebar sekcije za klijenta', () => {
+    cy.contains('aside', 'Početna').should('be.visible');
+    cy.contains('aside', 'Moje finansije').should('be.visible');
+    cy.contains('aside', 'Računi').should('be.visible');
+    cy.contains('aside', 'Plaćanja').should('be.visible');
+    cy.contains('aside', 'Krediti').should('be.visible');
+    cy.contains('aside', 'Employee portal').should('not.exist');
   });
 });

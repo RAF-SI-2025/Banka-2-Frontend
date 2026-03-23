@@ -1,5 +1,5 @@
 import api from './api';
-import { TaxRecord } from '../types/celina3';
+import type { TaxRecord } from '../types/celina3';
 
 // FIXME: Svi endpointi cekaju backend implementaciju (post-Sprint 3)
 

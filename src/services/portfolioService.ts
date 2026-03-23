@@ -1,5 +1,5 @@
 import api from './api';
-import { PortfolioItem, PortfolioSummary } from '../types/celina3';
+import type { PortfolioItem, PortfolioSummary } from '../types/celina3';
 
 // FIXME: Svi endpointi cekaju backend implementaciju (post-Sprint 3)
 

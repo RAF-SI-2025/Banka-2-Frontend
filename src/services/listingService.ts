@@ -1,5 +1,5 @@
 import api from './api';
-import { Listing, ListingDailyPrice, PaginatedResponse } from '../types/celina3';
+import type { Listing, ListingDailyPrice, PaginatedResponse } from '../types/celina3';
 
 // FIXME: Svi endpointi cekaju backend implementaciju iz Sprint 3
 // Kada backend bude spreman, proveriti da li se polja poklapaju
