@@ -1,78 +1,85 @@
 /// <reference types="cypress" />
+function _b64url(s) { return btoa(s).split('=').join('').split('+').join('-').split('/').join('_'); }
+function _fakeJwt(role, email) {
+  return _b64url(JSON.stringify({alg:'HS256',typ:'JWT'})) + '.' +
+    _b64url(JSON.stringify({sub:email,role:role,active:true,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000)})) +
+    '.fakesig';
+}
+
 
 const MOCK_ACCOUNTS = [
   {
-    id: 1, accountNumber: '265000000000000112', name: 'Tekuci racun - RSD',
+    id: 1, accountNumber: '265000000000000112', name: 'Tekući račun - RSD',
     accountType: 'TEKUCI', status: 'ACTIVE', balance: 500000, availableBalance: 485230.5,
     reservedBalance: 14769.5, dailyLimit: 200000, monthlyLimit: 1000000,
     dailySpending: 0, monthlySpending: 15000, maintenanceFee: 250,
     currency: 'RSD', ownerName: 'Stefan Jovanovic', createdAt: '2025-01-15',
   },
   {
-    id: 2, accountNumber: '265000000000000229', name: 'Devizni racun - EUR',
+    id: 2, accountNumber: '265000000000000229', name: 'Devizni račun - EUR',
     accountType: 'DEVIZNI', status: 'ACTIVE', balance: 13000, availableBalance: 12500.0,
     reservedBalance: 500, dailyLimit: 50000, monthlyLimit: 200000,
     dailySpending: 0, monthlySpending: 0, maintenanceFee: 3,
     currency: 'EUR', ownerName: 'Stefan Jovanovic', createdAt: '2025-02-01',
   },
   {
-    id: 3, accountNumber: '265000000000000336', name: 'Poslovni racun - RSD',
+    id: 3, accountNumber: '265000000000000336', name: 'Poslovni račun - RSD',
     accountType: 'POSLOVNI', status: 'ACTIVE', balance: 2800000, availableBalance: 2750000.0,
     reservedBalance: 50000, dailyLimit: 5000000, monthlyLimit: 20000000,
     dailySpending: 0, monthlySpending: 100000, maintenanceFee: 1500,
     currency: 'RSD', ownerName: 'Milica Nikolic', createdAt: '2025-01-20',
   },
   {
-    id: 4, accountNumber: '265000000000000443', name: 'Tekuci racun - EUR',
+    id: 4, accountNumber: '265000000000000443', name: 'Tekući račun - EUR',
     accountType: 'TEKUCI', status: 'ACTIVE', balance: 3500, availableBalance: 3200.75,
     reservedBalance: 299.25, dailyLimit: 10000, monthlyLimit: 50000,
     dailySpending: 0, monthlySpending: 0, maintenanceFee: 2,
     currency: 'EUR', ownerName: 'Stefan Jovanovic', createdAt: '2025-03-01',
   },
   {
-    id: 5, accountNumber: '265000000000000550', name: 'Devizni racun - RSD',
+    id: 5, accountNumber: '265000000000000550', name: 'Devizni račun - RSD',
     accountType: 'DEVIZNI', status: 'ACTIVE', balance: 1150000, availableBalance: 1100000.0,
     reservedBalance: 50000, dailyLimit: 500000, monthlyLimit: 2000000,
     dailySpending: 0, monthlySpending: 0, maintenanceFee: 500,
     currency: 'RSD', ownerName: 'Lazar Petrovic', createdAt: '2025-01-25',
   },
   {
-    id: 6, accountNumber: '265000000000000667', name: 'Poslovni racun - EUR',
+    id: 6, accountNumber: '265000000000000667', name: 'Poslovni račun - EUR',
     accountType: 'POSLOVNI', status: 'ACTIVE', balance: 55000, availableBalance: 54000.0,
     reservedBalance: 1000, dailyLimit: 100000, monthlyLimit: 500000,
     dailySpending: 0, monthlySpending: 5000, maintenanceFee: 10,
     currency: 'EUR', ownerName: 'Milica Nikolic', createdAt: '2025-02-10',
   },
   {
-    id: 7, accountNumber: '265000000000000774', name: 'Tekuci racun - USD',
+    id: 7, accountNumber: '265000000000000774', name: 'Tekući račun - USD',
     accountType: 'TEKUCI', status: 'ACTIVE', balance: 9000, availableBalance: 8750.25,
     reservedBalance: 249.75, dailyLimit: 15000, monthlyLimit: 60000,
     dailySpending: 0, monthlySpending: 0, maintenanceFee: 3,
     currency: 'USD', ownerName: 'Ana Markovic', createdAt: '2025-02-15',
   },
   {
-    id: 8, accountNumber: '265000000000000881', name: 'Devizni racun - EUR',
+    id: 8, accountNumber: '265000000000000881', name: 'Devizni račun - EUR',
     accountType: 'DEVIZNI', status: 'ACTIVE', balance: 26000, availableBalance: 25000.0,
     reservedBalance: 1000, dailyLimit: 50000, monthlyLimit: 200000,
     dailySpending: 0, monthlySpending: 0, maintenanceFee: 5,
     currency: 'EUR', ownerName: 'Ana Markovic', createdAt: '2025-03-01',
   },
   {
-    id: 9, accountNumber: '265000000000000998', name: 'Tekuci racun - RSD',
+    id: 9, accountNumber: '265000000000000998', name: 'Tekući račun - RSD',
     accountType: 'TEKUCI', status: 'ACTIVE', balance: 75000, availableBalance: 72300.0,
     reservedBalance: 2700, dailyLimit: 100000, monthlyLimit: 500000,
     dailySpending: 0, monthlySpending: 10000, maintenanceFee: 250,
     currency: 'RSD', ownerName: 'Lazar Petrovic', createdAt: '2025-01-30',
   },
   {
-    id: 10, accountNumber: '265000000000001008', name: 'Poslovni racun - USD',
+    id: 10, accountNumber: '265000000000001008', name: 'Poslovni račun - USD',
     accountType: 'POSLOVNI', status: 'ACTIVE', balance: 125000, availableBalance: 120000.0,
     reservedBalance: 5000, dailyLimit: 200000, monthlyLimit: 1000000,
     dailySpending: 0, monthlySpending: 0, maintenanceFee: 15,
     currency: 'USD', ownerName: 'Milica Nikolic', createdAt: '2025-02-20',
   },
   {
-    id: 11, accountNumber: '265000000000001115', name: 'Tekuci racun - RSD',
+    id: 11, accountNumber: '265000000000001115', name: 'Tekući račun - RSD',
     accountType: 'TEKUCI', status: 'INACTIVE', balance: 0, availableBalance: 0,
     reservedBalance: 0, dailyLimit: 0, monthlyLimit: 0,
     dailySpending: 0, monthlySpending: 0, maintenanceFee: 0,
@@ -123,7 +130,7 @@ const EMPTY_TRANSACTIONS = {
 };
 
 function setupClientSession(win: Cypress.AUTWindow) {
-  win.sessionStorage.setItem('accessToken', 'fake-access-token');
+  win.sessionStorage.setItem('accessToken', _fakeJwt('CLIENT', 'test@test.com'));
   win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
   win.sessionStorage.setItem(
     'user',
@@ -139,14 +146,14 @@ function setupClientSession(win: Cypress.AUTWindow) {
 }
 
 function interceptAccountsApi() {
-  cy.intercept('GET', '**/accounts/my', {
+  cy.intercept('GET', '**/api/accounts/my', {
     statusCode: 200,
     body: MOCK_ACCOUNTS,
   }).as('getAccounts');
 }
 
 function interceptTransactionsApi(response = MOCK_TRANSACTIONS) {
-  cy.intercept('GET', '**/transactions*', {
+  cy.intercept('GET', '**/api/payments*', {
     statusCode: 200,
     body: response,
   }).as('getTransactions');
@@ -163,19 +170,19 @@ describe('Accounts - Lista racuna', () => {
       },
     });
 
-    cy.contains('Racuni', { timeout: 10000 }).should('be.visible');
+    cy.contains('Računi', { timeout: 10000 }).should('be.visible');
   });
 
   it('prikazuje naslov stranice', () => {
-    cy.contains('h1', 'Racuni').should('be.visible');
+    cy.contains('h1', 'Računi').should('be.visible');
   });
 
   it('prikazuje tabelu sa racunima', () => {
     cy.get('table').first().should('be.visible');
-    cy.contains('th', 'Broj racuna').should('be.visible');
+    cy.contains('th', 'Broj računa').should('be.visible');
     cy.contains('th', 'Naziv').should('be.visible');
     cy.contains('th', 'Tip').should('be.visible');
-    cy.contains('th', 'Raspolozivo stanje').should('be.visible');
+    cy.contains('th', 'Raspoloživo stanje').should('be.visible');
     cy.contains('th', 'Valuta').should('be.visible');
     cy.contains('th', 'Status').should('be.visible');
   });
@@ -335,7 +342,7 @@ describe('Accounts - Lista racuna', () => {
 
   describe('Loading i prazno stanje', () => {
     it('prikazuje spinner dok se ucitavaju podaci', () => {
-      cy.intercept('GET', '**/accounts/my', {
+      cy.intercept('GET', '**/api/accounts/my', {
         statusCode: 200,
         body: MOCK_ACCOUNTS,
         delay: 1000,
@@ -350,7 +357,7 @@ describe('Accounts - Lista racuna', () => {
     });
 
     it('prikazuje poruku greske kada API vrati gresku', () => {
-      cy.intercept('GET', '**/accounts/my', {
+      cy.intercept('GET', '**/api/accounts/my', {
         statusCode: 500,
         body: { message: 'Internal Server Error' },
       }).as('getAccountsError');
@@ -365,7 +372,7 @@ describe('Accounts - Lista racuna', () => {
     });
 
     it('prikazuje poruku kada nema racuna', () => {
-      cy.intercept('GET', '**/accounts/my', {
+      cy.intercept('GET', '**/api/accounts/my', {
         statusCode: 200,
         body: [],
       }).as('getAccountsEmpty');
@@ -436,7 +443,7 @@ describe('Accounts - Lista racuna', () => {
     it('klik na Racuni u navbaru ostaje na listi racuna', () => {
       cy.get('header').contains('Računi').click();
       cy.url().should('include', '/accounts');
-      cy.contains('h1', 'Racuni').should('be.visible');
+      cy.contains('h1', 'Računi').should('be.visible');
     });
 
     it('redovi tabele imaju kursor pointer', () => {
@@ -456,7 +463,7 @@ describe('Accounts - Transakcije za selektovani racun', () => {
       },
     });
 
-    cy.contains('Racuni', { timeout: 10000 }).should('be.visible');
+    cy.contains('Računi', { timeout: 10000 }).should('be.visible');
   });
 
   it('prikazuje panel sa transakcijama', () => {
@@ -521,7 +528,7 @@ describe('Accounts - Transakcije za selektovani racun', () => {
       number: 0,
     };
 
-    cy.intercept('GET', '**/transactions*', {
+    cy.intercept('GET', '**/api/payments*', {
       statusCode: 200,
       body: otherTransactions,
     }).as('getTransactionsOther');
@@ -557,7 +564,7 @@ describe('Accounts - Transakcije za selektovani racun', () => {
         number: 0,
       };
 
-      cy.intercept('GET', '**/transactions*status=PENDING*', {
+      cy.intercept('GET', '**/api/payments*status=PENDING*', {
         statusCode: 200,
         body: filteredTransactions,
       }).as('getFilteredTransactions');
@@ -596,7 +603,7 @@ describe('Accounts - Transakcije za selektovani racun', () => {
     it('prikazuje link za uklanjanje filtera kada nema rezultata sa filterima', () => {
       interceptAccountsApi();
 
-      cy.intercept('GET', '**/transactions*', {
+      cy.intercept('GET', '**/api/payments*', {
         statusCode: 200,
         body: EMPTY_TRANSACTIONS,
       }).as('getEmptyTransactions');
@@ -620,7 +627,7 @@ describe('Accounts - Transakcije za selektovani racun', () => {
   describe('Greska pri ucitavanju transakcija', () => {
     it('prikazuje poruku greske', () => {
       interceptAccountsApi();
-      cy.intercept('GET', '**/transactions*', {
+      cy.intercept('GET', '**/api/payments*', {
         statusCode: 500,
         body: { message: 'Internal Server Error' },
       }).as('getTransactionsError');
@@ -637,7 +644,7 @@ describe('Accounts - Transakcije za selektovani racun', () => {
 
   describe('Bez transakcijskog panela kada nema racuna', () => {
     it('ne prikazuje panel transakcija kada nema racuna', () => {
-      cy.intercept('GET', '**/accounts/my', {
+      cy.intercept('GET', '**/api/accounts/my', {
         statusCode: 200,
         body: [],
       }).as('getAccountsEmpty');

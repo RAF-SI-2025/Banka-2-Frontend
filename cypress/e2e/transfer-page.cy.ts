@@ -1,3 +1,4 @@
+/// <reference types="cypress" />
 describe('Transfer Page', () => {
   const userEmail = 'marko.petrovic@banka.rs';
   const userPassword = 'Admin12345';
@@ -80,7 +81,7 @@ describe('Transfer Page', () => {
     cy.intercept(
       {
         method: 'GET',
-        pathname: '/accounts/my',
+        pathname: '/api/accounts/my',
       },
       {
         statusCode: 200,
@@ -112,7 +113,7 @@ describe('Transfer Page', () => {
     cy.intercept(
       {
         method: 'POST',
-        pathname: '/transactions/transfer',
+        pathname: '/api/payments/transfer',
       },
       (req) => {
         req.reply({
@@ -136,7 +137,7 @@ describe('Transfer Page', () => {
     cy.intercept(
       {
         method: 'POST',
-        pathname: '/transactions/payment/verify',
+        pathname: '/api/payments/payment/verify',
       },
       {
         statusCode: 200,
@@ -151,7 +152,7 @@ describe('Transfer Page', () => {
     cy.intercept(
       {
         method: 'POST',
-        pathname: '/transactions/payment/verify',
+        pathname: '/api/payments/payment/verify',
       },
       {
         statusCode: 400,
@@ -217,7 +218,7 @@ describe('Transfer Page', () => {
     cy.intercept(
       {
         method: 'GET',
-        pathname: '/accounts/my',
+        pathname: '/api/accounts/my',
       },
       {
         delay: 1200,
@@ -237,7 +238,7 @@ describe('Transfer Page', () => {
     cy.intercept(
       {
         method: 'GET',
-        pathname: '/accounts/my',
+        pathname: '/api/accounts/my',
       },
       {
         statusCode: 200,
@@ -256,7 +257,7 @@ describe('Transfer Page', () => {
     cy.intercept(
       {
         method: 'GET',
-        pathname: '/accounts/my',
+        pathname: '/api/accounts/my',
       },
       {
         statusCode: 500,
@@ -573,7 +574,7 @@ describe('Transfer Page', () => {
     cy.intercept(
       {
         method: 'POST',
-        pathname: '/transactions/transfer',
+        pathname: '/api/payments/transfer',
       },
       {
         delay: 1200,
@@ -612,7 +613,7 @@ describe('Transfer Page', () => {
     cy.intercept(
       {
         method: 'POST',
-        pathname: '/transactions/transfer',
+        pathname: '/api/payments/transfer',
       },
       {
         statusCode: 400,

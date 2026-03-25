@@ -1,30 +1,37 @@
 /// <reference types="cypress" />
+function _b64url(s) { return btoa(s).split('=').join('').split('+').join('-').split('/').join('_'); }
+function _fakeJwt(role, email) {
+  return _b64url(JSON.stringify({alg:'HS256',typ:'JWT'})) + '.' +
+    _b64url(JSON.stringify({sub:email,role:role,active:true,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000)})) +
+    '.fakesig';
+}
+
 
 const MOCK_ACCOUNTS_PAGE = {
   content: [
     {
-      id: 1, accountNumber: '265000000000000112', name: 'Tekuci racun - RSD',
+      id: 1, accountNumber: '265000000000000112', name: 'Tekući račun - RSD',
       accountType: 'TEKUCI', status: 'ACTIVE', balance: 500000, availableBalance: 485230.5,
       reservedBalance: 14769.5, dailyLimit: 200000, monthlyLimit: 1000000,
       dailySpending: 0, monthlySpending: 15000, maintenanceFee: 250,
       currency: 'RSD', ownerName: 'Stefan Jovanovic', createdAt: '2025-01-15',
     },
     {
-      id: 2, accountNumber: '265000000000000229', name: 'Devizni racun - EUR',
+      id: 2, accountNumber: '265000000000000229', name: 'Devizni račun - EUR',
       accountType: 'DEVIZNI', status: 'ACTIVE', balance: 13000, availableBalance: 12500.0,
       reservedBalance: 500, dailyLimit: 50000, monthlyLimit: 200000,
       dailySpending: 0, monthlySpending: 0, maintenanceFee: 3,
       currency: 'EUR', ownerName: 'Stefan Jovanovic', createdAt: '2025-02-01',
     },
     {
-      id: 3, accountNumber: '265000000000000336', name: 'Poslovni racun - RSD',
+      id: 3, accountNumber: '265000000000000336', name: 'Poslovni račun - RSD',
       accountType: 'POSLOVNI', status: 'BLOCKED', balance: 2800000, availableBalance: 2750000.0,
       reservedBalance: 50000, dailyLimit: 5000000, monthlyLimit: 20000000,
       dailySpending: 0, monthlySpending: 100000, maintenanceFee: 1500,
       currency: 'RSD', ownerName: 'Milica Nikolic', createdAt: '2025-01-20',
     },
     {
-      id: 4, accountNumber: '265000000000000443', name: 'Tekuci racun - EUR',
+      id: 4, accountNumber: '265000000000000443', name: 'Tekući račun - EUR',
       accountType: 'TEKUCI', status: 'INACTIVE', balance: 0, availableBalance: 0,
       reservedBalance: 0, dailyLimit: 0, monthlyLimit: 0,
       dailySpending: 0, monthlySpending: 0, maintenanceFee: 0,
@@ -38,7 +45,7 @@ const MOCK_ACCOUNTS_PAGE = {
 };
 
 function setupEmployeeSession(win: Cypress.AUTWindow) {
-  win.sessionStorage.setItem('accessToken', 'fake-access-token');
+  win.sessionStorage.setItem('accessToken', _fakeJwt('ADMIN', 'marko.petrovic@banka.rs'));
   win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
   win.sessionStorage.setItem(
     'user',
@@ -51,7 +58,7 @@ function setupEmployeeSession(win: Cypress.AUTWindow) {
 }
 
 function interceptAccountsApi(response = MOCK_ACCOUNTS_PAGE) {
-  cy.intercept('GET', 'http://localhost:8080/accounts*', {
+  cy.intercept('GET', '**/api/accounts*', {
     statusCode: 200,
     body: response,
   }).as('getAccounts');
@@ -79,7 +86,7 @@ describe('Employee Accounts Portal', () => {
   it('prikazuje tabelu sa racunima', () => {
     cy.get('table').should('be.visible');
     cy.contains('th', 'Vlasnik').should('be.visible');
-    cy.contains('th', 'Broj racuna').should('be.visible');
+    cy.contains('th', 'Broj računa').should('be.visible');
     cy.contains('th', 'Tip').should('be.visible');
     cy.contains('th', 'Stanje').should('be.visible');
     cy.contains('th', 'Status').should('be.visible');
@@ -155,7 +162,7 @@ describe('Employee Accounts Portal', () => {
     });
 
     it('poziva API za promenu statusa', () => {
-      cy.intercept('PATCH', 'http://localhost:8080/accounts/1/status*', {
+      cy.intercept('PATCH', '**/api/accounts/1/status*', {
         statusCode: 200,
         body: {},
       }).as('changeStatus');
@@ -208,7 +215,7 @@ describe('Employee Accounts Portal', () => {
 
   describe('Loading i greske', () => {
     it('prikazuje spinner dok se ucitavaju podaci', () => {
-      cy.intercept('GET', 'http://localhost:8080/accounts*', {
+      cy.intercept('GET', '**/api/accounts*', {
         statusCode: 200,
         body: MOCK_ACCOUNTS_PAGE,
         delay: 1000,
@@ -222,7 +229,7 @@ describe('Employee Accounts Portal', () => {
     });
 
     it('prikazuje poruku greske kada API vrati gresku', () => {
-      cy.intercept('GET', 'http://localhost:8080/accounts*', {
+      cy.intercept('GET', '**/api/accounts*', {
         statusCode: 500,
         body: { message: 'Internal Server Error' },
       }).as('getAccountsError');
@@ -235,7 +242,7 @@ describe('Employee Accounts Portal', () => {
     });
 
     it('prikazuje poruku kada nema racuna', () => {
-      cy.intercept('GET', 'http://localhost:8080/accounts*', {
+      cy.intercept('GET', '**/api/accounts*', {
         statusCode: 200,
         body: { content: [], totalElements: 0, totalPages: 0, size: 10, number: 0 },
       }).as('getAccountsEmpty');

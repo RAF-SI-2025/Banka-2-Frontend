@@ -1,6 +1,13 @@
+
+function _b64url(s) { return btoa(s).split('=').join('').split('+').join('-').split('/').join('_'); }
+function _fakeJwt(role, email) {
+  return _b64url(JSON.stringify({alg:'HS256',typ:'JWT'})) + '.' +
+    _b64url(JSON.stringify({sub:email,role:role,active:true,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000)})) +
+    '.fakesig';
+}
 describe('Employee Edit - UI poboljšanja', () => {
   it('edit stranica učitava podatke zaposlenog', () => {
-    cy.intercept('GET', '**/employees/1', {
+    cy.intercept('GET', '**/api/employees/1', {
       statusCode: 200,
       body: {
         id: 1,
@@ -23,7 +30,7 @@ describe('Employee Edit - UI poboljšanja', () => {
 
     cy.visit('/', {
       onBeforeLoad(win) {
-        win.sessionStorage.setItem('accessToken', 'fake-access-token');
+        win.sessionStorage.setItem('accessToken', _fakeJwt('ADMIN', 'marko.petrovic@banka.rs'));
         win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
         win.sessionStorage.setItem(
           'user',

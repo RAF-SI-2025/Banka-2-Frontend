@@ -1,4 +1,11 @@
 /// <reference types="cypress" />
+function _b64url(s) { return btoa(s).split('=').join('').split('+').join('-').split('/').join('_'); }
+function _fakeJwt(role, email) {
+  return _b64url(JSON.stringify({alg:'HS256',typ:'JWT'})) + '.' +
+    _b64url(JSON.stringify({sub:email,role:role,active:true,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000)})) +
+    '.fakesig';
+}
+
 
 describe('FE2-08a - Transfer create flow', () => {
   const mockAccounts = [
@@ -56,12 +63,12 @@ describe('FE2-08a - Transfer create flow', () => {
   ];
 
   beforeEach(() => {
-    cy.intercept('GET', '**/accounts/my', {
+    cy.intercept('GET', '**/api/accounts/my', {
       statusCode: 200,
       body: mockAccounts,
     }).as('getMyAccounts');
 
-    cy.intercept('GET', '**/exchange-rates/RSD/EUR', {
+    cy.intercept('GET', '**/api/exchange-rates/RSD/EUR', {
       statusCode: 200,
       body: {
         currency: 'EUR',
@@ -72,7 +79,7 @@ describe('FE2-08a - Transfer create flow', () => {
       },
     }).as('getRateRsdEur');
 
-    cy.intercept('POST', '**/transactions/transfer', {
+    cy.intercept('POST', '**/api/payments/transfer', {
       statusCode: 200,
       body: {
         id: 99,
@@ -91,7 +98,7 @@ describe('FE2-08a - Transfer create flow', () => {
 
     cy.visit('/transfers', {
       onBeforeLoad(win) {
-        win.sessionStorage.setItem('accessToken', 'fake-access-token');
+        win.sessionStorage.setItem('accessToken', _fakeJwt('CLIENT', 'test@test.com'));
         win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
         win.sessionStorage.setItem(
           'user',

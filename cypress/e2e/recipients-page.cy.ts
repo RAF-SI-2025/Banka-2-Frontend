@@ -1,3 +1,11 @@
+/// <reference types="cypress" />
+function _b64url(s) { return btoa(s).split('=').join('').split('+').join('-').split('/').join('_'); }
+function _fakeJwt(role, email) {
+  return _b64url(JSON.stringify({alg:'HS256',typ:'JWT'})) + '.' +
+    _b64url(JSON.stringify({sub:email,role:role,active:true,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000)})) +
+    '.fakesig';
+}
+
 describe('Recipients Page', () => {
   const adminEmail = 'marko.petrovic@banka.rs';
   const adminPassword = 'Admin12345';
@@ -28,26 +36,17 @@ describe('Recipients Page', () => {
 
   const recipientsInitial = [recipient1, recipient2, recipient3];
 
-  const loginAsAdminViaUi = () => {
-    cy.session([adminEmail, adminPassword], () => {
-      cy.visit('/login');
-
-      cy.get('#email').should('be.visible').clear().type(adminEmail);
-      cy.get('#password')
-        .should('be.visible')
-        .clear()
-        .type(adminPassword, { log: false });
-
-      cy.contains('button', 'Prijavi se').click();
-      cy.url().should('include', '/home');
-    });
+  const setAdminSession = (win: Window) => {
+    win.sessionStorage.setItem('accessToken', _fakeJwt('ADMIN', 'marko.petrovic@banka.rs'));
+    win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
+    win.sessionStorage.setItem('user', JSON.stringify({ id: 1, email: 'marko.petrovic@banka.rs', role: 'ADMIN', firstName: 'Marko', lastName: 'Petrovic' }));
   };
 
   const mockRecipientsList = (body = recipientsInitial) => {
     cy.intercept(
       {
         method: 'GET',
-        pathname: '/recipients',
+        pathname: '/api/payment-recipients',
       },
       {
         statusCode: 200,
@@ -60,7 +59,7 @@ describe('Recipients Page', () => {
     cy.intercept(
       {
         method: /POST|PUT/,
-        pathname: /\/recipients(\/.*)?$/,
+        pathname: /\/api\/payment-recipients(\/.*)?$/,
       },
       (req) => {
         req.reply({
@@ -106,20 +105,22 @@ describe('Recipients Page', () => {
   };
 
   const visitRecipientsPage = () => {
-    cy.visit('/home');
-
-    cy.window().then((win) => {
-      win.history.pushState({}, '', '/payments/recipients');
-      win.dispatchEvent(new win.PopStateEvent('popstate'));
+    cy.visit('/payments/recipients', {
+      onBeforeLoad(win) {
+        setAdminSession(win);
+      },
     });
   };
 
   beforeEach(() => {
+    cy.intercept('POST', '**/api/auth/refresh', { statusCode: 200, body: { accessToken: 'fake' } });
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/payments*', { statusCode: 200, body: { content: [] } });
+    cy.intercept('GET', '**/api/loans/my*', { statusCode: 200, body: { content: [] } });
     mockRecipientsList();
     mockCreateRecipient();
     mockUpdateRecipient();
     mockDeleteRecipient();
-    loginAsAdminViaUi();
   });
 
   it('renders page and loads recipients list', () => {
@@ -127,11 +128,11 @@ describe('Recipients Page', () => {
 
     cy.wait('@getRecipients');
 
-    cy.contains('h1', 'Primaoci plaćanja').should('be.visible');
-    cy.contains('Sačuvani primaoci').should('be.visible');
+    cy.contains('h1', 'Primaoci placanja').should('be.visible');
+    cy.contains('Sacuvani primaoci').should('be.visible');
     cy.contains('Dodaj primaoca').should('be.visible');
 
-    cy.get('input[placeholder="Pretraga po imenu, računu, adresi ili telefonu"]').should('exist');
+    cy.get('input[placeholder="Pretraga po imenu, racunu, adresi ili telefonu"]').should('exist');
 
     cy.contains('Elektroprivreda Srbije').should('be.visible');
     cy.contains('160123456789012345').should('be.visible');
@@ -146,7 +147,7 @@ describe('Recipients Page', () => {
     cy.intercept(
       {
         method: 'GET',
-        pathname: '/recipients',
+        pathname: '/api/payment-recipients',
       },
       {
         statusCode: 200,
@@ -157,7 +158,7 @@ describe('Recipients Page', () => {
     visitRecipientsPage();
 
     cy.wait('@getRecipientsEmpty');
-    cy.contains('Nemate sačuvanih primalaca.').should('be.visible');
+    cy.contains('Nema sacuvanih primalaca').should('be.visible');
   });
 
   it('supports search by recipient name', () => {
@@ -165,7 +166,7 @@ describe('Recipients Page', () => {
 
     cy.wait('@getRecipients');
 
-    cy.get('input[placeholder="Pretraga po imenu, računu, adresi ili telefonu"]')
+    cy.get('input[placeholder="Pretraga po imenu, racunu, adresi ili telefonu"]')
       .clear()
       .type('Telekom');
 
@@ -179,7 +180,7 @@ describe('Recipients Page', () => {
 
     cy.wait('@getRecipients');
 
-    cy.get('input[placeholder="Pretraga po imenu, računu, adresi ili telefonu"]')
+    cy.get('input[placeholder="Pretraga po imenu, racunu, adresi ili telefonu"]')
       .clear()
       .type('340555666777888900');
 
@@ -193,7 +194,7 @@ describe('Recipients Page', () => {
 
     cy.wait('@getRecipients');
 
-    cy.get('input[placeholder="Pretraga po imenu, računu, adresi ili telefonu"]')
+    cy.get('input[placeholder="Pretraga po imenu, racunu, adresi ili telefonu"]')
       .clear()
       .type('Takovska');
 
@@ -206,7 +207,7 @@ describe('Recipients Page', () => {
 
     cy.wait('@getRecipients');
 
-    cy.get('input[placeholder="Pretraga po imenu, računu, adresi ili telefonu"]')
+    cy.get('input[placeholder="Pretraga po imenu, racunu, adresi ili telefonu"]')
       .clear()
       .type('0111234567');
 
@@ -219,7 +220,7 @@ describe('Recipients Page', () => {
 
     cy.wait('@getRecipients');
 
-    cy.get('input[placeholder="Pretraga po imenu, računu, adresi ili telefonu"]')
+    cy.get('input[placeholder="Pretraga po imenu, racunu, adresi ili telefonu"]')
       .clear()
       .type('Nepostojeci primalac');
 
@@ -248,7 +249,7 @@ describe('Recipients Page', () => {
     cy.intercept(
       {
         method: 'GET',
-        pathname: '/recipients',
+        pathname: '/api/payment-recipients',
       },
       (req) => {
         req.reply({
@@ -261,7 +262,7 @@ describe('Recipients Page', () => {
     cy.intercept(
       {
         method: /POST|PUT/,
-        pathname: /\/recipients(\/.*)?$/,
+        pathname: /\/api\/payment-recipients(\/.*)?$/,
       },
       (req) => {
         if (req.method === 'POST') {
@@ -316,7 +317,7 @@ describe('Recipients Page', () => {
     cy.intercept(
       {
         method: /POST|PUT/,
-        pathname: /\/recipients(\/.*)?$/,
+        pathname: /\/api\/payment-recipients(\/.*)?$/,
       },
       {
         statusCode: 500,
@@ -374,7 +375,7 @@ describe('Recipients Page', () => {
     cy.intercept(
       {
         method: 'GET',
-        pathname: '/recipients',
+        pathname: '/api/payment-recipients',
       },
       (req) => {
         req.reply({
@@ -471,7 +472,7 @@ describe('Recipients Page', () => {
     cy.intercept(
       {
         method: 'GET',
-        pathname: '/recipients',
+        pathname: '/api/payment-recipients',
       },
       (req) => {
         req.reply({
@@ -484,7 +485,7 @@ describe('Recipients Page', () => {
     cy.intercept(
       {
         method: 'DELETE',
-        pathname: '/recipients/1',
+        pathname: '/api/payment-recipients/1',
       },
       (req) => {
         recipients = recipients.filter((recipient) => recipient.id !== 1);
@@ -526,7 +527,7 @@ describe('Recipients Page', () => {
     cy.intercept(
       {
         method: 'DELETE',
-        pathname: '/recipients/1',
+        pathname: '/api/payment-recipients/1',
       },
       {
         statusCode: 500,
@@ -562,7 +563,7 @@ describe('Recipients Page', () => {
     cy.intercept(
       {
         method: 'GET',
-        pathname: '/recipients',
+        pathname: '/api/payment-recipients',
       },
       {
         delay: 1200,

@@ -1,4 +1,11 @@
 /// <reference types="cypress" />
+function _b64url(s) { return btoa(s).split('=').join('').split('+').join('-').split('/').join('_'); }
+function _fakeJwt(role, email) {
+  return _b64url(JSON.stringify({alg:'HS256',typ:'JWT'})) + '.' +
+    _b64url(JSON.stringify({sub:email,role:role,active:true,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000)})) +
+    '.fakesig';
+}
+
 
 describe('FE2-08b - Transfer history page', () => {
   const mockAccounts = [
@@ -109,24 +116,24 @@ describe('FE2-08b - Transfer history page', () => {
   };
 
   beforeEach(() => {
-    cy.intercept('GET', '**/accounts/my', {
+    cy.intercept('GET', '**/api/accounts/my', {
       statusCode: 200,
       body: mockAccounts,
     }).as('getMyAccounts');
 
-    cy.intercept('GET', '**/transactions/transfers*page=0*', {
+    cy.intercept('GET', '**/api/transfers*', {
       statusCode: 200,
       body: page0Transfers,
     }).as('getTransfersPage0');
 
-    cy.intercept('GET', '**/transactions/transfers*page=1*', {
+    cy.intercept('GET', '**/api/transfers*', {
       statusCode: 200,
       body: page1Transfers,
     }).as('getTransfersPage1');
 
     cy.visit('/transfers/history', {
       onBeforeLoad(win) {
-        win.sessionStorage.setItem('accessToken', 'fake-access-token');
+        win.sessionStorage.setItem('accessToken', _fakeJwt('CLIENT', 'test@test.com'));
         win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
         win.sessionStorage.setItem(
           'user',
@@ -144,7 +151,7 @@ describe('FE2-08b - Transfer history page', () => {
   });
 
   it('prikazuje loading state pre ucitavanja transfera', () => {
-    cy.intercept('GET', '**/transactions/transfers*page=0*', {
+    cy.intercept('GET', '**/api/transfers*', {
       delay: 800,
       statusCode: 200,
       body: page0Transfers,
@@ -152,7 +159,7 @@ describe('FE2-08b - Transfer history page', () => {
 
     cy.visit('/transfers/history', {
       onBeforeLoad(win) {
-        win.sessionStorage.setItem('accessToken', 'fake-access-token');
+        win.sessionStorage.setItem('accessToken', _fakeJwt('CLIENT', 'test@test.com'));
         win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
         win.sessionStorage.setItem(
           'user',
@@ -235,7 +242,7 @@ describe('FE2-08b - Transfer history page', () => {
   it('prelazi na sledecu stranu i nastavlja order no', () => {
     cy.wait('@getTransfersPage0');
 
-    cy.contains('Sledeća').click();
+    cy.contains('Sledeca').click();
     cy.wait('@getTransfersPage1');
 
     cy.contains('Strana 2 / 2').should('be.visible');
@@ -244,7 +251,7 @@ describe('FE2-08b - Transfer history page', () => {
   });
 
   it('prikazuje poruku kada nema transfera', () => {
-    cy.intercept('GET', '**/transactions/transfers*page=0*', {
+    cy.intercept('GET', '**/api/transfers*', {
       statusCode: 200,
       body: {
         content: [],
@@ -257,7 +264,7 @@ describe('FE2-08b - Transfer history page', () => {
 
     cy.visit('/transfers/history', {
       onBeforeLoad(win) {
-        win.sessionStorage.setItem('accessToken', 'fake-access-token');
+        win.sessionStorage.setItem('accessToken', _fakeJwt('CLIENT', 'test@test.com'));
         win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
         win.sessionStorage.setItem(
           'user',

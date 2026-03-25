@@ -1,9 +1,16 @@
 /// <reference types="cypress" />
+function _b64url(s) { return btoa(s).split('=').join('').split('+').join('-').split('/').join('_'); }
+function _fakeJwt(role, email) {
+  return _b64url(JSON.stringify({alg:'HS256',typ:'JWT'})) + '.' +
+    _b64url(JSON.stringify({sub:email,role:role,active:true,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000)})) +
+    '.fakesig';
+}
+
 
 describe('Dashboard - Prikaz kartice i statistike', () => {
     describe('Admin korisnik', () => {
         beforeEach(() => {
-            cy.intercept('GET', 'http://localhost:8080/employees*', {
+            cy.intercept('GET', '**/api/employees*', {
                 statusCode: 200,
                 body: {
                     content: [],
@@ -14,9 +21,9 @@ describe('Dashboard - Prikaz kartice i statistike', () => {
                 },
             }).as('getEmployees');
 
-            cy.visit('/dashboard', {
+            cy.visit('/home', {
                 onBeforeLoad(win) {
-                    win.sessionStorage.setItem('accessToken', 'fake-access-token');
+                    win.sessionStorage.setItem('accessToken', _fakeJwt('ADMIN', 'marko.petrovic@banka.rs'));
                     win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
                     win.sessionStorage.setItem(
                         'user',
@@ -70,9 +77,9 @@ describe('Dashboard - Prikaz kartice i statistike', () => {
 
     describe('Obični korisnik', () => {
         beforeEach(() => {
-            cy.visit('/dashboard', {
+            cy.visit('/home', {
                 onBeforeLoad(win) {
-                    win.sessionStorage.setItem('accessToken', 'fake-access-token');
+                    win.sessionStorage.setItem('accessToken', _fakeJwt('CLIENT', 'test@test.com'));
                     win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
                     win.sessionStorage.setItem(
                         'user',

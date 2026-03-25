@@ -1,8 +1,15 @@
 /// <reference types="cypress" />
+function _b64url(s) { return btoa(s).split('=').join('').split('+').join('-').split('/').join('_'); }
+function _fakeJwt(role, email) {
+  return _b64url(JSON.stringify({alg:'HS256',typ:'JWT'})) + '.' +
+    _b64url(JSON.stringify({sub:email,role:role,active:true,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000)})) +
+    '.fakesig';
+}
+
 
 describe('FE2-18c - Client sidebar navigation', () => {
   const setClientSession = (win: Window) => {
-    win.sessionStorage.setItem('accessToken', 'fake-access-token');
+    win.sessionStorage.setItem('accessToken', _fakeJwt('CLIENT', 'test@test.com'));
     win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
     win.sessionStorage.setItem(
       'user',
@@ -17,11 +24,11 @@ describe('FE2-18c - Client sidebar navigation', () => {
   };
 
   beforeEach(() => {
-    cy.intercept('GET', '**/accounts/my', { statusCode: 200, body: [] }).as('accountsMy');
-    cy.intercept('GET', '**/transactions*', { statusCode: 200, body: [] }).as('transactions');
-    cy.intercept('GET', '**/recipients', { statusCode: 200, body: [] }).as('recipients');
-    cy.intercept('GET', '**/exchange-rates', { statusCode: 200, body: [] }).as('exchangeRates');
-    cy.intercept('POST', '**/auth/refresh', {
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] }).as('accountsMy');
+    cy.intercept('GET', '**/api/payments*', { statusCode: 200, body: [] }).as('transactions');
+    cy.intercept('GET', '**/api/payment-recipients', { statusCode: 200, body: [] }).as('recipients');
+    cy.intercept('GET', '**/api/exchange-rates', { statusCode: 200, body: [] }).as('exchangeRates');
+    cy.intercept('POST', '**/api/auth/refresh', {
       statusCode: 200,
       body: { accessToken: 'fake-access-token' },
     }).as('refresh');
@@ -64,14 +71,14 @@ describe('FE2-18c - Client sidebar navigation', () => {
   });
 
   it('prikazuje top menu sekcije', () => {
-    cy.contains('header', 'Početna').should('be.visible');
-    cy.contains('header', 'Računi').should('be.visible');
-    cy.contains('header', 'Plaćanja').should('be.visible');
-    cy.contains('header', 'Primaoci').should('be.visible');
-    cy.contains('header', 'Prenosi').should('be.visible');
-    cy.contains('header', 'Istorija').should('be.visible');
-    cy.contains('header', 'Menjačnica').scrollIntoView().should('be.visible');
-    cy.contains('header', 'Kartice').scrollIntoView().should('be.visible');
-    cy.contains('header', 'Krediti').scrollIntoView().should('be.visible');
+    cy.contains('aside', 'Početna').should('be.visible');
+    cy.contains('aside', 'Računi').should('be.visible');
+    cy.contains('aside', 'Plaćanja').should('be.visible');
+    cy.contains('aside', 'Primaoci').should('be.visible');
+    cy.contains('aside', 'Prenosi').should('be.visible');
+    cy.contains('aside', 'Istorija').should('be.visible');
+    cy.contains('aside', 'Menjačnica').scrollIntoView().should('be.visible');
+    cy.contains('aside', 'Kartice').scrollIntoView().should('be.visible');
+    cy.contains('aside', 'Krediti').scrollIntoView().should('be.visible');
   });
 });

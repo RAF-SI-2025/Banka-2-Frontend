@@ -1,4 +1,11 @@
 /// <reference types="cypress" />
+function _b64url(s) { return btoa(s).split('=').join('').split('+').join('-').split('/').join('_'); }
+function _fakeJwt(role, email) {
+  return _b64url(JSON.stringify({alg:'HS256',typ:'JWT'})) + '.' +
+    _b64url(JSON.stringify({sub:email,role:role,active:true,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000)})) +
+    '.fakesig';
+}
+
 
 describe('FE2-09a - Exchange rate table', () => {
   const mockRates = [
@@ -88,19 +95,19 @@ describe('FE2-09a - Exchange rate table', () => {
   ];
 
   beforeEach(() => {
-    cy.intercept('GET', '**/exchange-rates', {
+    cy.intercept('GET', '**/api/exchange-rates', {
       statusCode: 200,
       body: mockRates,
     }).as('getExchangeRates');
 
-    cy.intercept('GET', '**/accounts/my', {
+    cy.intercept('GET', '**/api/accounts/my', {
       statusCode: 200,
       body: mockAccounts,
     }).as('getMyAccounts');
 
     cy.visit('/exchange', {
       onBeforeLoad(win) {
-        win.sessionStorage.setItem('accessToken', 'fake-access-token');
+        win.sessionStorage.setItem('accessToken', _fakeJwt('CLIENT', 'test@test.com'));
         win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
         win.sessionStorage.setItem(
           'user',

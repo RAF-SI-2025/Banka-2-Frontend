@@ -59,11 +59,11 @@ describe('CardListPage - Moje kartice', () => {
         const accessToken = createJwt('ADMIN');
 
         // Intercept sve potrebne API pozive
-        cy.intercept('GET', '**/cards/my', { body: MOCK_CARDS }).as('getCards');
-        cy.intercept('PATCH', '**/cards/*/block', { statusCode: 200 }).as('blockCard');
-        cy.intercept('PATCH', '**/cards/*/unblock', { statusCode: 200 }).as('unblockCard');
-        cy.intercept('PATCH', '**/cards/*/deactivate', { statusCode: 200 }).as('deactivateCard');
-        cy.intercept('PATCH', '**/cards/*/limit', { statusCode: 200 }).as('changeLimitCard');
+        cy.intercept('GET', '**/api/cards/my', { body: MOCK_CARDS }).as('getCards');
+        cy.intercept('PATCH', '**/api/cards/*/block', { statusCode: 200 }).as('blockCard');
+        cy.intercept('PATCH', '**/api/cards/*/unblock', { statusCode: 200 }).as('unblockCard');
+        cy.intercept('PATCH', '**/api/cards/*/deactivate', { statusCode: 200 }).as('deactivateCard');
+        cy.intercept('PATCH', '**/api/cards/*/limit', { statusCode: 200 }).as('changeLimitCard');
 
         cy.visit('/cards', {
             onBeforeLoad: (win: any) => {
@@ -129,7 +129,7 @@ describe('CardListPage - Moje kartice', () => {
         beforeEach(() => {
             const accessToken = createJwt('ADMIN');
 
-            cy.intercept('GET', '**/cards/my', { body: [] }).as('getEmptyCards');
+            cy.intercept('GET', '**/api/cards/my', { body: [] }).as('getEmptyCards');
 
             cy.visit('/cards', {
                 onBeforeLoad: (win: any) => {
@@ -158,7 +158,7 @@ describe('CardListPage - Moje kartice', () => {
         beforeEach(() => {
             const accessToken = createJwt('ADMIN');
 
-            cy.intercept('GET', '**/cards/my', { statusCode: 500, body: { error: 'Server error' } }).as('getCardsError');
+            cy.intercept('GET', '**/api/cards/my', { statusCode: 500, body: { error: 'Server error' } }).as('getCardsError');
 
             cy.visit('/cards', {
                 onBeforeLoad: (win: any) => {

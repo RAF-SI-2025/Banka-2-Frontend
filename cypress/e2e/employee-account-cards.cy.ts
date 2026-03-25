@@ -1,7 +1,14 @@
 /// <reference types="cypress" />
+function _b64url(s) { return btoa(s).split('=').join('').split('+').join('-').split('/').join('_'); }
+function _fakeJwt(role, email) {
+  return _b64url(JSON.stringify({alg:'HS256',typ:'JWT'})) + '.' +
+    _b64url(JSON.stringify({sub:email,role:role,active:true,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000)})) +
+    '.fakesig';
+}
+
 
 const MOCK_ACCOUNT = {
-  id: 5, accountNumber: '265000000000000550', name: 'Devizni racun - RSD',
+  id: 5, accountNumber: '265000000000000550', name: 'Devizni račun - RSD',
   accountType: 'DEVIZNI', status: 'ACTIVE', balance: 1150000, availableBalance: 1100000.0,
   reservedBalance: 50000, dailyLimit: 500000, monthlyLimit: 2000000,
   dailySpending: 0, monthlySpending: 0, maintenanceFee: 500,
@@ -30,7 +37,7 @@ const MOCK_CARDS = [
 ];
 
 function setupEmployeeSession(win: Cypress.AUTWindow) {
-  win.sessionStorage.setItem('accessToken', 'fake-access-token');
+  win.sessionStorage.setItem('accessToken', _fakeJwt('ADMIN', 'marko.petrovic@banka.rs'));
   win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
   win.sessionStorage.setItem(
     'user',
@@ -79,17 +86,17 @@ describe('Employee Account Cards Portal', () => {
 
   describe('Pristup sa rute /employee/accounts/:id/cards', () => {
     beforeEach(() => {
-      cy.intercept('GET', 'http://localhost:8080/accounts/5', {
+      cy.intercept('GET', '**/api/accounts/5', {
         statusCode: 200,
         body: MOCK_ACCOUNT,
       }).as('getAccount');
 
-      cy.intercept('GET', 'http://localhost:8080/accounts/number/265000000000000550', {
+      cy.intercept('GET', '**/api/accounts/number/265000000000000550', {
         statusCode: 200,
         body: MOCK_ACCOUNT,
       }).as('getAccountByNumber');
 
-      cy.intercept('GET', 'http://localhost:8080/cards/account/265000000000000550', {
+      cy.intercept('GET', '**/api/cards/account/265000000000000550', {
         statusCode: 200,
         body: MOCK_CARDS,
       }).as('getCards');
@@ -163,7 +170,7 @@ describe('Employee Account Cards Portal', () => {
       });
 
       it('poziva API za blokiranje kartice', () => {
-        cy.intercept('PATCH', 'http://localhost:8080/cards/1/block', {
+        cy.intercept('PATCH', '**/api/cards/1/block', {
           statusCode: 200,
           body: {},
         }).as('blockCard');
@@ -197,12 +204,12 @@ describe('Employee Account Cards Portal', () => {
       });
 
       it('poziva API za kreiranje kartice', () => {
-        cy.intercept('POST', 'http://localhost:8080/cards', {
+        cy.intercept('POST', '**/api/cards', {
           statusCode: 200,
           body: { id: 10, cardNumber: '4111111111119999', cardType: 'VISA', status: 'ACTIVE' },
         }).as('createCard');
 
-        cy.intercept('POST', 'http://localhost:8080/cards/10/request-verification', {
+        cy.intercept('POST', '**/api/cards/10/request-verification', {
           statusCode: 200,
           body: {},
         }).as('verifyCard');
@@ -218,17 +225,17 @@ describe('Employee Account Cards Portal', () => {
 
   describe('Prazno stanje i greske', () => {
     it('prikazuje poruku kada nema kartica', () => {
-      cy.intercept('GET', 'http://localhost:8080/accounts/5', {
+      cy.intercept('GET', '**/api/accounts/5', {
         statusCode: 200,
         body: MOCK_ACCOUNT,
       }).as('getAccount');
 
-      cy.intercept('GET', 'http://localhost:8080/accounts/number/265000000000000550', {
+      cy.intercept('GET', '**/api/accounts/number/265000000000000550', {
         statusCode: 200,
         body: MOCK_ACCOUNT,
       }).as('getAccountByNumber');
 
-      cy.intercept('GET', 'http://localhost:8080/cards/account/265000000000000550', {
+      cy.intercept('GET', '**/api/cards/account/265000000000000550', {
         statusCode: 200,
         body: [],
       }).as('getCardsEmpty');

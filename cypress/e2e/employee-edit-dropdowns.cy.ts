@@ -1,3 +1,10 @@
+
+function _b64url(s) { return btoa(s).split('=').join('').split('+').join('-').split('/').join('_'); }
+function _fakeJwt(role, email) {
+  return _b64url(JSON.stringify({alg:'HS256',typ:'JWT'})) + '.' +
+    _b64url(JSON.stringify({sub:email,role:role,active:true,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000)})) +
+    '.fakesig';
+}
 const mockEmployee = {
   id: 1,
   firstName: 'Petar',
@@ -19,7 +26,7 @@ const mockEmployee = {
 describe('Employee Edit - Select dropdown-ovi (FE-05)', () => {
   beforeEach(() => {
     // Mock API za employee podatke
-    cy.intercept('GET', 'http://localhost:8080/employees/1', {
+    cy.intercept('GET', '**/api/employees/1', {
       statusCode: 200,
       body: mockEmployee,
     }).as('getEmployee');
@@ -27,7 +34,7 @@ describe('Employee Edit - Select dropdown-ovi (FE-05)', () => {
     // Postavi admin korisnika u sessionStorage
     cy.visit('/admin/employees/1', {
       onBeforeLoad(win) {
-        win.sessionStorage.setItem('accessToken', 'fake-access-token');
+        win.sessionStorage.setItem('accessToken', _fakeJwt('ADMIN', 'marko.petrovic@banka.rs'));
         win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
         win.sessionStorage.setItem(
           'user',

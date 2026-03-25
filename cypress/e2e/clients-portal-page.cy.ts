@@ -1,3 +1,13 @@
+/// <reference types="cypress" />
+function b64url(s: string) {
+  return btoa(s).split('=').join('').split('+').join('-').split('/').join('_');
+}
+function makeFakeJwt(role: string, email: string) {
+  const h = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const p = b64url(JSON.stringify({ sub: email, role, active: true, exp: Math.floor(Date.now() / 1000) + 3600, iat: Math.floor(Date.now() / 1000) }));
+  return h + '.' + p + '.fakesig';
+}
+
 describe('Employee Clients Portal Page', () => {
   const adminEmail = 'marko.petrovic@banka.rs';
   const adminPassword = 'Admin12345';
@@ -113,30 +123,17 @@ describe('Employee Clients Portal Page', () => {
     number: 0,
   };
 
-  const loginAsAdminViaUi = () => {
-    cy.session([adminEmail, adminPassword], () => {
-      cy.visit('/login');
-
-      cy.get('#email')
-        .should('be.visible')
-        .clear()
-        .type(adminEmail);
-
-      cy.get('#password')
-        .should('be.visible')
-        .clear()
-        .type(adminPassword, { log: false });
-
-      cy.contains('button', 'Prijavi se').click();
-      cy.url().should('include', '/home');
-    });
+  const setAdminSession = (win: Window) => {
+    win.sessionStorage.setItem('accessToken', makeFakeJwt('ADMIN', 'marko.petrovic@banka.rs'));
+    win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
+    win.sessionStorage.setItem('user', JSON.stringify({ id: 1, email: 'marko.petrovic@banka.rs', role: 'ADMIN', firstName: 'Marko', lastName: 'Petrovic' }));
   };
 
   const mockClientsList = () => {
     cy.intercept(
       {
         method: 'GET',
-        pathname: '/clients',
+        pathname: '/api/clients',
       },
       (req) => {
         const { firstName, lastName, email, page, limit } = req.query;
@@ -168,54 +165,19 @@ describe('Employee Clients Portal Page', () => {
   };
 
   const mockClientDetails = () => {
-    cy.intercept({ method: 'GET', pathname: '/clients/1' }, client1).as('getClient1');
-    cy.intercept({ method: 'GET', pathname: '/clients/2' }, client2).as('getClient2');
-    cy.intercept({ method: 'GET', pathname: '/clients/3' }, client3).as('getClient3');
+    cy.intercept({ method: 'GET', pathname: '/api/clients/1' }, client1).as('getClient1');
+    cy.intercept({ method: 'GET', pathname: '/api/clients/2' }, client2).as('getClient2');
+    cy.intercept({ method: 'GET', pathname: '/api/clients/3' }, client3).as('getClient3');
   };
 
   const mockAccounts = () => {
-    cy.intercept(
-      {
-        method: 'GET',
-        pathname: '/accounts',
-        query: {
-          ownerEmail: 'marko@test.com',
-          page: '0',
-          limit: '20',
-        },
-      },
-      accountsForClient1
-    ).as('getAccountsMarko');
-
-    cy.intercept(
-      {
-        method: 'GET',
-        pathname: '/accounts',
-        query: {
-          ownerEmail: 'ana@test.com',
-          page: '0',
-          limit: '20',
-        },
-      },
-      noAccounts
-    ).as('getAccountsAna');
-
-    cy.intercept(
-      {
-        method: 'GET',
-        pathname: '/accounts',
-        query: {
-          ownerEmail: 'petar@test.com',
-          page: '0',
-          limit: '20',
-        },
-      },
-      noAccounts
-    ).as('getAccountsPetar');
+    cy.intercept({ method: 'GET', pathname: '/api/accounts/client/1' }, accountsForClient1.content).as('getAccountsMarko');
+    cy.intercept({ method: 'GET', pathname: '/api/accounts/client/2' }, noAccounts.content).as('getAccountsAna');
+    cy.intercept({ method: 'GET', pathname: '/api/accounts/client/3' }, noAccounts.content).as('getAccountsPetar');
   };
 
   const mockClientUpdate = () => {
-    cy.intercept({ method: 'PUT', pathname: '/clients/1' }, (req) => {
+    cy.intercept({ method: 'PUT', pathname: '/api/clients/1' }, (req) => {
       req.reply({
         ...client1,
         ...req.body,
@@ -224,7 +186,11 @@ describe('Employee Clients Portal Page', () => {
   };
 
   beforeEach(() => {
-    loginAsAdminViaUi();
+    cy.intercept('POST', '**/api/auth/refresh', { statusCode: 200, body: { accessToken: 'fake' } });
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/payments*', { statusCode: 200, body: { content: [] } });
+    cy.intercept('GET', '**/api/payment-recipients', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/loans/my*', { statusCode: 200, body: { content: [] } });
     mockClientsList();
     mockClientDetails();
     mockAccounts();
@@ -232,7 +198,7 @@ describe('Employee Clients Portal Page', () => {
   });
 
   it('renders clients list page successfully', () => {
-    cy.visit('/employee/clients');
+    cy.visit('/employee/clients', { onBeforeLoad(win) { setAdminSession(win); } });
     cy.wait('@getClients');
 
     cy.contains('h1', 'Portal klijenata').should('be.visible');
@@ -250,28 +216,28 @@ describe('Employee Clients Portal Page', () => {
 
     cy.contains('Strana 1 / 2').should('be.visible');
     cy.contains('Prethodna').should('be.disabled');
-    cy.contains('Sledeća').should('not.be.disabled');
+    cy.contains('Sledeca').should('not.be.disabled');
   });
 
   it('renders empty state when no clients are returned', () => {
     cy.intercept(
       {
         method: 'GET',
-        pathname: '/clients',
+        pathname: '/api/clients',
       },
       emptyClientsPage
     ).as('getClientsEmpty');
 
-    cy.visit('/employee/clients');
+    cy.visit('/employee/clients', { onBeforeLoad(win) { setAdminSession(win); } });
     cy.wait('@getClientsEmpty');
 
     cy.contains('h1', 'Portal klijenata').should('be.visible');
-    cy.contains('Nema klijenata za prikaz.').should('be.visible');
+    cy.contains('Nema klijenata za prikaz').should('be.visible');
     cy.contains('Strana 1 / 1').should('be.visible');
   });
 
   it('supports search by first name', () => {
-    cy.visit('/employee/clients');
+    cy.visit('/employee/clients', { onBeforeLoad(win) { setAdminSession(win); } });
     cy.wait('@getClients');
 
     cy.get('input[placeholder="Pretraga po imenu, prezimenu ili email-u"]').type('Ana');
@@ -279,24 +245,24 @@ describe('Employee Clients Portal Page', () => {
 
     cy.contains('Ana').should('be.visible');
     cy.contains('Anić').should('be.visible');
-    cy.contains('Marko').should('not.exist');
+    cy.get('table').contains('Marko').should('not.exist');
   });
 
   it('shows empty state when search returns no results', () => {
-    cy.visit('/employee/clients');
+    cy.visit('/employee/clients', { onBeforeLoad(win) { setAdminSession(win); } });
     cy.wait('@getClients');
 
     cy.get('input[placeholder="Pretraga po imenu, prezimenu ili email-u"]').type('zzz');
     cy.wait('@getClients');
 
-    cy.contains('Nema klijenata za prikaz.').should('be.visible');
+    cy.contains('Nema klijenata za prikaz').should('be.visible');
   });
 
   it('supports pagination between pages', () => {
-    cy.visit('/employee/clients');
+    cy.visit('/employee/clients', { onBeforeLoad(win) { setAdminSession(win); } });
     cy.wait('@getClients');
 
-    cy.contains('Sledeća').click();
+    cy.contains('Sledeca').click();
     cy.wait('@getClients');
 
     cy.contains('Petar').should('be.visible');
@@ -304,7 +270,7 @@ describe('Employee Clients Portal Page', () => {
     cy.contains('Strana 2 / 2').should('be.visible');
 
     cy.contains('Prethodna').should('not.be.disabled');
-    cy.contains('Sledeća').should('be.disabled');
+    cy.contains('Sledeca').should('be.disabled');
 
     cy.contains('Prethodna').click();
     cy.wait('@getClients');
@@ -314,7 +280,7 @@ describe('Employee Clients Portal Page', () => {
   });
 
   it('opens client details from the list and updates route', () => {
-    cy.visit('/employee/clients');
+    cy.visit('/employee/clients', { onBeforeLoad(win) { setAdminSession(win); } });
     cy.wait('@getClients');
 
     cy.contains('tr', 'Marko').contains('Detalji').click();
@@ -334,11 +300,7 @@ describe('Employee Clients Portal Page', () => {
   });
 
   it('loads details directly through /employee/clients/:id route', () => {
-    cy.visit('/employee/clients', {
-      onBeforeLoad(win) {
-        win.history.pushState({}, '', '/employee/clients/1');
-      },
-    });
+    cy.visit('/employee/clients/1', { onBeforeLoad(win) { setAdminSession(win); } });
 
     cy.wait('@getClients');
     cy.wait('@getClient1');
@@ -350,17 +312,13 @@ describe('Employee Clients Portal Page', () => {
   });
 
   it('loads client accounts in details section', () => {
-    cy.visit('/employee/clients', {
-      onBeforeLoad(win) {
-        win.history.pushState({}, '', '/employee/clients/1');
-      },
-    });
+    cy.visit('/employee/clients/1', { onBeforeLoad(win) { setAdminSession(win); } });
 
     cy.wait('@getClients');
     cy.wait('@getClient1');
     cy.wait('@getAccountsMarko');
 
-    cy.contains('Računi klijenta').should('be.visible');
+    cy.contains('Racuni klijenta').should('be.visible');
     cy.contains('123-456789-00').should('be.visible');
     cy.contains('TEKUCI').should('be.visible');
     cy.contains('RSD').should('be.visible');
@@ -373,26 +331,18 @@ describe('Employee Clients Portal Page', () => {
   });
 
   it('shows no accounts message when client has no accounts', () => {
-    cy.visit('/employee/clients', {
-      onBeforeLoad(win) {
-        win.history.pushState({}, '', '/employee/clients/2');
-      },
-    });
+    cy.visit('/employee/clients/2', { onBeforeLoad(win) { setAdminSession(win); } });
 
     cy.wait('@getClients');
     cy.wait('@getClient2');
     cy.wait('@getAccountsAna');
 
-    cy.contains('Računi klijenta').should('be.visible');
-    cy.contains('Nema računa za ovog klijenta.').should('be.visible');
+    cy.contains('Racuni klijenta').should('be.visible');
+    cy.contains('Nema racuna za ovog klijenta').should('be.visible');
   });
 
   it('enters edit mode and enables form fields', () => {
-    cy.visit('/employee/clients', {
-      onBeforeLoad(win) {
-        win.history.pushState({}, '', '/employee/clients/1');
-      },
-    });
+    cy.visit('/employee/clients/1', { onBeforeLoad(win) { setAdminSession(win); } });
 
     cy.wait('@getClients');
     cy.wait('@getClient1');
@@ -408,16 +358,12 @@ describe('Employee Clients Portal Page', () => {
     cy.get('#client-date-of-birth').should('not.be.disabled');
     cy.get('#client-gender').should('not.be.disabled');
 
-    cy.contains('Sačuvaj').should('be.visible');
-    cy.contains('Otkaži').should('be.visible');
+    cy.contains('Sacuvaj').should('be.visible');
+    cy.contains('Otkazi').should('be.visible');
   });
 
   it('cancel edit restores original values', () => {
-    cy.visit('/employee/clients', {
-      onBeforeLoad(win) {
-        win.history.pushState({}, '', '/employee/clients/1');
-      },
-    });
+    cy.visit('/employee/clients/1', { onBeforeLoad(win) { setAdminSession(win); } });
 
     cy.wait('@getClients');
     cy.wait('@getClient1');
@@ -429,7 +375,7 @@ describe('Employee Clients Portal Page', () => {
     cy.get('#client-phone').clear().type('060888888');
     cy.get('#client-address').clear().type('Privremena adresa');
 
-    cy.contains('Otkaži').click();
+    cy.contains('Otkazi').click();
 
     cy.get('#client-first-name').should('have.value', 'Marko');
     cy.get('#client-phone').should('have.value', '060111111');
@@ -437,11 +383,7 @@ describe('Employee Clients Portal Page', () => {
   });
 
   it('saves edited client data successfully', () => {
-    cy.visit('/employee/clients', {
-      onBeforeLoad(win) {
-        win.history.pushState({}, '', '/employee/clients/1');
-      },
-    });
+    cy.visit('/employee/clients/1', { onBeforeLoad(win) { setAdminSession(win); } });
 
     cy.wait('@getClients');
     cy.wait('@getClient1');
@@ -453,7 +395,7 @@ describe('Employee Clients Portal Page', () => {
     cy.get('#client-phone').clear().type('060999999');
     cy.get('#client-address').clear().type('Nova adresa 99');
 
-    cy.contains('Sačuvaj').click();
+    cy.contains('Sacuvaj').click();
 
     cy.wait('@updateClient1')
       .its('request.body')
@@ -473,11 +415,7 @@ describe('Employee Clients Portal Page', () => {
   });
 
   it('returns to clients list when closing details', () => {
-    cy.visit('/employee/clients', {
-      onBeforeLoad(win) {
-        win.history.pushState({}, '', '/employee/clients/1');
-      },
-    });
+    cy.visit('/employee/clients/1', { onBeforeLoad(win) { setAdminSession(win); } });
 
     cy.wait('@getClients');
     cy.wait('@getClient1');
@@ -491,11 +429,7 @@ describe('Employee Clients Portal Page', () => {
   });
 
   it('navigates to regular account details page', () => {
-    cy.visit('/employee/clients', {
-      onBeforeLoad(win) {
-        win.history.pushState({}, '', '/employee/clients/1');
-      },
-    });
+    cy.visit('/employee/clients/1', { onBeforeLoad(win) { setAdminSession(win); } });
 
     cy.wait('@getClients');
     cy.wait('@getClient1');
@@ -507,11 +441,7 @@ describe('Employee Clients Portal Page', () => {
   });
 
   it('navigates to business account details page', () => {
-    cy.visit('/employee/clients', {
-      onBeforeLoad(win) {
-        win.history.pushState({}, '', '/employee/clients/1');
-      },
-    });
+    cy.visit('/employee/clients/1', { onBeforeLoad(win) { setAdminSession(win); } });
 
     cy.wait('@getClients');
     cy.wait('@getClient1');
@@ -522,11 +452,7 @@ describe('Employee Clients Portal Page', () => {
   });
 
   it('handles invalid client id route gracefully', () => {
-    cy.visit('/employee/clients', {
-      onBeforeLoad(win) {
-        win.history.pushState({}, '', '/employee/clients/abc');
-      },
-    });
+    cy.visit('/employee/clients/abc', { onBeforeLoad(win) { setAdminSession(win); } });
 
     cy.wait('@getClients');
     cy.contains('h1', 'Portal klijenata').should('be.visible');
@@ -537,7 +463,7 @@ describe('Employee Clients Portal Page', () => {
     cy.intercept(
       {
         method: 'GET',
-        pathname: '/clients',
+        pathname: '/api/clients',
       },
       {
         statusCode: 500,
@@ -545,27 +471,23 @@ describe('Employee Clients Portal Page', () => {
       }
     ).as('getClientsError');
 
-    cy.visit('/employee/clients');
+    cy.visit('/employee/clients', { onBeforeLoad(win) { setAdminSession(win); } });
     cy.wait('@getClientsError');
 
     cy.contains('h1', 'Portal klijenata').should('be.visible');
-    cy.contains('Nema klijenata za prikaz.').should('be.visible');
+    cy.contains('Nema klijenata za prikaz').should('be.visible');
   });
 
   it('handles getById error state gracefully', () => {
     cy.intercept(
-      { method: 'GET', pathname: '/clients/1' },
+      { method: 'GET', pathname: '/api/clients/1' },
       {
         statusCode: 404,
         body: { message: 'Client not found' },
       }
     ).as('getClient1NotFound');
 
-    cy.visit('/employee/clients', {
-      onBeforeLoad(win) {
-        win.history.pushState({}, '', '/employee/clients/1');
-      },
-    });
+    cy.visit('/employee/clients/1', { onBeforeLoad(win) { setAdminSession(win); } });
 
     cy.wait('@getClients');
     cy.wait('@getClient1NotFound');
@@ -576,18 +498,14 @@ describe('Employee Clients Portal Page', () => {
 
   it('handles update error state gracefully', () => {
     cy.intercept(
-      { method: 'PUT', pathname: '/clients/1' },
+      { method: 'PUT', pathname: '/api/clients/1' },
       {
         statusCode: 500,
         body: { message: 'Update failed' },
       }
     ).as('updateClient1Error');
 
-    cy.visit('/employee/clients', {
-      onBeforeLoad(win) {
-        win.history.pushState({}, '', '/employee/clients/1');
-      },
-    });
+    cy.visit('/employee/clients/1', { onBeforeLoad(win) { setAdminSession(win); } });
 
     cy.wait('@getClients');
     cy.wait('@getClient1');
@@ -596,11 +514,11 @@ describe('Employee Clients Portal Page', () => {
     cy.contains('Izmeni').click();
 
     cy.get('#client-first-name').clear().type('Neuspešna izmena');
-    cy.contains('Sačuvaj').click();
+    cy.contains('Sacuvaj').click();
 
     cy.wait('@updateClient1Error');
 
     cy.get('#client-first-name').should('have.value', 'Neuspešna izmena');
-    cy.contains('Otkaži').should('be.visible');
+    cy.contains('Otkazi').should('be.visible');
   });
 });

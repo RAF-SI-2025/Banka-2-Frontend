@@ -1,4 +1,11 @@
 /// <reference types="cypress" />
+function _b64url(s) { return btoa(s).split('=').join('').split('+').join('-').split('/').join('_'); }
+function _fakeJwt(role, email) {
+  return _b64url(JSON.stringify({alg:'HS256',typ:'JWT'})) + '.' +
+    _b64url(JSON.stringify({sub:email,role:role,active:true,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000)})) +
+    '.fakesig';
+}
+
 
 function base64UrlEncode(input: string) {
   return btoa(input)
@@ -34,7 +41,7 @@ describe('Auth flows', () => {
   it('login uspeh preusmerava na dashboard', () => {
     const accessToken = createJwt('ADMIN');
 
-    cy.intercept('POST', '**/auth/login', {
+    cy.intercept('POST', '**/api/auth/login', {
       statusCode: 200,
       body: {
         accessToken,
@@ -59,7 +66,7 @@ describe('Auth flows', () => {
   });
 
   it('forgot password prikazuje success ekran', () => {
-    cy.intercept('POST', '**/auth/password_reset/request', {
+    cy.intercept('POST', '**/api/auth/password_reset/request', {
       statusCode: 200,
       body: { message: 'OK' },
     }).as('forgot');
@@ -81,7 +88,7 @@ describe('Auth flows', () => {
   });
 
   it('reset password uspeh prikazuje potvrdu', () => {
-    cy.intercept('POST', '**/auth/password_reset/confirm', {
+    cy.intercept('POST', '**/api/auth/password_reset/confirm', {
       statusCode: 200,
       body: { message: 'OK' },
     }).as('reset');
@@ -103,7 +110,7 @@ describe('Auth flows', () => {
   });
 
   it('activate account uspeh prikazuje potvrdu', () => {
-    cy.intercept('POST', '**/auth-employee/activate', {
+    cy.intercept('POST', '**/api/auth-employee/activate', {
       statusCode: 200,
       body: { message: 'OK' },
     }).as('activate');
@@ -121,7 +128,7 @@ describe('Auth flows', () => {
   it('admin route blokira non-admin korisnika', () => {
     cy.visit('/admin/employees', {
       onBeforeLoad(win) {
-        win.sessionStorage.setItem('accessToken', 'fake-access-token');
+        win.sessionStorage.setItem('accessToken', _fakeJwt('CLIENT', 'test@test.com'));
         win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
         win.sessionStorage.setItem(
           'user',
@@ -142,7 +149,7 @@ describe('Auth flows', () => {
   });
 
   it('admin korisnik vidi listu zaposlenih', () => {
-    cy.intercept('GET', 'http://localhost:8080/employees*', {
+    cy.intercept('GET', '**/api/employees*', {
       statusCode: 200,
       body: {
         content: [],
@@ -155,7 +162,7 @@ describe('Auth flows', () => {
 
     cy.visit('/admin/employees', {
       onBeforeLoad(win) {
-        win.sessionStorage.setItem('accessToken', 'fake-access-token');
+        win.sessionStorage.setItem('accessToken', _fakeJwt('ADMIN', 'marko.petrovic@banka.rs'));
         win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
         win.sessionStorage.setItem(
           'user',

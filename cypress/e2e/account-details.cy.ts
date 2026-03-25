@@ -1,7 +1,14 @@
 /// <reference types="cypress" />
+function _b64url(s) { return btoa(s).split('=').join('').split('+').join('-').split('/').join('_'); }
+function _fakeJwt(role, email) {
+  return _b64url(JSON.stringify({alg:'HS256',typ:'JWT'})) + '.' +
+    _b64url(JSON.stringify({sub:email,role:role,active:true,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000)})) +
+    '.fakesig';
+}
+
 
 const MOCK_ACCOUNT = {
-  id: 1, accountNumber: '265000000000000112', name: 'Tekuci racun - RSD',
+  id: 1, accountNumber: '265000000000000112', name: 'Tekući račun - RSD',
   accountType: 'TEKUCI', accountSubtype: 'STANDARDNI', status: 'ACTIVE',
   balance: 500000, availableBalance: 485230.5, reservedBalance: 14769.5,
   dailyLimit: 200000, monthlyLimit: 1000000, dailySpending: 45000,
@@ -11,7 +18,7 @@ const MOCK_ACCOUNT = {
 
 const MOCK_BUSINESS_ACCOUNT = {
   ...MOCK_ACCOUNT,
-  id: 3, accountNumber: '265000000000000336', name: 'Poslovni racun - RSD',
+  id: 3, accountNumber: '265000000000000336', name: 'Poslovni račun - RSD',
   accountType: 'POSLOVNI', accountSubtype: 'DOO', balance: 2800000,
   availableBalance: 2750000, reservedBalance: 50000,
   dailyLimit: 5000000, monthlyLimit: 20000000, dailySpending: 100000,
@@ -49,7 +56,7 @@ const EMPTY_TRANSACTIONS = {
 };
 
 function setupClientSession(win: Cypress.AUTWindow) {
-  win.sessionStorage.setItem('accessToken', 'fake-access-token');
+  win.sessionStorage.setItem('accessToken', _fakeJwt('CLIENT', 'test@test.com'));
   win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
   win.sessionStorage.setItem(
     'user',
@@ -62,12 +69,12 @@ function setupClientSession(win: Cypress.AUTWindow) {
 
 describe('AccountDetailsPage - Licni racun', () => {
   beforeEach(() => {
-    cy.intercept('GET', 'http://localhost:8080/accounts/1', {
+    cy.intercept('GET', '**/api/accounts/1', {
       statusCode: 200,
       body: MOCK_ACCOUNT,
     }).as('getAccount');
 
-    cy.intercept('GET', 'http://localhost:8080/transactions*', {
+    cy.intercept('GET', '**/api/payments*', {
       statusCode: 200,
       body: MOCK_TRANSACTIONS,
     }).as('getTransactions');
@@ -76,11 +83,11 @@ describe('AccountDetailsPage - Licni racun', () => {
       onBeforeLoad(win) { setupClientSession(win); },
     });
 
-    cy.contains('Tekuci racun - RSD', { timeout: 10000 }).should('be.visible');
+    cy.contains('Tekući račun - RSD', { timeout: 10000 }).should('be.visible');
   });
 
   it('prikazuje naziv racuna kao naslov', () => {
-    cy.contains('h1', 'Tekuci racun - RSD').should('be.visible');
+    cy.contains('h1', 'Tekući račun - RSD').should('be.visible');
   });
 
   it('prikazuje badge za status i tip', () => {
@@ -148,7 +155,7 @@ describe('AccountDetailsPage - Licni racun', () => {
     });
 
     it('poziva API za promenu limita', () => {
-      cy.intercept('PATCH', 'http://localhost:8080/accounts/1/limit', {
+      cy.intercept('PATCH', '**/api/accounts/1/limit', {
         statusCode: 200,
         body: {},
       }).as('changeLimits');
@@ -169,7 +176,7 @@ describe('AccountDetailsPage - Licni racun', () => {
     });
 
     it('poziva API za promenu naziva', () => {
-      cy.intercept('PATCH', 'http://localhost:8080/accounts/1/name', {
+      cy.intercept('PATCH', '**/api/accounts/1/name', {
         statusCode: 200,
         body: { ...MOCK_ACCOUNT, name: 'Moj glavni racun' },
       }).as('rename');
@@ -229,7 +236,7 @@ describe('AccountDetailsPage - Licni racun', () => {
     });
 
     it('prikazuje poruku kada nema transakcija', () => {
-      cy.intercept('GET', 'http://localhost:8080/transactions*', {
+      cy.intercept('GET', '**/api/payments*', {
         statusCode: 200,
         body: EMPTY_TRANSACTIONS,
       }).as('getEmptyTransactions');
@@ -244,7 +251,7 @@ describe('AccountDetailsPage - Licni racun', () => {
 
   describe('Loading i greske', () => {
     it('prikazuje spinner dok se ucitavaju podaci', () => {
-      cy.intercept('GET', 'http://localhost:8080/accounts/1', {
+      cy.intercept('GET', '**/api/accounts/1', {
         statusCode: 200,
         body: MOCK_ACCOUNT,
         delay: 1000,
@@ -258,7 +265,7 @@ describe('AccountDetailsPage - Licni racun', () => {
     });
 
     it('prikazuje poruku kada racun nije pronadjen', () => {
-      cy.intercept('GET', 'http://localhost:8080/accounts/999', {
+      cy.intercept('GET', '**/api/accounts/999', {
         statusCode: 404,
         body: { message: 'Not Found' },
       }).as('getAccountNotFound');
@@ -272,19 +279,19 @@ describe('AccountDetailsPage - Licni racun', () => {
   });
 });
 
-describe('BusinessAccountDetailsPage - Poslovni racun', () => {
+describe('BusinessAccountDetailsPage - Poslovni račun', () => {
   beforeEach(() => {
-    cy.intercept('GET', 'http://localhost:8080/accounts/3', {
+    cy.intercept('GET', '**/api/accounts/3', {
       statusCode: 200,
       body: MOCK_BUSINESS_ACCOUNT,
     }).as('getBusinessAccount');
 
-    cy.intercept('GET', 'http://localhost:8080/accounts/3/business', {
+    cy.intercept('GET', '**/api/accounts/3/business', {
       statusCode: 200,
       body: MOCK_BUSINESS_ACCOUNT,
     }).as('getBusinessDetails');
 
-    cy.intercept('GET', 'http://localhost:8080/transactions*', {
+    cy.intercept('GET', '**/api/payments*', {
       statusCode: 200,
       body: MOCK_TRANSACTIONS,
     }).as('getTransactions');
@@ -293,11 +300,11 @@ describe('BusinessAccountDetailsPage - Poslovni racun', () => {
       onBeforeLoad(win) { setupClientSession(win); },
     });
 
-    cy.contains('Poslovni racun - RSD', { timeout: 10000 }).should('be.visible');
+    cy.contains('Poslovni račun - RSD', { timeout: 10000 }).should('be.visible');
   });
 
   it('prikazuje naziv racuna', () => {
-    cy.contains('h1', 'Poslovni racun - RSD').should('be.visible');
+    cy.contains('h1', 'Poslovni račun - RSD').should('be.visible');
   });
 
   it('prikazuje badge za status i tip', () => {

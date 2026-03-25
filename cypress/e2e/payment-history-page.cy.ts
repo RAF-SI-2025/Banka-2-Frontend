@@ -1,3 +1,11 @@
+/// <reference types="cypress" />
+function _b64url(s) { return btoa(s).split('=').join('').split('+').join('-').split('/').join('_'); }
+function _fakeJwt(role, email) {
+  return _b64url(JSON.stringify({alg:'HS256',typ:'JWT'})) + '.' +
+    _b64url(JSON.stringify({sub:email,role:role,active:true,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000)})) +
+    '.fakesig';
+}
+
 describe('Payment History Page', () => {
   const adminEmail = 'marko.petrovic@banka.rs';
   const adminPassword = 'Admin12345';
@@ -72,23 +80,14 @@ describe('Payment History Page', () => {
 
   const allTransactions = [tx1, tx2, tx3, tx4];
 
-  const loginAsAdminViaUi = () => {
-    cy.session([adminEmail, adminPassword], () => {
-      cy.visit('/login');
-
-      cy.get('#email').should('be.visible').clear().type(adminEmail);
-      cy.get('#password')
-        .should('be.visible')
-        .clear()
-        .type(adminPassword, { log: false });
-
-      cy.contains('button', 'Prijavi se').click();
-      cy.url().should('include', '/home');
-    });
+  const setAdminSession = (win: Window) => {
+    win.sessionStorage.setItem('accessToken', _fakeJwt('ADMIN', 'marko.petrovic@banka.rs'));
+    win.sessionStorage.setItem('refreshToken', 'fake-refresh-token');
+    win.sessionStorage.setItem('user', JSON.stringify({ id: 1, email: 'marko.petrovic@banka.rs', role: 'ADMIN', firstName: 'Marko', lastName: 'Petrovic' }));
   };
 
   const mockTransactions = () => {
-    cy.intercept('GET', '**/transactions*', (req) => {
+    cy.intercept('GET', '**/api/payments*', (req) => {
       let filtered = [...allTransactions];
 
       const {
@@ -153,11 +152,18 @@ describe('Payment History Page', () => {
   };
 
   const visitPaymentHistory = (query = '') => {
-    cy.visit(`/payments/history${query}`);
+    cy.visit(`/payments/history${query}`, {
+      onBeforeLoad(win) {
+        setAdminSession(win);
+      },
+    });
   };
 
   beforeEach(() => {
-    loginAsAdminViaUi();
+    cy.intercept('POST', '**/api/auth/refresh', { statusCode: 200, body: { accessToken: 'fake-access-token' } });
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/payment-recipients', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/loans/my*', { statusCode: 200, body: { content: [] } });
     mockTransactions();
   });
 
@@ -338,7 +344,7 @@ describe('Payment History Page', () => {
   });
 
   it('supports pagination', () => {
-    cy.intercept('GET', '**/transactions*', (req) => {
+    cy.intercept('GET', '**/api/payments*', (req) => {
       const page = Number(req.query.page ?? 0);
       const limit = Number(req.query.limit ?? 10);
 
@@ -367,7 +373,7 @@ describe('Payment History Page', () => {
 
     cy.contains('Strana 1 / 2').should('be.visible');
 
-    cy.contains('Sledeća').click();
+    cy.contains('Sledeca').click();
     cy.wait('@getTransactionsPaged');
 
     cy.contains('Strana 2 / 2').should('be.visible');
@@ -424,7 +430,7 @@ describe('Payment History Page', () => {
   });
 
   it('shows error state when transaction loading fails', () => {
-    cy.intercept('GET', '**/transactions*', {
+    cy.intercept('GET', '**/api/payments*', {
       statusCode: 500,
       body: { message: 'Internal server error' },
     }).as('getTransactionsError');

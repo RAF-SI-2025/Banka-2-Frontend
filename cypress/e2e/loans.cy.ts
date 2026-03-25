@@ -1,8 +1,9 @@
+/// <reference types="cypress" />
 // Celina 7: Krediti — Scenariji 33-36 iz Celina2Testovi.pdf
 // Testira: podnošenje zahteva, pregled kredita, odobravanje, odbijanje
 
 describe('Krediti - Celina 7', () => {
-  const API = Cypress.env('API_URL') || 'http://localhost:8080';
+  const API = 'http://localhost:8080';
 
   // Helper: login via API and set token
   const loginAs = (email: string, password: string) => {
