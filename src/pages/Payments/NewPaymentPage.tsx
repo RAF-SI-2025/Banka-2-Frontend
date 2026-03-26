@@ -328,7 +328,7 @@ export default function NewPaymentPage() {
         onSuccess={async () => {
           setShowVerification(false);
           const toAcc = watch('toAccountNumber');
-          const recipName = watch('recipientName') || watch('description') || 'Novi primalac';
+          const recipName = watch('recipientName') || 'Novi primalac';
           if (toAcc && !recipients.some(r => r.accountNumber === toAcc)) {
             try {
               await paymentRecipientService.create({ name: recipName, accountNumber: toAcc });

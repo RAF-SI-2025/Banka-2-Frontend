@@ -70,6 +70,22 @@ function formatAccountNumber(accountNumber: string): string {
   return `${accountNumber.slice(0, 3)}-${accountNumber.slice(3, 16)}-${accountNumber.slice(16)}`;
 }
 
+const normalizeAccountType = (raw: string | undefined): AccountType => {
+  switch (raw) {
+    case 'CHECKING':
+    case 'TEKUCI':
+      return 'TEKUCI';
+    case 'FOREIGN':
+    case 'DEVIZNI':
+      return 'DEVIZNI';
+    case 'BUSINESS':
+    case 'POSLOVNI':
+      return 'POSLOVNI';
+    default:
+      return 'TEKUCI';
+  }
+};
+
 export default function AccountsPortalPage() {
   const navigate = useNavigate();
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -95,7 +111,11 @@ export default function AccountsPortalPage() {
         page,
         limit: rowsPerPage,
       });
-      setAccounts(Array.isArray(response.content) ? response.content : []);
+      const normalized = (Array.isArray(response.content) ? response.content : []).map((acc) => ({
+        ...acc,
+        accountType: normalizeAccountType((acc as { accountType?: string }).accountType),
+      })) as Account[];
+      setAccounts(normalized);
       setTotalElements(response.totalElements ?? 0);
       setTotalPages(response.totalPages ?? 0);
     } catch {

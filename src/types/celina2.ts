@@ -5,9 +5,15 @@
 // --- Enumi ---
 
 export const AccountType = {
-  TEKUCI: 'TEKUCI',       // Current account (personal)
-  DEVIZNI: 'DEVIZNI',     // Foreign currency account
-  POSLOVNI: 'POSLOVNI',   // Business account
+  // Backend vrednosti
+  CHECKING: 'CHECKING',   // Tekući
+  FOREIGN: 'FOREIGN',     // Devizni
+  BUSINESS: 'BUSINESS',   // Poslovni
+  MARGIN: 'MARGIN',       // Maržni
+  // FE legacy nazivi (zadržani radi kompatibilnosti)
+  TEKUCI: 'TEKUCI',
+  DEVIZNI: 'DEVIZNI',
+  POSLOVNI: 'POSLOVNI',
 } as const;
 export type AccountType = (typeof AccountType)[keyof typeof AccountType];
 

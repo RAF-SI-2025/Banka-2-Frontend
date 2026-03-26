@@ -90,6 +90,22 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString('sr-RS', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+function normalizeAccountType(raw: string | undefined): AccountType {
+  switch (raw) {
+    case 'CHECKING':
+    case 'TEKUCI':
+      return 'TEKUCI';
+    case 'FOREIGN':
+    case 'DEVIZNI':
+      return 'DEVIZNI';
+    case 'BUSINESS':
+    case 'POSLOVNI':
+      return 'POSLOVNI';
+    default:
+      return 'TEKUCI';
+  }
+}
+
 export default function AccountListPage() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
@@ -159,7 +175,7 @@ export default function AccountListPage() {
         currency: a.currency || (a as unknown as Record<string, unknown>).currencyCode || 'RSD',
         availableBalance: Number(a.availableBalance) || 0,
         balance: Number(a.balance) || 0,
-        accountType: a.accountType || 'CHECKING',
+        accountType: normalizeAccountType(a.accountType),
         accountNumber: a.accountNumber || '',
         name: a.name || undefined,
         status: a.status || 'ACTIVE',
