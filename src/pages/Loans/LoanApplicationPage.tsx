@@ -166,13 +166,15 @@ export default function LoanApplicationPage() {
   };
 
   return (
-    <div className="container mx-auto py-6 max-w-2xl">
-      <div className="mb-6">
-        <div className="flex items-center gap-2">
-          <FileText className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Zahtev za kredit</h1>
+    <div className="container mx-auto py-6 max-w-4xl">
+      <div className="mb-6 flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+          <FileText className="h-5 w-5" />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Popunite formular za podnoscenje zahteva za kredit.</p>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Zahtev za kredit</h1>
+          <p className="text-sm text-muted-foreground">Popunite formular za podnoscenje zahteva za kredit.</p>
+        </div>
       </div>
 
       <Card>
@@ -321,16 +323,27 @@ export default function LoanApplicationPage() {
               Stalni radni odnos
             </label>
 
-            <div className="rounded-md border p-4 text-sm space-y-1">
-              <p>
-                Godisnja kamatna stopa (simulacija): <span className="font-semibold">{annualRate.toFixed(2)}%</span>
-              </p>
-              <p>
-                Mesecna rata: <span className="font-semibold">{monthlyPayment.toFixed(2)} {selectedCurrency}</span>
-              </p>
-              <p>
-                Ukupno za vracanje: <span className="font-semibold">{totalRepayment.toFixed(2)} {selectedCurrency}</span>
-              </p>
+            <div className="rounded-xl border border-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-950/20 p-5 space-y-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+                <p className="font-semibold text-sm">Kalkulacija kredita</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg bg-white dark:bg-background border p-3 text-center">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Kamatna stopa</p>
+                  <p className="text-xl font-bold mt-1 text-indigo-600 dark:text-indigo-400">{annualRate.toFixed(2)}%</p>
+                </div>
+                <div className="rounded-lg bg-white dark:bg-background border p-3 text-center">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Mesecna rata</p>
+                  <p className="text-xl font-bold mt-1 text-indigo-600 dark:text-indigo-400">{monthlyPayment.toFixed(2)}</p>
+                  <p className="text-xs text-muted-foreground">{selectedCurrency}</p>
+                </div>
+                <div className="rounded-lg bg-white dark:bg-background border p-3 text-center">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Ukupno</p>
+                  <p className="text-xl font-bold mt-1 text-indigo-600 dark:text-indigo-400">{totalRepayment.toFixed(2)}</p>
+                  <p className="text-xs text-muted-foreground">{selectedCurrency}</p>
+                </div>
+              </div>
             </div>
 
             <div className="flex justify-end">

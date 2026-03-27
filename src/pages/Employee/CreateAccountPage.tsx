@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, User, Building2, CreditCard, Wallet } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { clientService } from '@/services/clientService';
@@ -28,6 +28,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function CreateAccountPage() {
   const navigate = useNavigate();
@@ -62,6 +70,7 @@ export default function CreateAccountPage() {
 
   const accountType = watch('accountType');
   const ownerEmail = watch('ownerEmail');
+  const createCard = watch('createCard');
 
   const subtypeOptions = useMemo(() => {
     if (accountType === 'POSLOVNI') {
@@ -169,98 +178,131 @@ export default function CreateAccountPage() {
   };
 
   return (
-    <div className="container mx-auto py-6 max-w-2xl">
-      <div className="mb-6">
+    <div className="space-y-6 pb-28 max-w-3xl">
+      {/* Back button */}
+      <Button variant="ghost" onClick={() => navigate('/employee/accounts')}>
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Nazad na portal racuna
+      </Button>
+
+      {/* Header */}
+      <div>
         <div className="flex items-center gap-2">
           <Plus className="h-6 w-6 text-primary" />
           <h1 className="text-3xl font-bold tracking-tight">Kreiranje racuna</h1>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Kreirajte novi bankovni racun za klijenta.</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Kreirajte novi bankovni racun za klijenta.
+        </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
-            <CardTitle>Novi racun</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-5" onSubmit={handleSubmit(onSubmit)} noValidate>
+      <form className="space-y-6" onSubmit={handleSubmit(onSubmit)} noValidate>
+        {/* Client section */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <User className="h-4 w-4 text-indigo-500" />
+              <CardTitle>Vlasnik racuna</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
             <div className="space-y-2">
-              <Label htmlFor="ownerEmail">Email vlasnika</Label>
+              <Label htmlFor="ownerEmail">Email vlasnika *</Label>
               <Input id="ownerEmail" {...register('ownerEmail')} placeholder="ime.prezime@email.com" />
-              {errors.ownerEmail && <p className="text-sm text-destructive">{errors.ownerEmail.message}</p>}
+              {errors.ownerEmail && <p className="text-sm font-medium text-destructive">{errors.ownerEmail.message}</p>}
               {isSearchingClient && <p className="text-xs text-muted-foreground">Pretraga klijenata...</p>}
               {clientSuggestions.length > 0 && (
-                <div className="border rounded-md p-2 space-y-1 bg-background">
+                <div className="border rounded-md divide-y bg-background shadow-sm">
                   {clientSuggestions.map((client) => (
                     <button
                       key={client.id}
                       type="button"
-                      className="w-full text-left text-sm px-2 py-1 rounded hover:bg-muted"
+                      className="w-full text-left text-sm px-3 py-2 hover:bg-primary/5 transition-colors flex items-center justify-between"
                       onClick={() => {
                         setValue('ownerEmail', client.email, { shouldValidate: true, shouldDirty: true });
                         setClientSuggestions([]);
                       }}
                     >
-                      {client.firstName} {client.lastName} | {client.email}
+                      <span className="font-medium">{client.firstName} {client.lastName}</span>
+                      <span className="text-muted-foreground">{client.email}</span>
                     </button>
                   ))}
                 </div>
               )}
             </div>
+          </CardContent>
+        </Card>
 
+        {/* Account type section */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <Wallet className="h-4 w-4 text-indigo-500" />
+              <CardTitle>Tip racuna</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="accountType">Tip racuna</Label>
-                <select
-                  id="accountType"
-                  title="Tip racuna"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  {...register('accountType')}
+                <Label>Tip racuna *</Label>
+                <Select
+                  value={accountType}
+                  onValueChange={(val) => setValue('accountType', val as 'TEKUCI' | 'DEVIZNI' | 'POSLOVNI', { shouldValidate: true })}
                 >
-                  <option value="TEKUCI">Tekuci</option>
-                  <option value="DEVIZNI">Devizni</option>
-                  <option value="POSLOVNI">Poslovni</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Izaberite tip" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TEKUCI">Tekuci</SelectItem>
+                    <SelectItem value="DEVIZNI">Devizni</SelectItem>
+                    <SelectItem value="POSLOVNI">Poslovni</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="accountSubtype">Podvrsta racuna</Label>
-                <select
-                  id="accountSubtype"
-                  title="Podvrsta racuna"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  {...register('accountSubtype')}
+                <Label>Podvrsta racuna *</Label>
+                <Select
+                  value={watch('accountSubtype') || subtypeOptions[0]?.value}
+                  onValueChange={(val) => setValue('accountSubtype', val, { shouldValidate: true })}
                 >
-                  {subtypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.accountSubtype && <p className="text-sm text-destructive">{errors.accountSubtype.message}</p>}
+                  <SelectTrigger>
+                    <SelectValue placeholder="Izaberite podvrstu" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subtypeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.accountSubtype && <p className="text-sm font-medium text-destructive">{errors.accountSubtype.message}</p>}
               </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="currency">Valuta</Label>
-                <select
-                  id="currency"
-                  title="Valuta"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  {...register('currency')}
+                <Label>Valuta *</Label>
+                <Select
+                  value={watch('currency') || currencyOptions[0]}
+                  onValueChange={(val) => setValue('currency', val, { shouldValidate: true })}
                   disabled={accountType === 'TEKUCI'}
                 >
-                  {currencyOptions.map((currency) => (
-                    <option key={currency} value={currency}>
-                      {currency}
-                    </option>
-                  ))}
-                </select>
-                {errors.currency && <p className="text-sm text-destructive">{errors.currency.message}</p>}
+                  <SelectTrigger>
+                    <SelectValue placeholder="Izaberite valutu" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {currencyOptions.map((currency) => (
+                      <SelectItem key={currency} value={currency}>
+                        {currency}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.currency && <p className="text-sm font-medium text-destructive">{errors.currency.message}</p>}
               </div>
 
               <div className="space-y-2">
@@ -269,76 +311,113 @@ export default function CreateAccountPage() {
                   id="initialDeposit"
                   type="number"
                   step="0.01"
+                  placeholder="0.00"
                   {...register('initialDeposit', {
                     setValueAs: (value) => (value === '' ? undefined : Number(value)),
                   })}
                 />
-                {errors.initialDeposit && <p className="text-sm text-destructive">{errors.initialDeposit.message}</p>}
+                {errors.initialDeposit && <p className="text-sm font-medium text-destructive">{errors.initialDeposit.message}</p>}
               </div>
             </div>
 
-            <label className="inline-flex items-center gap-2 text-sm">
-              <input type="checkbox" {...register('createCard')} />
-              Napravi karticu uz racun
-            </label>
+            <div className="flex items-center gap-3 rounded-md border p-4">
+              <Switch
+                checked={createCard}
+                onCheckedChange={(checked) => setValue('createCard', checked)}
+              />
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-muted-foreground" />
+                <Label className="cursor-pointer" onClick={() => setValue('createCard', !createCard)}>
+                  Napravi karticu uz racun
+                </Label>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-            {accountType === 'POSLOVNI' && (
-              <div className="space-y-4 border rounded-md p-4">
-                <h3 className="font-semibold">Podaci firme</h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="companyName">Naziv firme</Label>
-                    <Input id="companyName" {...register('companyName')} />
-                    {errors.companyName && <p className="text-sm text-destructive">{errors.companyName.message}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="registrationNumber">Maticni broj</Label>
-                    <Input id="registrationNumber" {...register('registrationNumber')} />
-                    {errors.registrationNumber && <p className="text-sm text-destructive">{errors.registrationNumber.message}</p>}
-                  </div>
+        {/* Business fields */}
+        {accountType === 'POSLOVNI' && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+                <Building2 className="h-4 w-4 text-indigo-500" />
+                <CardTitle>Podaci firme</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="companyName">Naziv firme *</Label>
+                  <Input id="companyName" {...register('companyName')} />
+                  {errors.companyName && <p className="text-sm font-medium text-destructive">{errors.companyName.message}</p>}
                 </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="taxId">PIB</Label>
-                    <Input id="taxId" {...register('taxId')} />
-                    {errors.taxId && <p className="text-sm text-destructive">{errors.taxId.message}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="activityCode">Sifra delatnosti</Label>
-                    <Input id="activityCode" {...register('activityCode')} placeholder="62.01" />
-                    {errors.activityCode && <p className="text-sm text-destructive">{errors.activityCode.message}</p>}
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="firmAddress">Adresa firme</Label>
-                    <Input id="firmAddress" {...register('firmAddress')} />
-                    {errors.firmAddress && <p className="text-sm text-destructive">{errors.firmAddress.message}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="firmCity">Grad</Label>
-                    <Input id="firmCity" {...register('firmCity')} />
-                    {errors.firmCity && <p className="text-sm text-destructive">{errors.firmCity.message}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="firmCountry">Drzava</Label>
-                    <Input id="firmCountry" {...register('firmCountry')} />
-                    {errors.firmCountry && <p className="text-sm text-destructive">{errors.firmCountry.message}</p>}
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="registrationNumber">Maticni broj *</Label>
+                  <Input id="registrationNumber" {...register('registrationNumber')} />
+                  {errors.registrationNumber && <p className="text-sm font-medium text-destructive">{errors.registrationNumber.message}</p>}
                 </div>
               </div>
-            )}
 
-            <div className="flex justify-end">
-              <Button type="submit" disabled={isSubmitting} className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all">
-                {isSubmitting ? 'Kreiranje...' : 'Kreiraj racun'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="taxId">PIB *</Label>
+                  <Input id="taxId" {...register('taxId')} />
+                  {errors.taxId && <p className="text-sm font-medium text-destructive">{errors.taxId.message}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="activityCode">Sifra delatnosti</Label>
+                  <Input id="activityCode" {...register('activityCode')} placeholder="62.01" />
+                  {errors.activityCode && <p className="text-sm font-medium text-destructive">{errors.activityCode.message}</p>}
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="firmAddress">Adresa firme</Label>
+                  <Input id="firmAddress" {...register('firmAddress')} />
+                  {errors.firmAddress && <p className="text-sm font-medium text-destructive">{errors.firmAddress.message}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="firmCity">Grad</Label>
+                  <Input id="firmCity" {...register('firmCity')} />
+                  {errors.firmCity && <p className="text-sm font-medium text-destructive">{errors.firmCity.message}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="firmCountry">Drzava</Label>
+                  <Input id="firmCountry" {...register('firmCountry')} />
+                  {errors.firmCountry && <p className="text-sm font-medium text-destructive">{errors.firmCountry.message}</p>}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Submit */}
+        <div className="sticky bottom-0 z-10 -mx-4 rounded-t-xl border-t bg-background/80 px-4 py-4 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.1)] backdrop-blur-lg sm:-mx-6 sm:px-6">
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/employee/accounts')}
+            >
+              Otkazi
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
+            >
+              {isSubmitting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
+              {isSubmitting ? 'Kreiranje...' : 'Kreiraj racun'}
+            </Button>
+          </div>
+        </div>
+      </form>
     </div>
   );
 }

@@ -7,13 +7,22 @@
 // - Filter: po statusu (Pending/Approved/Rejected/All)
 // - Spec: "Zahtevi za kredit" iz Celine 2 (employee section)
 
-import { useEffect, useMemo, useState } from 'react';
-import { ShieldCheck, Inbox } from 'lucide-react';
+import { useEffect, useMemo, useState, Fragment } from 'react';
+import { ShieldCheck, Inbox, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { creditService } from '@/services/creditService';
 import type { LoanRequest, LoanStatus } from '@/types/celina2';
 
@@ -23,17 +32,25 @@ function asArray<T>(value: unknown): T[] {
 
 type StatusFilter = LoanStatus | 'ALL';
 
-function statusBadgeClass(status: LoanStatus): string {
-  if (status === 'PENDING') return 'bg-yellow-100 text-yellow-700';
-  if (status === 'APPROVED') return 'bg-green-100 text-green-700';
-  if (status === 'REJECTED') return 'bg-red-100 text-red-700';
-  if (status === 'ACTIVE') return 'bg-blue-100 text-blue-700';
-  return 'bg-muted text-muted-foreground';
+function statusBadgeVariant(status: LoanStatus): 'warning' | 'success' | 'destructive' | 'info' | 'secondary' {
+  if (status === 'PENDING') return 'warning';
+  if (status === 'APPROVED') return 'success';
+  if (status === 'REJECTED') return 'destructive';
+  if (status === 'ACTIVE') return 'info';
+  return 'secondary';
+}
+
+function statusLabel(status: LoanStatus): string {
+  if (status === 'PENDING') return 'Na cekanju';
+  if (status === 'APPROVED') return 'Odobren';
+  if (status === 'REJECTED') return 'Odbijen';
+  if (status === 'ACTIVE') return 'Aktivan';
+  return status;
 }
 
 function formatAmount(value: number | null | undefined, decimals = 2): string {
   const num = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+  return Number.isFinite(num) ? num.toLocaleString('sr-RS', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) : (0).toFixed(decimals);
 }
 
 function formatDate(value: string | null | undefined): string {
@@ -68,6 +85,7 @@ export default function LoanRequestsPage() {
 
   useEffect(() => {
     loadRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
 
   const counts = useMemo(() => {
@@ -112,16 +130,27 @@ export default function LoanRequestsPage() {
     }
   };
 
+  const filterButtons: { value: StatusFilter; label: string; count: number }[] = [
+    { value: 'ALL', label: 'Svi', count: counts.all },
+    { value: 'PENDING', label: 'Na cekanju', count: counts.pending },
+    { value: 'APPROVED', label: 'Odobreni', count: counts.approved },
+    { value: 'REJECTED', label: 'Odbijeni', count: counts.rejected },
+  ];
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="space-y-6">
+      {/* Header */}
       <div>
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-6 w-6 text-primary" />
           <h1 className="text-3xl font-bold tracking-tight">Zahtevi za kredit</h1>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Pregledajte i obradite zahteve za kredit klijenata.</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Pregledajte i obradite zahteve za kredit klijenata.
+        </p>
       </div>
 
+      {/* Status filter tabs */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -130,174 +159,227 @@ export default function LoanRequestsPage() {
           </div>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          <Button variant={statusFilter === 'ALL' ? 'default' : 'outline'} onClick={() => setStatusFilter('ALL')}>
-            Svi ({counts.all})
-          </Button>
-          <Button variant={statusFilter === 'PENDING' ? 'default' : 'outline'} onClick={() => setStatusFilter('PENDING')}>
-            Na cekanju ({counts.pending})
-          </Button>
-          <Button variant={statusFilter === 'APPROVED' ? 'default' : 'outline'} onClick={() => setStatusFilter('APPROVED')}>
-            Odobreni ({counts.approved})
-          </Button>
-          <Button variant={statusFilter === 'REJECTED' ? 'default' : 'outline'} onClick={() => setStatusFilter('REJECTED')}>
-            Odbijeni ({counts.rejected})
-          </Button>
+          {filterButtons.map((btn) => (
+            <Button
+              key={btn.value}
+              variant={statusFilter === btn.value ? 'default' : 'outline'}
+              onClick={() => setStatusFilter(btn.value)}
+              className={
+                statusFilter === btn.value
+                  ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20'
+                  : ''
+              }
+            >
+              {btn.label}
+              <Badge variant="secondary" className="ml-2 bg-background/20 text-current">
+                {btn.count}
+              </Badge>
+            </Button>
+          ))}
         </CardContent>
       </Card>
 
+      {/* Content */}
       {loading ? (
-        <Card>
-          <CardContent className="pt-6 space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex gap-4">
-                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-24 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-16 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
-                <div className="h-4 flex-1 rounded bg-muted animate-pulse" />
-              </div>
-            ))}
-          </CardContent>
+        <Card className="overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Klijent</TableHead>
+                <TableHead>Tip</TableHead>
+                <TableHead>Kamata</TableHead>
+                <TableHead>Iznos</TableHead>
+                <TableHead>Period</TableHead>
+                <TableHead>Datum</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Akcije</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><div className="h-4 w-28 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-20 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-16 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-24 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-16 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-20 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-20 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell className="text-right"><div className="ml-auto h-4 w-24 rounded bg-muted animate-pulse" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </Card>
       ) : asArray<LoanRequest>(loanRequests).length === 0 ? (
         <Card>
           <CardContent className="pt-6">
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <div className="rounded-full bg-muted p-3 mb-3">
-                <Inbox className="h-6 w-6 text-muted-foreground" />
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                <Inbox className="h-8 w-8 text-muted-foreground" />
               </div>
-              <p className="font-medium text-muted-foreground">Nema zahteva za izabrani filter</p>
-              <p className="text-sm text-muted-foreground mt-1">Pokusajte sa drugim statusom filtera.</p>
+              <h3 className="mt-4 text-lg font-semibold">Nema zahteva za izabrani filter</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Pokusajte sa drugim statusom filtera.
+              </p>
             </div>
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardContent className="pt-6 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2">Klijent</th>
-                  <th className="text-left py-2">Tip</th>
-                  <th className="text-left py-2">Kamata</th>
-                  <th className="text-left py-2">Iznos</th>
-                  <th className="text-left py-2">Period</th>
-                  <th className="text-left py-2">Datum</th>
-                  <th className="text-left py-2">Status</th>
-                  <th className="text-left py-2">Akcije</th>
-                </tr>
-              </thead>
-              <tbody>
-                {asArray<LoanRequest>(loanRequests).map((request) => {
-                  const isPending = request.status === 'PENDING';
-                  const isExpanded = expandedId === request.id;
-                  const isRejecting = rejectingLoanId === request.id;
+        <Card className="overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Klijent</TableHead>
+                <TableHead>Tip</TableHead>
+                <TableHead>Kamata</TableHead>
+                <TableHead>Iznos</TableHead>
+                <TableHead>Period</TableHead>
+                <TableHead>Datum</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Akcije</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {asArray<LoanRequest>(loanRequests).map((request) => {
+                const isPending = request.status === 'PENDING';
+                const isExpanded = expandedId === request.id;
+                const isRejecting = rejectingLoanId === request.id;
 
-                  return (
-                    <>
-                      <tr key={request.id} className="border-b align-top hover:bg-muted/50 transition-colors">
-                        <td className="py-2">{request.clientName || request.clientEmail || '-'}</td>
-                        <td className="py-2">{request.loanType}</td>
-                        <td className="py-2">{request.interestRateType}</td>
-                        <td className="py-2">{formatAmount(request.amount)} {request.currency}</td>
-                        <td className="py-2">{request.repaymentPeriod} mes.</td>
-                        <td className="py-2">{formatDate(request.createdAt)}</td>
-                        <td className="py-2">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${statusBadgeClass(request.status)}`}>
-                            {request.status}
-                          </span>
-                        </td>
-                        <td className="py-2">
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setExpandedId(isExpanded ? null : request.id)}
-                            >
-                              {isExpanded ? 'Sakrij' : 'Detalji'}
-                            </Button>
-                            {isPending && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleApprove(request.id)}
-                                  disabled={processingId === request.id}
-                                  className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
-                                >
-                                  Odobri
-                                </Button>
+                return (
+                  <Fragment key={request.id}>
+                    <TableRow className="hover:bg-muted/50 transition-colors">
+                      <TableCell className="font-medium">
+                        {request.clientName || request.clientEmail || '-'}
+                      </TableCell>
+                      <TableCell>{request.loanType}</TableCell>
+                      <TableCell>{request.interestRateType}</TableCell>
+                      <TableCell className="font-medium">
+                        {formatAmount(request.amount)} {request.currency}
+                      </TableCell>
+                      <TableCell>{request.repaymentPeriod} mes.</TableCell>
+                      <TableCell>{formatDate(request.createdAt)}</TableCell>
+                      <TableCell>
+                        <Badge variant={statusBadgeVariant(request.status)}>
+                          {statusLabel(request.status)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setExpandedId(isExpanded ? null : request.id)}
+                          >
+                            {isExpanded ? (
+                              <ChevronUp className="mr-1 h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="mr-1 h-4 w-4" />
+                            )}
+                            {isExpanded ? 'Sakrij' : 'Detalji'}
+                          </Button>
+                          {isPending && (
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={() => handleApprove(request.id)}
+                                disabled={processingId === request.id}
+                                className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
+                              >
+                                {processingId === request.id ? (
+                                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                                ) : null}
+                                Odobri
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => {
+                                  setRejectingLoanId(request.id);
+                                  setRejectReason('');
+                                  setExpandedId(request.id);
+                                }}
+                                disabled={processingId === request.id}
+                              >
+                                Odbij
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {isExpanded && (
+                      <TableRow className="bg-muted/30 hover:bg-muted/40">
+                        <TableCell colSpan={8} className="px-6 py-4">
+                          <div className="grid gap-3 md:grid-cols-3 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Svrha:</span>{' '}
+                              <span className="font-medium">{request.loanPurpose}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Racun:</span>{' '}
+                              <span className="font-medium font-mono">{request.accountNumber}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Telefon:</span>{' '}
+                              <span className="font-medium">{request.phoneNumber}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Status zaposlenja:</span>{' '}
+                              <span className="font-medium">{request.employmentStatus || '-'}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Mesecni prihod:</span>{' '}
+                              <span className="font-medium">{request.monthlyIncome ?? '-'}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Stalno zaposlen:</span>{' '}
+                              <span className="font-medium">{request.permanentEmployment ? 'Da' : 'Ne'}</span>
+                            </div>
+                          </div>
+
+                          {isRejecting && (
+                            <div className="mt-4 space-y-3 max-w-xl rounded-lg border bg-background p-4">
+                              <Label htmlFor={`reject-reason-${request.id}`}>Razlog odbijanja</Label>
+                              <Input
+                                id={`reject-reason-${request.id}`}
+                                value={rejectReason}
+                                onChange={(e) => setRejectReason(e.target.value)}
+                                placeholder="Unesite razlog..."
+                              />
+                              <div className="flex gap-2">
                                 <Button
                                   variant="destructive"
                                   size="sm"
-                                  onClick={() => {
-                                    setRejectingLoanId(request.id);
-                                    setRejectReason('');
-                                    setExpandedId(request.id);
-                                  }}
+                                  onClick={() => handleReject(request.id)}
                                   disabled={processingId === request.id}
                                 >
-                                  Odbij
+                                  {processingId === request.id && (
+                                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                                  )}
+                                  Potvrdi odbijanje
                                 </Button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                      {isExpanded && (
-                        <tr className="border-b bg-muted/30">
-                          <td className="py-3 px-2" colSpan={8}>
-                            <div className="grid gap-2 md:grid-cols-2 text-sm">
-                              <p>Svrha: <span className="font-medium">{request.loanPurpose}</span></p>
-                              <p>Racun: <span className="font-medium">{request.accountNumber}</span></p>
-                              <p>Telefon: <span className="font-medium">{request.phoneNumber}</span></p>
-                              <p>Status zaposlenja: <span className="font-medium">{request.employmentStatus || '-'}</span></p>
-                              <p>Mesecni prihod: <span className="font-medium">{request.monthlyIncome ?? '-'}</span></p>
-                              <p>Stalno zaposlen: <span className="font-medium">{request.permanentEmployment ? 'Da' : 'Ne'}</span></p>
-                            </div>
-
-                            {isRejecting && (
-                              <div className="mt-4 space-y-2 max-w-xl">
-                                <Label htmlFor={`reject-reason-${request.id}`}>Razlog odbijanja</Label>
-                                <Input
-                                  id={`reject-reason-${request.id}`}
-                                  value={rejectReason}
-                                  onChange={(e) => setRejectReason(e.target.value)}
-                                  placeholder="Unesite razlog..."
-                                />
-                                <div className="flex gap-2">
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => handleReject(request.id)}
-                                    disabled={processingId === request.id}
-                                  >
-                                    Potvrdi odbijanje
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      setRejectingLoanId(null);
-                                      setRejectReason('');
-                                    }}
-                                  >
-                                    Otkazi
-                                  </Button>
-                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setRejectingLoanId(null);
+                                    setRejectReason('');
+                                  }}
+                                >
+                                  Otkazi
+                                </Button>
                               </div>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                    </>
-                  );
-                })}
-              </tbody>
-            </table>
-          </CardContent>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </TableBody>
+          </Table>
         </Card>
       )}
     </div>

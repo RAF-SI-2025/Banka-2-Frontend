@@ -23,6 +23,7 @@ describe('Krediti - Celina 7', () => {
           headers: { Authorization: `Bearer ${token}` },
         }).then((accountsRes) => {
           const firstAccount = accountsRes.body[0];
+          // eslint-disable-next-line @typescript-eslint/no-unused-expressions
           expect(firstAccount).to.exist;
 
           // Submit loan request

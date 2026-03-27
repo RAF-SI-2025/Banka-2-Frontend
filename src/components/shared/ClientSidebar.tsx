@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   Menu,
@@ -76,13 +76,13 @@ export default function ClientSidebar() {
 
   const clientLinks: SidebarItem[] = useMemo(
     () => [
-      { label: 'Računi', path: '/accounts', icon: <Wallet className="h-4 w-4" /> },
-      { label: 'Plaćanja', path: '/payments/new', icon: <Receipt className="h-4 w-4" /> },
+      { label: 'Racuni', path: '/accounts', icon: <Wallet className="h-4 w-4" /> },
+      { label: 'Placanja', path: '/payments/new', icon: <Receipt className="h-4 w-4" /> },
       { label: 'Primaoci', path: '/payments/recipients', icon: <BookUser className="h-4 w-4" /> },
       { label: 'Prenosi', path: '/transfers', icon: <ArrowLeftRight className="h-4 w-4" /> },
       { label: 'Istorija prenosa', path: '/transfers/history', icon: <ArrowLeftRight className="h-4 w-4" /> },
       { label: 'Istorija placanja', path: '/payments/history', icon: <History className="h-4 w-4" /> },
-      { label: 'Menjačnica', path: '/exchange', icon: <RefreshCw className="h-4 w-4" /> },
+      { label: 'Menjacnica', path: '/exchange', icon: <RefreshCw className="h-4 w-4" /> },
       { label: 'Kartice', path: '/cards', icon: <CreditCard className="h-4 w-4" /> },
       { label: 'Krediti', path: '/loans', icon: <FileText className="h-4 w-4" /> },
     ],
@@ -91,8 +91,8 @@ export default function ClientSidebar() {
 
   const employeeLinks: SidebarItem[] = useMemo(
     () => [
-      { label: 'Portal računa', path: '/employee/accounts', icon: <Building2 className="h-4 w-4" /> },
-      { label: 'Zahtevi za račune', path: '/employee/account-requests', icon: <Wallet className="h-4 w-4" /> },
+      { label: 'Portal racuna', path: '/employee/accounts', icon: <Building2 className="h-4 w-4" /> },
+      { label: 'Zahtevi za racune', path: '/employee/account-requests', icon: <Wallet className="h-4 w-4" /> },
       { label: 'Portal kartica', path: '/employee/cards', icon: <CreditCard className="h-4 w-4" /> },
       { label: 'Zahtevi za kartice', path: '/employee/card-requests', icon: <CreditCard className="h-4 w-4" /> },
       { label: 'Portal klijenata', path: '/employee/clients', icon: <Users className="h-4 w-4" /> },
@@ -104,8 +104,10 @@ export default function ClientSidebar() {
 
   const linkClassName = ({ isActive }: { isActive: boolean }) =>
     cn(
-      'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground',
-      isActive && 'bg-primary/10 text-primary font-medium'
+      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200',
+      isActive
+        ? 'bg-gradient-to-r from-indigo-500/10 to-violet-500/10 text-indigo-600 dark:text-indigo-400 font-semibold shadow-sm border border-indigo-500/20'
+        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
     );
 
   return (
@@ -131,7 +133,7 @@ export default function ClientSidebar() {
 
       <aside
         className={cn(
-          'fixed left-0 top-0 z-50 h-full w-64 border-r bg-muted/40 p-4 transition-transform md:sticky md:top-0 md:block md:min-h-screen md:translate-x-0 flex flex-col',
+          'fixed left-0 top-0 z-50 h-full w-64 border-r bg-background/95 backdrop-blur-sm p-4 transition-transform md:sticky md:top-0 md:block md:min-h-screen md:translate-x-0 flex flex-col',
           open ? 'translate-x-0' : '-translate-x-full',
           'md:transform-none'
         )}
@@ -150,9 +152,9 @@ export default function ClientSidebar() {
         </div>
 
         {/* User Profile Section */}
-        <div className="mb-6 flex items-center gap-3 rounded-lg border bg-background p-3">
-          <Avatar className="h-12 w-12">
-            <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+        <div className="mb-6 flex items-center gap-3 rounded-xl border bg-gradient-to-r from-indigo-500/5 to-violet-500/5 p-3">
+          <Avatar className="h-11 w-11 ring-2 ring-indigo-500/20">
+            <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-semibold text-sm">
               {getInitials()}
             </AvatarFallback>
           </Avatar>
@@ -164,26 +166,26 @@ export default function ClientSidebar() {
           </div>
         </div>
 
-        {/* Navigation and Theme */}
+        {/* Navigation */}
         <nav className="flex-1 space-y-6 overflow-y-auto">
-          <div className="space-y-1 mb-2">
+          <div className="space-y-1">
             <NavLink
               to="/home"
               className={linkClassName}
               onClick={() => setOpen(false)}
             >
               <Home className="h-4 w-4" />
-              <span>Početna</span>
+              <span>Pocetna</span>
             </NavLink>
           </div>
 
           {!isEmployeeOrAdmin && (
           <div className="space-y-2">
-            <p className="px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="px-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
               Moje finansije
             </p>
 
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {clientLinks.map((item) => (
                 <NavLink
                   key={item.path}
@@ -202,11 +204,11 @@ export default function ClientSidebar() {
 
           {isEmployeeOrAdmin && (
             <div className="space-y-2">
-              <p className="px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="px-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
                 Employee portal
               </p>
 
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {employeeLinks.map((item) => (
                   <NavLink
                     key={item.path}
@@ -227,7 +229,7 @@ export default function ClientSidebar() {
         <div className="space-y-2 border-t pt-4">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="w-full justify-start">
+              <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-foreground">
                 {theme === 'light' && <Sun className="mr-2 h-4 w-4" />}
                 {theme === 'dark' && <Moon className="mr-2 h-4 w-4" />}
                 {theme === 'system' && <Monitor className="mr-2 h-4 w-4" />}
@@ -251,9 +253,9 @@ export default function ClientSidebar() {
           </DropdownMenu>
 
           <Button
-            variant="destructive"
+            variant="ghost"
             size="sm"
-            className="w-full justify-start"
+            className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
             onClick={() => {
               logout();
               setOpen(false);
@@ -263,7 +265,7 @@ export default function ClientSidebar() {
             Odjavi se
           </Button>
         </div>
-      </aside >
+      </aside>
     </>
   );
 }

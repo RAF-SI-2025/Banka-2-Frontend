@@ -58,6 +58,7 @@ export function setupClientSession(win: Window) {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Cypress {
     interface Chainable {
       loginAsAdmin(): Chainable<void>;

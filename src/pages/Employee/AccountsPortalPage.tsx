@@ -150,7 +150,7 @@ export default function AccountsPortalPage() {
   const to = Math.min((page + 1) * rowsPerPage, totalElements);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -178,6 +178,7 @@ export default function AccountsPortalPage() {
       {/* Filters */}
       {showFilters && (
         <Card className="p-4">
+          <h3 className="mb-3 text-sm font-medium text-muted-foreground">Filteri pretrage</h3>
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Email vlasnika</label>
@@ -238,23 +239,36 @@ export default function AccountsPortalPage() {
 
       {/* Accounts table */}
       {loading ? (
-        <Card className="p-4">
-          <div className="space-y-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="flex gap-4 items-center">
-                <div className="h-4 w-32 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-40 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-16 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
-                <div className="h-4 flex-1 rounded bg-muted animate-pulse" />
-              </div>
-            ))}
-          </div>
+        <Card className="overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Vlasnik</TableHead>
+                <TableHead>Broj racuna</TableHead>
+                <TableHead>Tip</TableHead>
+                <TableHead>Stanje</TableHead>
+                <TableHead>Valuta</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Akcije</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><div className="h-4 w-28 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-40 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-16 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-24 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-12 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-16 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell className="text-right"><div className="ml-auto h-4 w-28 rounded bg-muted animate-pulse" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </Card>
       ) : (
-        <Card>
+        <Card className="overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -270,13 +284,13 @@ export default function AccountsPortalPage() {
             <TableBody>
               {accounts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24">
-                    <div className="flex flex-col items-center justify-center text-center py-4">
-                      <div className="rounded-full bg-muted p-3 mb-3">
-                        <Inbox className="h-6 w-6 text-muted-foreground" />
+                  <TableCell colSpan={7} className="h-auto p-0">
+                    <div className="flex flex-col items-center justify-center py-16">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                        <Inbox className="h-8 w-8 text-muted-foreground" />
                       </div>
-                      <p className="font-medium text-muted-foreground">Nema pronadjenih racuna</p>
-                      <p className="text-sm text-muted-foreground mt-1">Pokusajte sa drugim filterima.</p>
+                      <h3 className="mt-4 text-lg font-semibold">Nema pronadjenih racuna</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">Pokusajte sa drugim filterima.</p>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -346,14 +360,14 @@ export default function AccountsPortalPage() {
           </Table>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between border-t px-4 py-3">
+          <div className="flex items-center justify-between border-t px-6 py-4">
             <div className="text-sm text-muted-foreground">
               {totalElements > 0
                 ? `${from}–${to} od ${totalElements}`
                 : '0 rezultata'}
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <span>
                 Strana {page + 1} / {Math.max(1, totalPages)}
               </span>
               <Button

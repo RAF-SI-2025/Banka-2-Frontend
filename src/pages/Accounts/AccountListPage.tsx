@@ -60,6 +60,14 @@ const accountTypeBadgeVariant: Record<string, 'info' | 'success' | 'warning'> = 
   BUSINESS: 'warning',
 };
 
+const currencyBadgeColors: Record<string, string> = {
+  RSD: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  EUR: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
+  USD: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  CHF: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  GBP: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+};
+
 const transactionStatusLabels: Record<string, string> = {
   PENDING: 'Na cekanju',
   COMPLETED: 'Zavrsena',
@@ -274,12 +282,14 @@ export default function AccountListPage() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <Wallet className="h-6 w-6 text-primary" />
-            <h1 className="text-3xl font-bold tracking-tight">Računi</h1>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+            <Wallet className="h-5 w-5" />
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">Pregled svih računa i transakcija.</p>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Računi</h1>
+            <p className="text-sm text-muted-foreground">Pregled svih računa i transakcija.</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {!isAdmin && !showNewAccount && (
@@ -457,7 +467,11 @@ export default function AccountListPage() {
                     <TableCell className="font-medium">
                       {formatBalance(account.availableBalance, account.currency)}
                     </TableCell>
-                    <TableCell>{account.currency}</TableCell>
+                    <TableCell>
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${currencyBadgeColors[account.currency] || 'bg-muted text-muted-foreground'}`}>
+                        {account.currency}
+                      </span>
+                    </TableCell>
                     <TableCell>
                       <Badge variant={account.status === 'ACTIVE' ? 'success' : account.status === 'BLOCKED' ? 'destructive' : 'secondary'}>
                         {account.status === 'ACTIVE' ? 'Aktivan' : account.status === 'BLOCKED' ? 'Blokiran' : 'Neaktivan'}
@@ -540,12 +554,15 @@ export default function AccountListPage() {
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
               <CardTitle className="text-lg">
                 Transakcije — {selectedAccount.name || `${accountTypeLabels[selectedAccount.accountType]} racun`}
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
                   ({formatAccountNumber(selectedAccount.accountNumber)})
                 </span>
               </CardTitle>
+            </div>
               <div className="flex items-center gap-2">
                 <Button
                   variant={showTxFilters ? 'secondary' : 'outline'}

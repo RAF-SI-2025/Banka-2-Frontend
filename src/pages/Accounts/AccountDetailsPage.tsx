@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   CreditCard,
+  Pencil,
   ArrowLeftRight,
   History,
   Wallet,
@@ -85,6 +86,8 @@ export default function AccountDetailsPage() {
   const [account, setAccount] = useState<Account | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [renameValue, setRenameValue] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
   const [dailyLimit, setDailyLimit] = useState('');
   const [monthlyLimit, setMonthlyLimit] = useState('');
   const [isSavingLimits, setIsSavingLimits] = useState(false);
@@ -111,6 +114,7 @@ export default function AccountDetailsPage() {
           monthlySpending: Number(raw.monthlySpending) || 0,
         } as Account;
         setAccount(accountData);
+        setRenameValue(accountData.name || '');
         setDailyLimit(String(accountData.dailyLimit));
         setMonthlyLimit(String(accountData.monthlyLimit));
 
@@ -150,6 +154,26 @@ export default function AccountDetailsPage() {
     if (!account || account.monthlyLimit <= 0) return 0;
     return Math.min(100, (account.monthlySpending / account.monthlyLimit) * 100);
   }, [account]);
+
+  const saveName = async () => {
+    if (!account) return;
+    const newName = renameValue.trim();
+    if (!newName) {
+      toast.error('Naziv racuna ne sme biti prazan.');
+      return;
+    }
+
+    setIsSavingName(true);
+    try {
+      const updated = await accountService.updateName(account.id, newName);
+      setAccount(updated);
+      toast.success('Naziv racuna je uspesno promenjen.');
+    } catch {
+      toast.error('Promena naziva nije uspela.');
+    } finally {
+      setIsSavingName(false);
+    }
+  };
 
   const saveLimits = async () => {
     if (!account) return;
@@ -229,22 +253,32 @@ export default function AccountDetailsPage() {
         <ArrowLeft className="mr-2 h-4 w-4" /> Nazad na racune
       </Button>
 
-      {/* Header */}
-      <div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Wallet className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">{account.name || 'Detalji racuna'}</h1>
-          <Badge variant={statusVariant[account.status]}>
-            {statusLabels[account.status] || account.status}
-          </Badge>
-          <Badge variant="info">
-            {accountTypeLabels[account.accountType] || account.accountType}
-          </Badge>
+      {/* Hero header */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600 p-6 sm:p-8 text-white shadow-lg shadow-indigo-500/20">
+        <div className="absolute top-0 right-0 -mt-4 -mr-4 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+        <div className="absolute bottom-0 left-0 -mb-6 -ml-6 h-24 w-24 rounded-full bg-white/10 blur-xl" />
+        <div className="relative">
+          <div className="flex flex-wrap items-center gap-3 mb-1">
+            <Wallet className="h-6 w-6" />
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{account.name || 'Detalji racuna'}</h1>
+            <Badge variant={statusVariant[account.status]} className="border-white/20">
+              {statusLabels[account.status] || account.status}
+            </Badge>
+            <Badge variant="info" className="border-white/20">
+              {accountTypeLabels[account.accountType] || account.accountType}
+            </Badge>
+          </div>
+          <p className="text-indigo-100 font-mono text-sm mb-4">{formatAccountNumber(account.accountNumber)}</p>
+          <div className="text-3xl sm:text-4xl font-bold tracking-tight">
+            {formatBalance(account.balance, account.currency)}
+          </div>
+          <p className="mt-1 text-indigo-100 text-sm">
+            Raspolozivo: {formatBalance(account.availableBalance, account.currency)}
+          </p>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">{formatAccountNumber(account.accountNumber)}</p>
       </div>
 
-      {/* Balance card */}
+      {/* Balance details card */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -254,21 +288,21 @@ export default function AccountDetailsPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Ukupno stanje</p>
-              <p className="text-xl font-semibold">{formatBalance(account.balance, account.currency)}</p>
+            <div className="rounded-lg border p-4 bg-muted/30">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ukupno stanje</p>
+              <p className="text-xl font-bold mt-1">{formatBalance(account.balance, account.currency)}</p>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Raspolozivo</p>
-              <p className="text-xl font-semibold">{formatBalance(account.availableBalance, account.currency)}</p>
+            <div className="rounded-lg border p-4 bg-muted/30">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Raspolozivo</p>
+              <p className="text-xl font-bold mt-1">{formatBalance(account.availableBalance, account.currency)}</p>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Rezervisano</p>
-              <p className="text-lg font-medium text-muted-foreground">{formatBalance(account.reservedBalance, account.currency)}</p>
+            <div className="rounded-lg border p-4 bg-muted/30">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Rezervisano</p>
+              <p className="text-lg font-semibold mt-1 text-muted-foreground">{formatBalance(account.reservedBalance, account.currency)}</p>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Odrzavanje</p>
-              <p className="text-lg font-medium text-muted-foreground">{formatBalance(account.maintenanceFee, account.currency)}</p>
+            <div className="rounded-lg border p-4 bg-muted/30">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Odrzavanje</p>
+              <p className="text-lg font-semibold mt-1 text-muted-foreground">{formatBalance(account.maintenanceFee, account.currency)}</p>
             </div>
           </div>
         </CardContent>
@@ -283,23 +317,25 @@ export default function AccountDetailsPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="space-y-3">
+          <div className="space-y-3 rounded-lg border p-4">
             <div className="flex justify-between text-sm">
-              <span>Dnevna potrosnja</span>
-              <span className="font-medium">
+              <span className="font-medium">Dnevna potrosnja</span>
+              <span className="font-semibold tabular-nums">
                 {formatBalance(account.dailySpending, account.currency)} / {formatBalance(account.dailyLimit, account.currency)}
               </span>
             </div>
-            <Progress value={dailyProgress} className="h-2" />
+            <Progress value={dailyProgress} className={`h-2.5 ${dailyProgress > 80 ? '[&>div]:bg-red-500' : dailyProgress > 50 ? '[&>div]:bg-amber-500' : '[&>div]:bg-emerald-500'}`} />
+            <p className="text-xs text-muted-foreground">{(100 - dailyProgress).toFixed(0)}% dnevnog limita preostalo</p>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-3 rounded-lg border p-4">
             <div className="flex justify-between text-sm">
-              <span>Mesecna potrosnja</span>
-              <span className="font-medium">
+              <span className="font-medium">Mesecna potrosnja</span>
+              <span className="font-semibold tabular-nums">
                 {formatBalance(account.monthlySpending, account.currency)} / {formatBalance(account.monthlyLimit, account.currency)}
               </span>
             </div>
-            <Progress value={monthlyProgress} className="h-2" />
+            <Progress value={monthlyProgress} className={`h-2.5 ${monthlyProgress > 80 ? '[&>div]:bg-red-500' : monthlyProgress > 50 ? '[&>div]:bg-amber-500' : '[&>div]:bg-emerald-500'}`} />
+            <p className="text-xs text-muted-foreground">{(100 - monthlyProgress).toFixed(0)}% mesecnog limita preostalo</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
@@ -326,14 +362,29 @@ export default function AccountDetailsPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => navigate(`/payments/new?from=${account.accountNumber}`)}>
+          <div className="flex items-center gap-2">
+            <Pencil className="h-4 w-4 text-muted-foreground" />
+            <Input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              placeholder="Novi naziv racuna"
+              className="max-w-sm"
+            />
+            <Button onClick={saveName} disabled={isSavingName}>
+              {isSavingName ? 'Cuvanje...' : 'Izmeni naziv'}
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
+              onClick={() => navigate(`/payments/new?from=${account.accountNumber}`)}
+            >
               <CreditCard className="mr-2 h-4 w-4" /> Novo placanje
             </Button>
-            <Button variant="outline" onClick={() => navigate(`/transfers?from=${account.accountNumber}`)}>
+            <Button variant="outline" className="hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-colors" onClick={() => navigate(`/transfers?from=${account.accountNumber}`)}>
               <ArrowLeftRight className="mr-2 h-4 w-4" /> Prenos
             </Button>
-            <Button variant="outline" onClick={() => navigate(`/payments/history?account=${account.accountNumber}`)}>
+            <Button variant="outline" className="hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-colors" onClick={() => navigate(`/payments/history?account=${account.accountNumber}`)}>
               <History className="mr-2 h-4 w-4" /> Sve transakcije
             </Button>
           </div>

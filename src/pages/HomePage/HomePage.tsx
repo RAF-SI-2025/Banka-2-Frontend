@@ -1,526 +1,527 @@
-// Ova stranica je glavna strana nakon logina. Prikazuje:
-// 1. Listu korisnikovih racuna sa stanjem (accountService.getMyAccounts)
-// 2. Poslednjih 5 transakcija (transactionService.getAll sa limit=5)
-// 3. Brzo placanje widget (skracena forma za placanje, otvara NewPaymentPage)
-// 4. Kursna lista widget (currencyService.getExchangeRates)
-
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/lib/notify';
 import {
   Users, UserPlus, Building2, BookUser, ShieldCheck, FileText,
-  Wallet, ArrowUpRight, ArrowDownLeft, Send, RefreshCw,
-  CreditCard, TrendingUp, TrendingDown,
+  Wallet, ArrowUpRight, ArrowDownLeft, Send, CreditCard,
+  TrendingUp, Landmark, ArrowRightLeft, PiggyBank,
+  ChevronRight, Banknote, BarChart3, Clock, Eye, EyeOff,
 } from 'lucide-react';
 import { accountService } from '@/services/accountService';
 import { currencyService } from '@/services/currencyService';
-import { paymentRecipientService } from '@/services/paymentRecipientService';
 import { transactionService } from '@/services/transactionService';
 import { employeeService } from '@/services/employeeService';
-import type { Account, ExchangeRate, PaymentRecipient, Transaction } from '@/types/celina2';
+import { creditService } from '@/services/creditService';
+import type { Account, ExchangeRate, Transaction } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
 
 function formatAmount(value: number | null | undefined, decimals = 2): string {
   const num = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(num) ? num.toLocaleString('sr-RS', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) : (0).toFixed(decimals);
+  return Number.isFinite(num) ? num.toLocaleString('sr-RS', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) : '0,00';
 }
 
-function formatDateTime(value: string | null | undefined): string {
+function formatDate(value: string | null | undefined): string {
   if (!value) return '-';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('sr-RS', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('sr-RS', { day: '2-digit', month: 'short' });
+}
+
+function formatTime(value: string | null | undefined): string {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('sr-RS', { hour: '2-digit', minute: '2-digit' });
 }
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+const currencyGradients: Record<string, string> = {
+  RSD: 'from-blue-500 to-blue-700',
+  EUR: 'from-indigo-500 to-violet-700',
+  USD: 'from-emerald-500 to-green-700',
+  CHF: 'from-red-500 to-rose-700',
+  GBP: 'from-purple-500 to-violet-700',
+  JPY: 'from-orange-500 to-amber-700',
+  CAD: 'from-rose-500 to-pink-700',
+  AUD: 'from-teal-500 to-cyan-700',
+};
+
+const currencySymbols: Record<string, string> = {
+  RSD: 'РСД', EUR: '€', USD: '$', CHF: 'CHF', GBP: '£', JPY: '¥', CAD: 'C$', AUD: 'A$',
+};
+
 interface AdminCard {
   title: string;
   description: string;
   path: string;
   icon: ReactNode;
+  gradient: string;
 }
 
 const adminCards: AdminCard[] = [
-  { title: 'Lista zaposlenih', description: 'Pregled i upravljanje zaposlenima.', path: '/admin/employees', icon: <Users className="h-5 w-5" /> },
-  { title: 'Novi zaposleni', description: 'Kreiranje naloga za zaposlenog.', path: '/admin/employees/new', icon: <UserPlus className="h-5 w-5" /> },
-  { title: 'Portal računa', description: 'Otvaranje i pregled klijentskih računa.', path: '/employee/accounts', icon: <Building2 className="h-5 w-5" /> },
-  { title: 'Portal klijenata', description: 'Pregled klijenata i njihovih računa.', path: '/employee/clients', icon: <BookUser className="h-5 w-5" /> },
-  { title: 'Zahtevi za kredit', description: 'Obrada klijentskih zahteva za kredit.', path: '/employee/loan-requests', icon: <ShieldCheck className="h-5 w-5" /> },
-  { title: 'Svi krediti', description: 'Pregled svih aktivnih i završenih kredita.', path: '/employee/loans', icon: <FileText className="h-5 w-5" /> },
+  { title: 'Zaposleni', description: 'Upravljanje nalozima', path: '/admin/employees', icon: <Users className="h-5 w-5" />, gradient: 'from-indigo-500 to-violet-600' },
+  { title: 'Novi zaposleni', description: 'Kreiranje naloga', path: '/admin/employees/new', icon: <UserPlus className="h-5 w-5" />, gradient: 'from-blue-500 to-indigo-600' },
+  { title: 'Računi', description: 'Svi klijentski računi', path: '/employee/accounts', icon: <Building2 className="h-5 w-5" />, gradient: 'from-emerald-500 to-green-600' },
+  { title: 'Klijenti', description: 'Pregled i izmena', path: '/employee/clients', icon: <BookUser className="h-5 w-5" />, gradient: 'from-amber-500 to-orange-600' },
+  { title: 'Zahtevi za kredit', description: 'Odobravanje kredita', path: '/employee/loan-requests', icon: <ShieldCheck className="h-5 w-5" />, gradient: 'from-rose-500 to-pink-600' },
+  { title: 'Svi krediti', description: 'Aktivni i završeni', path: '/employee/loans', icon: <FileText className="h-5 w-5" />, gradient: 'from-purple-500 to-violet-600' },
 ];
 
-// Skeleton components
-function CardSkeleton() {
+// ────────────────────────────────────────────────────────────────────
+// Skeletons
+// ────────────────────────────────────────────────────────────────────
+function HeroSkeleton() {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <div className="h-6 w-32 animate-pulse rounded bg-muted" />
-        <div className="h-3 w-20 animate-pulse rounded bg-muted" />
-      </CardContent>
-    </Card>
+    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-500/20 to-violet-500/20 p-8 sm:p-10">
+      <div className="space-y-4">
+        <div className="h-8 w-48 animate-pulse rounded-lg bg-white/20" />
+        <div className="h-12 w-64 animate-pulse rounded-lg bg-white/20" />
+        <div className="h-4 w-32 animate-pulse rounded bg-white/10" />
+      </div>
+    </div>
   );
 }
 
-function TableSkeleton({ rows = 5 }: { rows?: number }) {
+function AccountCardSkeleton() {
   return (
-    <Card>
-      <CardContent className="pt-4 space-y-3">
-        {Array.from({ length: rows }).map((_, i) => (
-          <div key={i} className="flex gap-4">
-            <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-            <div className="h-4 flex-1 animate-pulse rounded bg-muted" />
-            <div className="h-4 w-20 animate-pulse rounded bg-muted" />
-            <div className="h-4 w-16 animate-pulse rounded bg-muted" />
-          </div>
-        ))}
-      </CardContent>
-    </Card>
+    <div className="flex-shrink-0 w-64 h-40 rounded-2xl bg-gradient-to-br from-muted to-muted/50 animate-pulse" />
   );
 }
 
-const currencyColors: Record<string, string> = {
-  RSD: 'text-blue-600 dark:text-blue-400',
-  EUR: 'text-indigo-600 dark:text-indigo-400',
-  USD: 'text-green-600 dark:text-green-400',
-  CHF: 'text-red-600 dark:text-red-400',
-  GBP: 'text-purple-600 dark:text-purple-400',
-  JPY: 'text-orange-600 dark:text-orange-400',
-  CAD: 'text-rose-600 dark:text-rose-400',
-  AUD: 'text-teal-600 dark:text-teal-400',
-};
-
+// ────────────────────────────────────────────────────────────────────
+// MAIN
+// ────────────────────────────────────────────────────────────────────
 export default function HomePage() {
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [recipients, setRecipients] = useState<PaymentRecipient[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [adminStats, setAdminStats] = useState({ total: 0, active: 0, loading: false });
-
-  const [quickFrom, setQuickFrom] = useState('');
-  const [quickRecipient, setQuickRecipient] = useState('');
-  const [quickAmount, setQuickAmount] = useState('');
+  const [balanceVisible, setBalanceVisible] = useState(true);
+  const [adminStats, setAdminStats] = useState({ employees: 0, active: 0, loans: 0, loading: true });
 
   useEffect(() => {
-    const loadData = async () => {
+    const load = async () => {
       setLoading(true);
+      const safe = async <T,>(fn: () => Promise<T>, fb: T): Promise<T> => {
+        try { return await fn(); } catch { return fb; }
+      };
       try {
-        const safe = async <T,>(fn: () => Promise<T>, fallback: T): Promise<T> => {
-          try { return await fn(); } catch { return fallback; }
-        };
-        const [myAccounts, recentTransactions, savedRecipients, rates] = await Promise.all([
+        const [myAccounts, recentTx, rates] = await Promise.all([
           safe(() => accountService.getMyAccounts(), []),
-          safe(() => transactionService.getAll({ page: 0, limit: 5 }), { content: [], totalElements: 0, totalPages: 0 } as never),
-          safe(() => paymentRecipientService.getAll(), []),
+          safe(() => transactionService.getAll({ page: 0, limit: 6 }), { content: [] } as never),
           safe(() => currencyService.getExchangeRates(), []),
         ]);
-
-        const safeAccounts = asArray<Account>(myAccounts);
-        const txSource = (recentTransactions as { content?: unknown } | undefined)?.content ?? recentTransactions;
-        const safeTransactions = asArray<Transaction>(txSource);
-        const safeRecipients = asArray<PaymentRecipient>(savedRecipients);
-        const safeRates = asArray<ExchangeRate>(rates);
-
-        setAccounts(safeAccounts);
-        setTransactions(safeTransactions);
-        setRecipients(safeRecipients);
-        setExchangeRates(safeRates.slice(0, 8));
-
-        if (safeAccounts.length > 0) {
-          setQuickFrom(safeAccounts[0].accountNumber ?? '');
-        }
-      } catch {
-        toast.error('Neuspešno učitavanje početnih podataka.');
-        setAccounts([]);
-        setTransactions([]);
-        setRecipients([]);
-        setExchangeRates([]);
-      } finally {
-        setLoading(false);
-      }
+        setAccounts(asArray<Account>(myAccounts));
+        const txSrc = (recentTx as { content?: unknown })?.content ?? recentTx;
+        setTransactions(asArray<Transaction>(txSrc).slice(0, 6));
+        setExchangeRates(asArray<ExchangeRate>(rates).filter(r => r.currency !== 'RSD').slice(0, 7));
+      } catch { toast.error('Greška pri učitavanju.'); } finally { setLoading(false); }
     };
-
-    loadData();
+    load();
   }, []);
 
   useEffect(() => {
     if (!isAdmin) return;
-
-    const loadAdminStats = async () => {
-      setAdminStats((prev) => ({ ...prev, loading: true }));
+    const load = async () => {
+      setAdminStats(prev => ({ ...prev, loading: true }));
       try {
-        const response = await employeeService.getAll({ limit: 100 });
-        const allEmployees = Array.isArray(response?.content) ? response.content : [];
-        const activeEmployees = allEmployees.filter((emp) => emp?.isActive).length;
+        const [empRes, loanRes] = await Promise.all([
+          employeeService.getAll({ limit: 100 }).catch(() => ({ content: [], totalElements: 0 })),
+          creditService.getAll().catch(() => ({ content: [], totalElements: 0 })),
+        ]);
+        const emps = Array.isArray(empRes?.content) ? empRes.content : [];
         setAdminStats({
-          total: Number(response?.totalElements) || allEmployees.length,
-          active: activeEmployees,
+          employees: Number(empRes?.totalElements) || emps.length,
+          active: emps.filter(e => e?.isActive).length,
+          loans: Number(loanRes?.totalElements) || 0,
           loading: false,
         });
-      } catch {
-        setAdminStats((prev) => ({ ...prev, loading: false }));
-      }
+      } catch { setAdminStats(prev => ({ ...prev, loading: false })); }
     };
-
-    loadAdminStats();
+    load();
   }, [isAdmin]);
 
-  const goToQuickPayment = () => {
-    if (!quickFrom || !quickRecipient || !quickAmount) {
-      toast.error('Popunite sva polja za brzo plaćanje.');
-      return;
-    }
+  // Total balance across all RSD accounts (for hero)
+  const totalRSD = accounts.filter(a => a.currency === 'RSD').reduce((s, a) => s + (a.balance ?? 0), 0);
+  const totalFX = accounts.filter(a => a.currency !== 'RSD').length;
 
-    const selectedRecipient = recipients.find((r) => String(r.id) === quickRecipient);
-    if (!selectedRecipient) {
-      toast.error('Izaberite primaoca.');
-      return;
-    }
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 6) return 'Dobra noć';
+    if (h < 12) return 'Dobro jutro';
+    if (h < 18) return 'Dobar dan';
+    return 'Dobro veče';
+  })();
 
-    navigate(
-      `/payments/new?from=${encodeURIComponent(quickFrom)}&to=${encodeURIComponent(selectedRecipient.accountNumber)}&recipient=${encodeURIComponent(selectedRecipient.name)}&amount=${encodeURIComponent(quickAmount)}`
-    );
-  };
-
-  return (
+  // ──────────────── CLIENT DASHBOARD ────────────────
+  if (!isAdmin) return (
     <div className="space-y-8">
-      {/* Welcome */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">
-          Dobrodošli{user?.firstName ? `, ${user.firstName}` : ''}
-        </h1>
-        <p className="mt-1 text-muted-foreground">
-          {isAdmin ? 'Upravljajte sistemom i pratite aktivnosti.' : 'Pregledajte račune, transakcije i upravljajte finansijama.'}
-        </p>
-      </div>
+      {/* Hero - Total Balance */}
+      {loading ? <HeroSkeleton /> : (
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 p-8 sm:p-10 text-white shadow-2xl shadow-indigo-500/25">
+          {/* Decorative elements */}
+          <div className="absolute top-0 right-0 -mt-12 -mr-12 h-48 w-48 rounded-full bg-white/5 blur-3xl" />
+          <div className="absolute bottom-0 left-1/3 -mb-16 h-40 w-40 rounded-full bg-white/5 blur-3xl" />
+          <div className="absolute top-1/2 right-1/4 h-32 w-32 rounded-full bg-purple-400/10 blur-2xl" />
 
-      {/* Admin section */}
-      {isAdmin && (
-        <section className="space-y-6">
-          {/* Stats */}
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Card className="relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent" />
-              <CardHeader className="relative flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Ukupno zaposlenih</CardTitle>
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-                  <Users className="h-4 w-4" />
-                </div>
-              </CardHeader>
-              <CardContent className="relative">
-                <div className="text-3xl font-bold">{adminStats.loading ? '-' : adminStats.total}</div>
-                <p className="mt-1 text-xs text-muted-foreground">registrovanih u sistemu</p>
-              </CardContent>
-            </Card>
-            <Card className="relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent" />
-              <CardHeader className="relative flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Aktivnih</CardTitle>
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                  <TrendingUp className="h-4 w-4" />
-                </div>
-              </CardHeader>
-              <CardContent className="relative">
-                <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{adminStats.loading ? '-' : adminStats.active}</div>
-                <p className="mt-1 text-xs text-muted-foreground">trenutno aktivnih</p>
-              </CardContent>
-            </Card>
-            <Card className="relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent" />
-              <CardHeader className="relative flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Neaktivnih</CardTitle>
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400">
-                  <TrendingDown className="h-4 w-4" />
-                </div>
-              </CardHeader>
-              <CardContent className="relative">
-                <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">
-                  {adminStats.loading ? '-' : Math.max(adminStats.total - adminStats.active, 0)}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">deaktiviranih naloga</p>
-              </CardContent>
-            </Card>
-          </div>
+          <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
+            <div>
+              <p className="text-indigo-200 text-sm font-medium tracking-wide uppercase">{greeting}</p>
+              <h1 className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight">
+                {user?.firstName ?? 'Korisniče'}
+              </h1>
+              <div className="mt-5 flex items-center gap-3">
+                <p className="text-indigo-200 text-sm">Ukupno stanje</p>
+                <button onClick={() => setBalanceVisible(!balanceVisible)} className="text-indigo-300 hover:text-white transition-colors" aria-label="Prikaži/sakrij stanje">
+                  {balanceVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                </button>
+              </div>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-4xl sm:text-5xl font-bold tabular-nums tracking-tight">
+                  {balanceVisible ? formatAmount(totalRSD) : '••••••'}
+                </span>
+                <span className="text-xl font-semibold text-indigo-200">RSD</span>
+              </div>
+              {totalFX > 0 && (
+                <p className="mt-2 text-sm text-indigo-200">
+                  + {totalFX} devizn{totalFX === 1 ? 'i' : 'a'} račun{totalFX === 1 ? '' : 'a'}
+                </p>
+              )}
+            </div>
 
-          {/* Admin quick actions */}
-          <div>
-            <h2 className="text-lg font-semibold mb-3">Brze admin akcije</h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {adminCards.map((card) => (
-                <Card
-                  key={card.path}
-                  className="group cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-indigo-500/5 hover:-translate-y-0.5 hover:border-indigo-500/20"
-                  onClick={() => navigate(card.path)}
+            {/* Quick action pills */}
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: 'Novo plaćanje', icon: <Send className="h-3.5 w-3.5" />, path: '/payments/new' },
+                { label: 'Transfer', icon: <ArrowRightLeft className="h-3.5 w-3.5" />, path: '/transfers' },
+                { label: 'Menjačnica', icon: <Banknote className="h-3.5 w-3.5" />, path: '/exchange' },
+              ].map(a => (
+                <button
+                  key={a.path}
+                  onClick={() => navigate(a.path)}
+                  className="flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur-sm px-4 py-2 text-sm font-medium text-white hover:bg-white/25 transition-all"
                 >
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2.5">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                        {card.icon}
-                      </div>
-                      {card.title}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xs text-muted-foreground">{card.description}</p>
-                  </CardContent>
-                </Card>
+                  {a.icon}{a.label}
+                </button>
               ))}
             </div>
           </div>
-        </section>
+        </div>
       )}
 
-      {/* Accounts — only for clients */}
-      {!isAdmin && <section>
+      {/* Account Cards - Horizontal scroll */}
+      <section>
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Moji računi</h2>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => navigate('/accounts')}>Svi računi</Button>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-indigo-500" />
+            Moji računi
+          </h2>
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => navigate('/accounts')}>
+            Svi računi <ChevronRight className="ml-1 h-4 w-4" />
+          </Button>
         </div>
         {loading ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <CardSkeleton /><CardSkeleton /><CardSkeleton />
+          <div className="flex gap-4 overflow-hidden">
+            <AccountCardSkeleton /><AccountCardSkeleton /><AccountCardSkeleton />
           </div>
         ) : accounts.length === 0 ? (
           <Card className="py-12">
             <CardContent className="flex flex-col items-center text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
-                <Wallet className="h-6 w-6 text-muted-foreground" />
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-500/10 mb-3">
+                <Wallet className="h-7 w-7 text-indigo-500" />
               </div>
-              <p className="font-medium">Nemate otvorenih računa</p>
+              <p className="font-semibold">Nemate otvorenih računa</p>
               <p className="text-sm text-muted-foreground mt-1">Kontaktirajte banku za otvaranje računa.</p>
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {accounts.map((account) => (
-              <Card
-                key={account.id}
-                className="group cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
-                onClick={() => navigate(`/accounts/${account.id}`)}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-medium">{account.name || `${account.accountType} račun`}</CardTitle>
-                    <Badge variant="outline" className="text-xs">{account.accountType}</Badge>
-                  </div>
-                  <CardDescription className="font-mono text-xs">{account.accountNumber}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className={`text-2xl font-bold ${currencyColors[account.currency] || ''}`}>
-                    {formatAmount(account.balance)} <span className="text-sm font-semibold">{account.currency}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Raspoloživo: {formatAmount(account.availableBalance)} {account.currency}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
+          <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-thin">
+            {accounts.map(account => {
+              const grad = currencyGradients[account.currency] || 'from-slate-500 to-slate-700';
+              const sym = currencySymbols[account.currency] || account.currency;
+              return (
+                <div
+                  key={account.id}
+                  onClick={() => navigate(`/accounts/${account.id}`)}
+                  className="flex-shrink-0 w-72 cursor-pointer group"
+                >
+                  <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${grad} p-5 text-white shadow-lg transition-all duration-300 group-hover:shadow-xl group-hover:-translate-y-1 group-hover:scale-[1.02]`}>
+                    {/* Decorative */}
+                    <div className="absolute top-0 right-0 -mt-6 -mr-6 h-24 w-24 rounded-full bg-white/10 blur-xl" />
+                    <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-16 w-16 rounded-full bg-white/10 blur-lg" />
 
-      }
+                    <div className="relative">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-white/80 truncate max-w-[140px]">
+                          {account.name || `${account.accountType} račun`}
+                        </p>
+                        <span className="text-xs font-bold bg-white/20 backdrop-blur-sm rounded-full px-2.5 py-0.5">
+                          {account.currency}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-white/50 font-mono">{account.accountNumber}</p>
 
-      {/* Recent transactions — only for clients */}
-      {!isAdmin && <section>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <RefreshCw className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Poslednje transakcije</h2>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => navigate('/payments/history')}>Vidi sve</Button>
-        </div>
-        {loading ? (
-          <TableSkeleton rows={5} />
-        ) : transactions.length === 0 ? (
-          <Card className="py-12">
-            <CardContent className="flex flex-col items-center text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
-                <RefreshCw className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <p className="font-medium">Nema nedavnih transakcija</p>
-              <p className="text-sm text-muted-foreground mt-1">Vaše transakcije će se prikazati ovde.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10" />
-                  <TableHead>Datum</TableHead>
-                  <TableHead>Primalac</TableHead>
-                  <TableHead className="text-right">Iznos</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transactions.map((tx) => {
-                  const isOutgoing = true; // default assumption for payments
-                  return (
-                    <TableRow key={tx.id} className="group">
-                      <TableCell>
-                        {isOutgoing
-                          ? <ArrowUpRight className="h-4 w-4 text-red-500" />
-                          : <ArrowDownLeft className="h-4 w-4 text-emerald-500" />}
-                      </TableCell>
-                      <TableCell className="text-sm">{formatDateTime(tx.createdAt)}</TableCell>
-                      <TableCell className="font-medium text-sm">{tx.recipientName || '-'}</TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums">
-                        {formatAmount(tx.amount)} {tx.currency}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            tx.status === 'COMPLETED' ? 'success'
-                              : tx.status === 'PENDING' ? 'warning'
-                              : tx.status === 'REJECTED' ? 'destructive'
-                              : 'secondary'
-                          }
-                          className="text-xs"
-                        >
-                          {tx.status === 'COMPLETED' ? 'Završena'
-                            : tx.status === 'PENDING' ? 'Na čekanju'
-                            : tx.status === 'REJECTED' ? 'Odbijena'
-                            : tx.status}
+                      <div className="mt-4">
+                        <p className="text-xs text-white/60 uppercase tracking-wider">Stanje</p>
+                        <p className="mt-0.5 text-2xl font-bold tabular-nums tracking-tight">
+                          {balanceVisible ? formatAmount(account.balance) : '••••'} <span className="text-base font-semibold text-white/70">{sym}</span>
+                        </p>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between text-xs text-white/60">
+                        <span>Raspoloživo: {balanceVisible ? formatAmount(account.availableBalance) : '••••'}</span>
+                        <Badge variant="outline" className="border-white/30 text-white/80 text-[10px] px-1.5">
+                          {account.status === 'ACTIVE' ? 'Aktivan' : account.status}
                         </Badge>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </Card>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </section>
 
-      }
-
-      {/* Quick payment + exchange in 2 columns — only for clients */}
-      {!isAdmin && <div className="grid gap-6 lg:grid-cols-2">
-        {/* Quick payment */}
-        <section>
-          <div className="flex items-center gap-2 mb-4">
-            <Send className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Brzo plaćanje</h2>
-          </div>
-          <Card>
-            <CardContent className="pt-6 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="quickFrom" className="text-xs font-medium">Sa računa</Label>
-                <select
-                  id="quickFrom"
-                  title="Račun"
-                  value={quickFrom}
-                  onChange={(e) => setQuickFrom(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                >
-                  <option value="">Izaberite račun</option>
-                  {accounts.map((account) => (
-                    <option key={account.id} value={account.accountNumber}>
-                      {account.accountNumber} ({account.currency})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="quickRecipient" className="text-xs font-medium">Primalac</Label>
-                <select
-                  id="quickRecipient"
-                  title="Primalac"
-                  value={quickRecipient}
-                  onChange={(e) => setQuickRecipient(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                >
-                  <option value="">Izaberite primaoca</option>
-                  {recipients.map((recipient) => (
-                    <option key={recipient.id} value={recipient.id}>{recipient.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="quickAmount" className="text-xs font-medium">Iznos</Label>
-                <Input id="quickAmount" type="number" placeholder="0.00" value={quickAmount} onChange={(e) => setQuickAmount(e.target.value)} />
-              </div>
-              <Button
-                className="w-full bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
-                onClick={goToQuickPayment}
-              >
-                <Send className="mr-2 h-4 w-4" />
-                Nastavi na plaćanje
-              </Button>
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* Exchange rates */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold">Kursna lista</h2>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => navigate('/exchange')}>Menjačnica</Button>
-          </div>
-          {loading ? (
-            <TableSkeleton rows={4} />
-          ) : exchangeRates.length === 0 ? (
-            <Card className="py-12">
-              <CardContent className="flex flex-col items-center text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
-                  <RefreshCw className="h-6 w-6 text-muted-foreground" />
+      {/* Quick Actions Grid */}
+      <section>
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <BarChart3 className="h-5 w-5 text-indigo-500" />
+          Brze akcije
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Novo plaćanje', icon: <Send className="h-5 w-5" />, path: '/payments/new', color: 'from-indigo-500 to-violet-500' },
+            { label: 'Transfer', icon: <ArrowRightLeft className="h-5 w-5" />, path: '/transfers', color: 'from-blue-500 to-cyan-500' },
+            { label: 'Menjačnica', icon: <Banknote className="h-5 w-5" />, path: '/exchange', color: 'from-emerald-500 to-green-500' },
+            { label: 'Kartice', icon: <CreditCard className="h-5 w-5" />, path: '/cards', color: 'from-amber-500 to-orange-500' },
+            { label: 'Krediti', icon: <PiggyBank className="h-5 w-5" />, path: '/loans', color: 'from-rose-500 to-pink-500' },
+            { label: 'Primaoci', icon: <BookUser className="h-5 w-5" />, path: '/payments/recipients', color: 'from-purple-500 to-violet-500' },
+            { label: 'Istorija', icon: <Clock className="h-5 w-5" />, path: '/payments/history', color: 'from-slate-500 to-gray-600' },
+            { label: 'Računi', icon: <Wallet className="h-5 w-5" />, path: '/accounts', color: 'from-teal-500 to-cyan-600' },
+          ].map(a => (
+            <Card
+              key={a.path}
+              className="group cursor-pointer border-0 bg-muted/30 hover:bg-muted/60 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
+              onClick={() => navigate(a.path)}
+            >
+              <CardContent className="flex flex-col items-center justify-center py-5 gap-2.5">
+                <div className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${a.color} text-white shadow-md transition-transform group-hover:scale-110`}>
+                  {a.icon}
                 </div>
-                <p className="font-medium">Kursna lista nije dostupna</p>
+                <span className="text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors">{a.label}</span>
               </CardContent>
             </Card>
-          ) : (
-            <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Valuta</TableHead>
-                    <TableHead className="text-right">Kupovni</TableHead>
-                    <TableHead className="text-right">Prodajni</TableHead>
-                    <TableHead className="text-right">Srednji</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {exchangeRates.map((rate) => (
-                    <TableRow key={rate.currency}>
-                      <TableCell>
-                        <span className={`font-semibold ${currencyColors[rate.currency] || ''}`}>
-                          {rate.currency}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{formatAmount(rate.buyRate, 4)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatAmount(rate.sellRate, 4)}</TableCell>
-                      <TableCell className="text-right tabular-nums font-medium">{formatAmount(rate.middleRate, 4)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          )}
+          ))}
+        </div>
+      </section>
+
+      {/* Two columns: Transactions + Exchange rates */}
+      <div className="grid gap-6 lg:grid-cols-5">
+        {/* Recent Transactions - wider */}
+        <section className="lg:col-span-3">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Clock className="h-5 w-5 text-indigo-500" />
+              Poslednje transakcije
+            </h2>
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => navigate('/payments/history')}>
+              Sve <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+          <Card className="overflow-hidden">
+            {loading ? (
+              <CardContent className="py-6 space-y-4">
+                {[1,2,3,4].map(i => (
+                  <div key={i} className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-full animate-pulse bg-muted" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+                      <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+                    </div>
+                    <div className="h-5 w-24 animate-pulse rounded bg-muted" />
+                  </div>
+                ))}
+              </CardContent>
+            ) : transactions.length === 0 ? (
+              <CardContent className="flex flex-col items-center text-center py-12">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted mb-3">
+                  <Clock className="h-7 w-7 text-muted-foreground" />
+                </div>
+                <p className="font-semibold">Nema nedavnih transakcija</p>
+                <p className="text-sm text-muted-foreground mt-1">Vaše transakcije će se prikazati ovde.</p>
+              </CardContent>
+            ) : (
+              <div className="divide-y">
+                {transactions.map(tx => {
+                  const myAccountNumbers = accounts.map(a => a.accountNumber);
+                  const isOut = myAccountNumbers.includes(tx.fromAccountNumber);
+                  return (
+                    <div key={tx.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/30 transition-colors">
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-full ${isOut ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                        {isOut ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownLeft className="h-5 w-5" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{tx.recipientName || tx.description || 'Transakcija'}</p>
+                        <p className="text-xs text-muted-foreground">{formatDate(tx.createdAt)} · {formatTime(tx.createdAt)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-sm font-semibold tabular-nums ${isOut ? 'text-red-500' : 'text-emerald-500'}`}>
+                          {isOut ? '-' : '+'}{formatAmount(tx.amount)} {tx.currency}
+                        </p>
+                        <Badge
+                          variant={tx.status === 'COMPLETED' ? 'success' : tx.status === 'PENDING' ? 'warning' : 'destructive'}
+                          className="text-[10px] px-1.5 mt-0.5"
+                        >
+                          {tx.status === 'COMPLETED' ? 'Završena' : tx.status === 'PENDING' ? 'Na čekanju' : tx.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
         </section>
-      </div>}
+
+        {/* Exchange Rates - narrower */}
+        <section className="lg:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Landmark className="h-5 w-5 text-indigo-500" />
+              Kursna lista
+            </h2>
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => navigate('/exchange')}>
+              Više <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+          <Card className="overflow-hidden">
+            {loading ? (
+              <CardContent className="py-6 space-y-3">
+                {[1,2,3,4].map(i => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="h-4 w-12 animate-pulse rounded bg-muted" />
+                    <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+                  </div>
+                ))}
+              </CardContent>
+            ) : exchangeRates.length === 0 ? (
+              <CardContent className="flex flex-col items-center py-12">
+                <Landmark className="h-7 w-7 text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">Kursna lista nedostupna</p>
+              </CardContent>
+            ) : (
+              <div className="divide-y">
+                {exchangeRates.map(rate => {
+                  const rsdPerUnit = rate.middleRate && rate.middleRate > 0 ? (1 / rate.middleRate) : 0;
+                  return (
+                    <div key={rate.currency} className="flex items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br ${currencyGradients[rate.currency] || 'from-slate-400 to-slate-600'} text-white text-xs font-bold`}>
+                          {rate.currency?.slice(0, 2)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold">{rate.currency}</p>
+                          <p className="text-[11px] text-muted-foreground">1 {rate.currency}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold tabular-nums">{formatAmount(rsdPerUnit, 2)} RSD</p>
+                        <p className="text-[11px] text-muted-foreground tabular-nums">
+                          {formatAmount(rate.sellRate ? (1 / rate.sellRate) : 0, 2)} / {formatAmount(rate.buyRate ? (1 / rate.buyRate) : 0, 2)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        </section>
+      </div>
+    </div>
+  );
+
+  // ──────────────── ADMIN DASHBOARD ────────────────
+  return (
+    <div className="space-y-8">
+      {/* Admin Hero */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-violet-950 p-8 sm:p-10 text-white shadow-2xl">
+        {/* Decorative grid */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-50" />
+        <div className="absolute top-0 right-0 -mt-20 -mr-20 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />
+        <div className="absolute bottom-0 left-1/4 -mb-20 h-48 w-48 rounded-full bg-violet-500/10 blur-3xl" />
+
+        <div className="relative">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs font-medium text-indigo-300 uppercase tracking-widest">Admin panel</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+            {greeting}, {user?.firstName ?? 'Admin'}
+          </h1>
+          <p className="mt-2 text-indigo-300 max-w-lg">
+            Upravljajte zaposlenima, klijentima, kreditima i pratite rad banke.
+          </p>
+        </div>
+      </div>
+
+      {/* Admin Stats */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: 'Zaposleni', value: adminStats.employees, icon: <Users className="h-5 w-5" />, gradient: 'from-indigo-500/10 to-violet-500/10', iconColor: 'text-indigo-500', borderColor: 'border-l-indigo-500' },
+          { label: 'Aktivnih', value: adminStats.active, icon: <TrendingUp className="h-5 w-5" />, gradient: 'from-emerald-500/10 to-green-500/10', iconColor: 'text-emerald-500', borderColor: 'border-l-emerald-500' },
+          { label: 'Neaktivnih', value: Math.max(adminStats.employees - adminStats.active, 0), icon: <Users className="h-5 w-5" />, gradient: 'from-amber-500/10 to-orange-500/10', iconColor: 'text-amber-500', borderColor: 'border-l-amber-500' },
+          { label: 'Krediti', value: adminStats.loans, icon: <PiggyBank className="h-5 w-5" />, gradient: 'from-rose-500/10 to-pink-500/10', iconColor: 'text-rose-500', borderColor: 'border-l-rose-500' },
+        ].map(stat => (
+          <Card key={stat.label} className={`relative overflow-hidden border-l-4 ${stat.borderColor}`}>
+            <div className={`absolute inset-0 bg-gradient-to-br ${stat.gradient}`} />
+            <CardHeader className="relative flex flex-row items-center justify-between pb-1">
+              <CardTitle className="text-sm font-medium text-muted-foreground">{stat.label}</CardTitle>
+              <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-background/80 ${stat.iconColor}`}>
+                {stat.icon}
+              </div>
+            </CardHeader>
+            <CardContent className="relative">
+              <div className="text-3xl font-bold tabular-nums">{adminStats.loading ? '—' : stat.value}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Admin Quick Actions */}
+      <section>
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <BarChart3 className="h-5 w-5 text-indigo-500" />
+          Upravljanje
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {adminCards.map(card => (
+            <Card
+              key={card.path}
+              className="group cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-1 border-0 bg-muted/20 hover:bg-background"
+              onClick={() => navigate(card.path)}
+            >
+              <CardContent className="flex items-center gap-4 py-5">
+                <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${card.gradient} text-white shadow-lg transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3`}>
+                  {card.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{card.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{card.description}</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

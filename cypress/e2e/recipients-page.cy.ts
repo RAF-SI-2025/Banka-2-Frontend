@@ -7,8 +7,8 @@ function _fakeJwt(role, email) {
 }
 
 describe('Recipients Page', () => {
-  const adminEmail = 'marko.petrovic@banka.rs';
-  const adminPassword = 'Admin12345';
+  const _adminEmail = 'marko.petrovic@banka.rs';
+  const _adminPassword = 'Admin12345';
 
   const recipient1 = {
     id: 1,
