@@ -56,7 +56,7 @@ export const exchangeSchema = z.object({
   fromCurrency: z.string().min(1, 'Izaberite valutu'),
   toCurrency: z.string().min(1, 'Izaberite valutu'),
   amount: positiveAmountSchema,
-  accountNumber: accountNumberSchema,
+  accountNumber: z.string().optional(),
 }).refine((data) => data.fromCurrency !== data.toCurrency, {
   message: 'Valute moraju biti razlicite',
   path: ['toCurrency'],
