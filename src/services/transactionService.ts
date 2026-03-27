@@ -29,9 +29,13 @@ export const transactionService = {
     return response.data;
   },
 
-  // TODO: Backend verifikacija placanja jos nije implementirana
-  verifyPayment: async (data: VerificationRequest): Promise<Transaction> => {
-    const response = await api.post<Transaction>('/payments/verify', data);
+  requestOtp: async (): Promise<{ sent: boolean; message: string }> => {
+    const response = await api.post<{ sent: boolean; message: string }>('/payments/request-otp');
+    return response.data;
+  },
+
+  verifyPayment: async (data: VerificationRequest): Promise<{ verified: boolean; blocked?: boolean; message: string }> => {
+    const response = await api.post<{ verified: boolean; blocked?: boolean; message: string }>('/payments/verify', data);
     return response.data;
   },
 

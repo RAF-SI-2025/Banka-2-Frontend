@@ -33,7 +33,13 @@ function asArray<T>(value: unknown): T[] {
 }
 
 function maskCardNumber(number: string): string {
-  const last4 = number.slice(-4);
+  const digits = number.replace(/\D/g, '');
+  if (digits.length >= 8) {
+    const first4 = digits.slice(0, 4);
+    const last4 = digits.slice(-4);
+    return `${first4} **** **** ${last4}`;
+  }
+  const last4 = digits.slice(-4);
   return `**** **** **** ${last4}`;
 }
 
@@ -52,10 +58,11 @@ function statusLabel(status: string): string {
 }
 
 function cardGradient(cardType: string): string {
-  if (cardType === 'VISA') return 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white';
-  if (cardType === 'MASTERCARD') return 'bg-gradient-to-br from-red-500 to-orange-600 text-white';
-  if (cardType === 'DINACARD') return 'bg-gradient-to-br from-emerald-600 to-green-700 text-white';
-  return 'bg-gradient-to-br from-slate-600 to-slate-800 text-white';
+  if (cardType === 'VISA') return 'bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-800 text-white';
+  if (cardType === 'MASTERCARD') return 'bg-gradient-to-br from-red-500 via-orange-500 to-amber-600 text-white';
+  if (cardType === 'DINACARD') return 'bg-gradient-to-br from-emerald-500 via-green-600 to-teal-700 text-white';
+  if (cardType === 'AMERICAN_EXPRESS') return 'bg-gradient-to-br from-slate-600 via-slate-700 to-zinc-800 text-white';
+  return 'bg-gradient-to-br from-indigo-500 via-violet-600 to-purple-700 text-white';
 }
 
 function formatAmount(value: number | null | undefined, decimals = 2): string {
@@ -182,14 +189,16 @@ export default function CardListPage() {
     <div className="container mx-auto py-6 space-y-6">
       {/* Page header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <CreditCard className="h-8 w-8" />
-            Moje kartice
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Upravljajte karticama vezanim za vaše račune.
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+            <CreditCard className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Moje kartice</h1>
+            <p className="text-sm text-muted-foreground">
+              Upravljajte karticama vezanim za vaše račune.
+            </p>
+          </div>
         </div>
         {!isAdmin && !showNewCard && (
           <Button
@@ -289,47 +298,57 @@ export default function CardListPage() {
         /* Card grid */
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {asArray<Card>(cards).map((card) => (
-            <div key={card.id} className="rounded-xl overflow-hidden shadow-lg">
+            <div key={card.id} className="group rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               {/* Credit card face */}
-              <div className={`relative p-6 ${cardGradient(card.cardName || card.cardType || 'VISA')} min-h-[220px] flex flex-col justify-between`}>
+              <div className={`relative p-6 ${cardGradient(card.cardName || card.cardType || 'VISA')} min-h-[220px] flex flex-col justify-between overflow-hidden`}>
+                {/* Glassmorphism overlay */}
+                <div className="absolute inset-0 bg-white/5 backdrop-blur-[1px]" />
+                {/* Decorative elements */}
+                <div className="absolute -top-8 -right-8 h-32 w-32 rounded-full bg-white/10 blur-xl" />
+                <div className="absolute -bottom-12 -left-8 h-40 w-40 rounded-full bg-white/5 blur-lg" />
+                <div className="absolute top-1/2 right-1/4 h-20 w-20 rounded-full bg-white/5 blur-md" />
+
                 {/* Top row: type + status */}
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-bold tracking-wide drop-shadow-sm">
+                <div className="relative flex items-center justify-between">
+                  <span className="text-lg font-bold tracking-wide drop-shadow-md">
                     {card.cardName || card.cardType || 'Visa Debit'}
                   </span>
                   <Badge
                     variant={statusBadgeVariant(card.status)}
-                    className="text-[11px] shadow-sm"
+                    className="text-[11px] shadow-sm backdrop-blur-sm"
                   >
                     {statusLabel(card.status)}
                   </Badge>
                 </div>
 
                 {/* Card number */}
-                <p className="font-mono text-2xl tracking-[0.18em] drop-shadow-sm select-none">
+                <p className="relative font-mono text-2xl tracking-[0.18em] drop-shadow-md select-none">
                   {maskCardNumber(card.cardNumber)}
                 </p>
 
                 {/* Bottom details */}
-                <div className="flex justify-between items-end text-sm">
+                <div className="relative flex justify-between items-end text-sm">
                   <div className="space-y-0.5">
-                    <p className="text-[11px] uppercase opacity-75">Vlasnik</p>
-                    <p className="font-medium">{card.ownerName || card.holderName || '-'}</p>
+                    <p className="text-[10px] uppercase tracking-widest opacity-70">Vlasnik</p>
+                    <p className="font-semibold drop-shadow-sm">{card.ownerName || card.holderName || '-'}</p>
                   </div>
                   <div className="text-right space-y-0.5">
-                    <p className="text-[11px] uppercase opacity-75">Istek</p>
-                    <p className="font-medium">{formatDate(card.expirationDate)}</p>
+                    <p className="text-[10px] uppercase tracking-widest opacity-70">Istek</p>
+                    <p className="font-semibold drop-shadow-sm">{formatDate(card.expirationDate)}</p>
                   </div>
                 </div>
 
-                {/* Decorative circles */}
-                <div className="absolute top-4 right-4 opacity-10 pointer-events-none">
-                  <CreditCard className="h-24 w-24" />
+                {/* Decorative chip */}
+                <div className="absolute top-16 left-6 h-8 w-11 rounded-md bg-gradient-to-br from-amber-300/80 to-amber-500/60 shadow-inner" />
+
+                {/* Large watermark icon */}
+                <div className="absolute bottom-4 right-4 opacity-[0.08] pointer-events-none">
+                  <CreditCard className="h-28 w-28" />
                 </div>
               </div>
 
               {/* Card details + actions */}
-              <div className="bg-card border border-t-0 rounded-b-xl px-6 py-4 space-y-3">
+              <div className="bg-card border border-t-0 rounded-b-2xl px-6 py-4 space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Račun</span>
                   <span className="font-medium">{card.accountNumber}</span>
@@ -366,6 +385,9 @@ export default function CardListPage() {
                   )}
                   {card.status === 'BLOCKED' && !isAdmin && (
                     <p className="text-xs text-muted-foreground py-1">Kontaktirajte banku za deblokiranje.</p>
+                  )}
+                  {card.status === 'DEACTIVATED' && (
+                    <p className="text-xs text-muted-foreground py-1">Kartica je deaktivirana i ne može se ponovo aktivirati.</p>
                   )}
                   {card.status !== 'DEACTIVATED' && (
                     <>

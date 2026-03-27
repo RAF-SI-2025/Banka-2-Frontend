@@ -241,7 +241,7 @@ export const verificationSchema = z.object({
   code: z
     .string()
     .min(1, 'Verifikacioni kod je obavezan')
-    .regex(/^\d{4,6}$/, 'Kod mora biti 4-6 cifara'),
+    .regex(/^\d{6}$/, 'Kod mora biti tačno 6 cifara'),
 });
 export type VerificationFormData = z.infer<typeof verificationSchema>;
 

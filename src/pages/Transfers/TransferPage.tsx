@@ -278,17 +278,22 @@ export default function TransferPage() {
 
   return (
     <div className="container mx-auto max-w-2xl py-6">
-      <div>
-        <div className="flex items-center gap-2">
-          <ArrowLeftRight className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Prenos izmedju racuna</h1>
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+          <ArrowLeftRight className="h-5 w-5" />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Prenesite sredstva izmedju vasih racuna brzo i sigurno.</p>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Prenos izmedju racuna</h1>
+          <p className="text-sm text-muted-foreground">Prenesite sredstva izmedju vasih racuna brzo i sigurno.</p>
+        </div>
       </div>
 
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>{showConfirmStep ? 'Potvrda prenosa' : 'Novi prenos'}</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <CardTitle>{showConfirmStep ? 'Potvrda prenosa' : 'Novi prenos'}</CardTitle>
+          </div>
         </CardHeader>
 
         <CardContent>
@@ -406,11 +411,12 @@ export default function TransferPage() {
               </div>
 
               {fromAccountData && (
-                <div className="rounded-md border p-3 text-sm">
-                  <p>
-                    Raspolozivo stanje: {formatAmount(fromAccountData.availableBalance)}{' '}
-                    {fromAccountData.currency}
-                  </p>
+                <div className="rounded-lg border border-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-950/20 p-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                    <span className="text-muted-foreground">Raspolozivo stanje:</span>
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400">{formatAmount(fromAccountData.availableBalance)} {fromAccountData.currency}</span>
+                  </div>
                 </div>
               )}
 

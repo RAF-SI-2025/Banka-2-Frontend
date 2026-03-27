@@ -199,8 +199,7 @@ export default function PaymentHistoryPage() {
     setExpandedId((prev) => (prev === transactionId ? null : transactionId));
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const printTransaction = (tx: any) => {
+  const printTransaction = (tx: Transaction) => {
     try {
       const doc = new jsPDF();
       const s = (v: unknown) => (v != null && v !== '' ? String(v) : '-');
@@ -234,13 +233,13 @@ export default function PaymentHistoryPage() {
         y += 10;
       };
 
-      line('Broj naloga:', s(tx.orderNumber || tx.id));
+      line('Broj naloga:', s(tx.referenceNumber || tx.id));
       line('Datum:', s(tx.createdAt));
-      line('Sa racuna:', s(tx.fromAccount || tx.fromAccountNumber));
-      line('Na racun:', s(tx.toAccount || tx.toAccountNumber));
+      line('Sa racuna:', s(tx.fromAccountNumber));
+      line('Na racun:', s(tx.toAccountNumber));
       line('Iznos:', `${a(tx.amount)} ${s(tx.currency)}`);
       line('Status:', s(tx.status));
-      line('Smer:', s(tx.direction));
+      line('Sifra placanja:', s(tx.paymentCode));
       if (tx.description || tx.recipientName || tx.paymentPurpose) {
         line('Opis:', s(tx.description || tx.paymentPurpose || tx.recipientName));
       }
@@ -263,17 +262,22 @@ export default function PaymentHistoryPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div>
-        <div className="flex items-center gap-2">
-          <History className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Pregled placanja</h1>
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+          <History className="h-5 w-5" />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Pregledajte istoriju svih vasih placanja i transakcija.</p>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Pregled placanja</h1>
+          <p className="text-sm text-muted-foreground">Pregledajte istoriju svih vasih placanja i transakcija.</p>
+        </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Filteri i sortiranje</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <CardTitle>Filteri i sortiranje</CardTitle>
+          </div>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">

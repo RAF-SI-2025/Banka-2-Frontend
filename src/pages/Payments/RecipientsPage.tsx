@@ -209,12 +209,14 @@ export default function RecipientsPage() {
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <Users className="h-6 w-6 text-primary" />
-            <h1 className="text-3xl font-bold tracking-tight">Primaoci placanja</h1>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+            <Users className="h-5 w-5" />
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">Upravljajte listom sacuvanih primalaca za brza placanja.</p>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Primaoci placanja</h1>
+            <p className="text-sm text-muted-foreground">Upravljajte listom sacuvanih primalaca za brza placanja.</p>
+          </div>
         </div>
 
         <Button
@@ -234,7 +236,10 @@ export default function RecipientsPage() {
       {showCreateForm && (
         <Card>
           <CardHeader>
-            <CardTitle>Novi primalac</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <CardTitle>Novi primalac</CardTitle>
+            </div>
           </CardHeader>
 
           <CardContent>
@@ -309,7 +314,10 @@ export default function RecipientsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Sacuvani primaoci</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <CardTitle>Sacuvani primaoci</CardTitle>
+          </div>
         </CardHeader>
 
         <CardContent className="space-y-4">

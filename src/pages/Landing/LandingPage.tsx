@@ -92,7 +92,7 @@ function useBackendStatus() {
   return status;
 }
 
-function useInView() {
+function useInView(): [React.RefObject<HTMLDivElement | null>, boolean] {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
 
@@ -107,15 +107,15 @@ function useInView() {
     return () => obs.disconnect();
   }, []);
 
-  return { ref, visible };
+  return [ref, visible];
 }
 
 export default function LandingPage() {
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
   const backendStatus = useBackendStatus();
-  const featuresAnim = useInView();
-  const ctaAnim = useInView();
+  const [featuresRef, featuresVisible] = useInView();
+  const [ctaRef, ctaVisible] = useInView();
   const [scrollY, setScrollY] = useState(0);
 
   useEffect(() => {
@@ -298,7 +298,7 @@ export default function LandingPage() {
       {/* --- Features --- */}
       <section
         id="features"
-        ref={featuresAnim.ref}
+        ref={featuresRef}
         className="relative z-10 mx-auto max-w-6xl px-6 py-24"
       >
         <div className="mb-16 text-center space-y-4">
@@ -319,9 +319,9 @@ export default function LandingPage() {
             <div
               key={feature.title}
               className={`group relative rounded-xl border border-slate-200 dark:border-white/[0.06] bg-white/70 dark:bg-white/[0.02] p-6 backdrop-blur-sm transition-all duration-500 hover:border-indigo-300 dark:hover:border-indigo-500/30 hover:bg-white dark:hover:bg-white/[0.04] hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-1 ${
-                featuresAnim.visible ? 'animate-fade-up' : 'opacity-0'
+                featuresVisible ? 'animate-fade-up' : 'opacity-0'
               }`}
-              style={{ animationDelay: featuresAnim.visible ? `${i * 0.1}s` : undefined }}
+              style={{ animationDelay: featuresVisible ? `${i * 0.1}s` : undefined }}
             >
               {/* Gradient hover glow */}
               <div className="pointer-events-none absolute -inset-px rounded-xl bg-gradient-to-b from-indigo-500/10 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
@@ -344,9 +344,9 @@ export default function LandingPage() {
 
       {/* --- CTA --- */}
       <section
-        ref={ctaAnim.ref}
+        ref={ctaRef}
         className={`relative z-10 mx-auto max-w-6xl px-6 py-16 ${
-          ctaAnim.visible ? 'animate-fade-up' : 'opacity-0'
+          ctaVisible ? 'animate-fade-up' : 'opacity-0'
         }`}
       >
         <div className="group relative">

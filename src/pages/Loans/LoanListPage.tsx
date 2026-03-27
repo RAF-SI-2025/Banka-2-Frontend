@@ -9,23 +9,37 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Inbox } from 'lucide-react';
+import { FileText, Inbox, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { creditService } from '@/services/creditService';
 import type { Installment, Loan } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
-function statusStyles(status: Loan['status']): string {
-  if (status === 'ACTIVE') return 'bg-green-100 text-green-700';
-  if (status === 'PENDING') return 'bg-yellow-100 text-yellow-700';
-  if (status === 'APPROVED') return 'bg-blue-100 text-blue-700';
-  if (status === 'REJECTED') return 'bg-red-100 text-red-700';
-  return 'bg-muted text-muted-foreground';
+function statusBadgeVariant(status: Loan['status']): 'success' | 'warning' | 'info' | 'destructive' | 'secondary' {
+  if (status === 'ACTIVE') return 'success';
+  if (status === 'PENDING') return 'warning';
+  if (status === 'APPROVED') return 'info';
+  if (status === 'REJECTED') return 'destructive';
+  return 'secondary';
+}
+
+function statusLabel(status: Loan['status']): string {
+  if (status === 'ACTIVE') return 'Aktivan';
+  if (status === 'PENDING') return 'Na cekanju';
+  if (status === 'APPROVED') return 'Odobren';
+  if (status === 'REJECTED') return 'Odbijen';
+  if (status === 'CLOSED') return 'Zatvoren';
+  return status;
 }
 
 function formatAmount(value: number | null | undefined, decimals = 2): string {
@@ -53,7 +67,8 @@ export default function LoanListPage() {
       setLoading(true);
       try {
         const data = await creditService.getMyLoans();
-        setLoans(asArray<Loan>(data));
+        const sorted = asArray<Loan>(data).sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0));
+        setLoans(sorted);
       } catch {
         setLoans([]);
       } finally {
@@ -100,12 +115,14 @@ export default function LoanListPage() {
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <FileText className="h-6 w-6 text-primary" />
-            <h1 className="text-3xl font-bold tracking-tight">Moji krediti</h1>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+            <FileText className="h-5 w-5" />
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">Pregled svih vasih kredita i detalja otplate.</p>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Moji krediti</h1>
+            <p className="text-sm text-muted-foreground">Pregled svih vasih kredita i detalja otplate.</p>
+          </div>
         </div>
         <Button onClick={() => navigate('/loans/apply')} className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all">Zahtev za kredit</Button>
       </div>
@@ -148,40 +165,52 @@ export default function LoanListPage() {
         <section className="grid gap-4">
           {asArray<Loan>(loans).map((loan) => {
             const isSelected = selectedLoan?.id === loan.id;
+            const loanProgress = Math.max(0, Math.min(100, ((loan.amount - loan.remainingDebt) / loan.amount) * 100 || 0));
             return (
-              <Card key={loan.id}>
+              <Card key={loan.id} className="transition-all duration-200 hover:shadow-lg hover:shadow-indigo-500/5">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
                       <CardTitle className="text-lg">{loan.loanType} kredit</CardTitle>
                     </div>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${statusStyles(loan.status)}`}>
-                      {loan.status}
-                    </span>
+                    <Badge variant={statusBadgeVariant(loan.status)}>
+                      {statusLabel(loan.status)}
+                    </Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid gap-2 md:grid-cols-2 text-sm">
-                    <p>
-                      Iznos: <span className="font-medium">{formatAmount(loan.amount)} {loan.currency}</span>
-                    </p>
-                    <p>
-                      Mesecna rata: <span className="font-medium">{formatAmount(loan.monthlyPayment)} {loan.currency}</span>
-                    </p>
-                    <p>
-                      Preostali dug: <span className="font-medium">{formatAmount(loan.remainingDebt)} {loan.currency}</span>
-                    </p>
-                    <p>
-                      Period: <span className="font-medium">{loan.repaymentPeriod} meseci</span>
-                    </p>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-lg border p-3 bg-muted/30">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Iznos</p>
+                      <p className="text-lg font-bold mt-0.5">{formatAmount(loan.amount)} {loan.currency}</p>
+                    </div>
+                    <div className="rounded-lg border p-3 bg-muted/30">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Mesecna rata</p>
+                      <p className="text-lg font-bold mt-0.5">{formatAmount(loan.monthlyPayment)} {loan.currency}</p>
+                    </div>
+                    <div className="rounded-lg border p-3 bg-muted/30">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Preostali dug</p>
+                      <p className="text-lg font-bold mt-0.5 text-orange-600 dark:text-orange-400">{formatAmount(loan.remainingDebt)} {loan.currency}</p>
+                    </div>
+                    <div className="rounded-lg border p-3 bg-muted/30">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Period</p>
+                      <p className="text-lg font-bold mt-0.5">{loan.repaymentPeriod} meseci</p>
+                    </div>
                   </div>
-                  <progress
-                    className="w-full h-2"
-                    max={100}
-                    value={Math.max(0, Math.min(100, ((loan.amount - loan.remainingDebt) / loan.amount) * 100 || 0))}
-                  />
-                  <Button variant="outline" onClick={() => setSelectedLoan(isSelected ? null : loan)}>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Otplaceno</span>
+                      <span className="font-medium">{loanProgress.toFixed(0)}%</span>
+                    </div>
+                    <Progress value={loanProgress} className={`h-2.5 ${loanProgress >= 100 ? '[&>div]:bg-emerald-500' : '[&>div]:bg-indigo-500'}`} />
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-colors"
+                    onClick={() => setSelectedLoan(isSelected ? null : loan)}
+                  >
+                    {isSelected ? <ChevronUp className="mr-2 h-4 w-4" /> : <ChevronDown className="mr-2 h-4 w-4" />}
                     {isSelected ? 'Sakrij detalje' : 'Prikazi detalje'}
                   </Button>
                 </CardContent>
@@ -200,14 +229,32 @@ export default function LoanListPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-2 md:grid-cols-2 text-sm">
-              <p>Nominalna kamatna stopa: <span className="font-medium">{formatAmount(selectedLoan.nominalRate)}%</span></p>
-              <p>Efektivna kamatna stopa: <span className="font-medium">{formatAmount(selectedLoan.effectiveRate)}%</span></p>
-              <p>Pocetak: <span className="font-medium">{formatDate(selectedLoan.startDate)}</span></p>
-              <p>Kraj: <span className="font-medium">{formatDate(selectedLoan.endDate)}</span></p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border p-3 bg-muted/30">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Nominalna stopa</p>
+                <p className="text-lg font-bold mt-0.5">{formatAmount(selectedLoan.nominalRate)}%</p>
+              </div>
+              <div className="rounded-lg border p-3 bg-muted/30">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Efektivna stopa</p>
+                <p className="text-lg font-bold mt-0.5">{formatAmount(selectedLoan.effectiveRate)}%</p>
+              </div>
+              <div className="rounded-lg border p-3 bg-muted/30">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Pocetak</p>
+                <p className="text-lg font-bold mt-0.5">{formatDate(selectedLoan.startDate)}</p>
+              </div>
+              <div className="rounded-lg border p-3 bg-muted/30">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Kraj</p>
+                <p className="text-lg font-bold mt-0.5">{formatDate(selectedLoan.endDate)}</p>
+              </div>
             </div>
 
-            <progress className="w-full h-2" max={100} value={progress} />
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Napredak otplate</span>
+                <span className="font-medium">{progress.toFixed(0)}%</span>
+              </div>
+              <Progress value={progress} className={`h-2.5 ${progress >= 100 ? '[&>div]:bg-emerald-500' : '[&>div]:bg-indigo-500'}`} />
+            </div>
 
             {loadingInstallments ? (
               <div className="space-y-3">
@@ -229,39 +276,44 @@ export default function LoanListPage() {
                 <p className="text-sm text-muted-foreground mt-1">Rate ce biti prikazane nakon aktivacije kredita.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2">Rata</th>
-                      <th className="text-left py-2">Iznos</th>
-                      <th className="text-left py-2">Datum dospeca</th>
-                      <th className="text-left py-2">Placeno</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+              <div className="overflow-x-auto rounded-lg border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16">Rata</TableHead>
+                      <TableHead>Iznos</TableHead>
+                      <TableHead>Datum dospeca</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {asArray<Installment>(installments).map((installment, index) => (
-                      <tr key={installment.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                        <td className="py-2">{index + 1}</td>
-                        <td className="py-2">{formatAmount(installment.amount)} {installment.currency}</td>
-                        <td className="py-2">{formatDate(installment.expectedDueDate)}</td>
-                        <td className="py-2">{installment.paid ? 'Da' : 'Ne'}</td>
-                      </tr>
+                      <TableRow key={installment.id} className="hover:bg-muted/50 transition-colors">
+                        <TableCell className="font-medium">{index + 1}</TableCell>
+                        <TableCell className="font-semibold tabular-nums">{formatAmount(installment.amount)} {installment.currency}</TableCell>
+                        <TableCell>{formatDate(installment.expectedDueDate)}</TableCell>
+                        <TableCell>
+                          <Badge variant={installment.paid ? 'success' : 'secondary'}>
+                            {installment.paid ? 'Placeno' : 'Neplaceno'}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             )}
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pt-2 border-t">
               <p className="text-sm text-muted-foreground">
-                Placeno rata: {paidInstallments} / {asArray<Installment>(installments).length}
+                Placeno rata: <span className="font-semibold text-foreground">{paidInstallments}</span> / {asArray<Installment>(installments).length}
               </p>
               {selectedLoan.status === 'ACTIVE' && selectedLoan.remainingDebt > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
                   disabled={processingEarlyRepayment}
+                  className="hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-colors"
                   onClick={async () => {
                     const confirmed = window.confirm(
                       `Da li ste sigurni da želite prevremenu otplatu kredita?\nPreostali dug: ${formatAmount(selectedLoan.remainingDebt)} ${selectedLoan.currency}`
@@ -272,7 +324,7 @@ export default function LoanListPage() {
                       await creditService.earlyRepayment(selectedLoan.id);
                       toast.success('Zahtev za prevremenu otplatu je uspešno podnet.');
                       const data = await creditService.getMyLoans();
-                      setLoans(asArray<Loan>(data));
+                      setLoans(asArray<Loan>(data).sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0)));
                       setSelectedLoan(null);
                     } catch {
                       toast.error('Prevremena otplata nije uspela.');

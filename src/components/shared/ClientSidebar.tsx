@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   Menu,
@@ -76,13 +76,13 @@ export default function ClientSidebar() {
 
   const clientLinks: SidebarItem[] = useMemo(
     () => [
-      { label: 'Računi', path: '/accounts', icon: <Wallet className="h-4 w-4" /> },
-      { label: 'Plaćanja', path: '/payments/new', icon: <Receipt className="h-4 w-4" /> },
+      { label: 'Racuni', path: '/accounts', icon: <Wallet className="h-4 w-4" /> },
+      { label: 'Placanja', path: '/payments/new', icon: <Receipt className="h-4 w-4" /> },
       { label: 'Primaoci', path: '/payments/recipients', icon: <BookUser className="h-4 w-4" /> },
       { label: 'Prenosi', path: '/transfers', icon: <ArrowLeftRight className="h-4 w-4" /> },
       { label: 'Istorija prenosa', path: '/transfers/history', icon: <ArrowLeftRight className="h-4 w-4" /> },
       { label: 'Istorija placanja', path: '/payments/history', icon: <History className="h-4 w-4" /> },
-      { label: 'Menjačnica', path: '/exchange', icon: <RefreshCw className="h-4 w-4" /> },
+      { label: 'Menjacnica', path: '/exchange', icon: <RefreshCw className="h-4 w-4" /> },
       { label: 'Kartice', path: '/cards', icon: <CreditCard className="h-4 w-4" /> },
       { label: 'Krediti', path: '/loans', icon: <FileText className="h-4 w-4" /> },
     ],
@@ -91,8 +91,8 @@ export default function ClientSidebar() {
 
   const employeeLinks: SidebarItem[] = useMemo(
     () => [
-      { label: 'Portal računa', path: '/employee/accounts', icon: <Building2 className="h-4 w-4" /> },
-      { label: 'Zahtevi za račune', path: '/employee/account-requests', icon: <Wallet className="h-4 w-4" /> },
+      { label: 'Portal racuna', path: '/employee/accounts', icon: <Building2 className="h-4 w-4" /> },
+      { label: 'Zahtevi za racune', path: '/employee/account-requests', icon: <Wallet className="h-4 w-4" /> },
       { label: 'Portal kartica', path: '/employee/cards', icon: <CreditCard className="h-4 w-4" /> },
       { label: 'Zahtevi za kartice', path: '/employee/card-requests', icon: <CreditCard className="h-4 w-4" /> },
       { label: 'Portal klijenata', path: '/employee/clients', icon: <Users className="h-4 w-4" /> },
@@ -104,128 +104,11 @@ export default function ClientSidebar() {
 
   const linkClassName = ({ isActive }: { isActive: boolean }) =>
     cn(
-      'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground',
-      isActive && 'bg-primary/10 text-primary font-medium'
+      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200',
+      isActive
+        ? 'bg-gradient-to-r from-indigo-500/10 to-violet-500/10 text-indigo-600 dark:text-indigo-400 font-semibold shadow-sm border border-indigo-500/20'
+        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
     );
-
-  const sidebarContent = (
-    <>
-      {/* User Profile Section */}
-      <div className="mb-6 flex items-center gap-3 rounded-lg border bg-background p-3">
-        <Avatar className="h-12 w-12">
-          <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-            {getInitials()}
-          </AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">
-            {user?.firstName} {user?.lastName}
-          </p>
-          <p className="text-xs text-muted-foreground">{getRoleName()}</p>
-        </div>
-      </div>
-
-      {/* Navigation and Theme */}
-      <nav className="flex-1 space-y-6 overflow-y-auto">
-        <div className="mb-2 space-y-1">
-          <NavLink
-            to="/home"
-            className={linkClassName}
-            onClick={() => setOpen(false)}
-          >
-            <Home className="h-4 w-4" />
-            <span>Početna</span>
-          </NavLink>
-        </div>
-
-        {!isEmployeeOrAdmin && (
-        <div className="space-y-2">
-          <p className="px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Moje finansije
-          </p>
-
-          <div className="space-y-1">
-            {clientLinks.map((item) => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={linkClassName}
-                onClick={() => setOpen(false)}
-                end={item.path === '/transfers'}
-              >
-                {item.icon}
-                <span>{item.label}</span>
-              </NavLink>
-            ))}
-          </div>
-        </div>
-        )}
-
-        {isEmployeeOrAdmin && (
-          <div className="space-y-2">
-            <p className="px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Employee portal
-            </p>
-
-            <div className="space-y-1">
-              {employeeLinks.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={linkClassName}
-                  onClick={() => setOpen(false)}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </NavLink>
-              ))}
-            </div>
-          </div>
-        )}
-      </nav>
-
-      {/* Theme Selector and Logout */}
-      <div className="space-y-2 border-t pt-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="w-full justify-start">
-              {theme === 'light' && <Sun className="mr-2 h-4 w-4" />}
-              {theme === 'dark' && <Moon className="mr-2 h-4 w-4" />}
-              {theme === 'system' && <Monitor className="mr-2 h-4 w-4" />}
-              <span className="text-xs">{theme === 'system' ? 'Sistem' : theme === 'light' ? 'Svetlo' : 'Tamno'}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => setTheme('light')}>
-              <Sun className="mr-2 h-4 w-4" />
-              Svetlo
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme('dark')}>
-              <Moon className="mr-2 h-4 w-4" />
-              Tamno
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme('system')}>
-              <Monitor className="mr-2 h-4 w-4" />
-              Sistem
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <Button
-          variant="destructive"
-          size="sm"
-          className="w-full justify-start"
-          onClick={() => {
-            logout();
-            setOpen(false);
-          }}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Odjavi se
-        </Button>
-      </div>
-    </>
-  );
 
   return (
     <>
@@ -250,7 +133,7 @@ export default function ClientSidebar() {
 
       <aside
         className={cn(
-          'fixed left-0 top-0 z-50 flex h-full w-64 flex-col border-r bg-background p-4 shadow-xl transition-transform md:hidden',
+          'fixed left-0 top-0 z-50 h-full w-64 border-r bg-background/95 backdrop-blur-sm p-4 transition-transform md:sticky md:top-0 md:block md:min-h-screen md:translate-x-0 flex flex-col',
           open ? 'translate-x-0' : '-translate-x-full',
           'transform'
         )}
@@ -267,11 +150,121 @@ export default function ClientSidebar() {
             <X className="h-4 w-4" />
           </Button>
         </div>
-        {sidebarContent}
-      </aside>
 
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r bg-background p-4 md:flex">
-        {sidebarContent}
+        {/* User Profile Section */}
+        <div className="mb-6 flex items-center gap-3 rounded-xl border bg-gradient-to-r from-indigo-500/5 to-violet-500/5 p-3">
+          <Avatar className="h-11 w-11 ring-2 ring-indigo-500/20">
+            <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-semibold text-sm">
+              {getInitials()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate">
+              {user?.firstName} {user?.lastName}
+            </p>
+            <p className="text-xs text-muted-foreground">{getRoleName()}</p>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 space-y-6 overflow-y-auto">
+          <div className="space-y-1">
+            <NavLink
+              to="/home"
+              className={linkClassName}
+              onClick={() => setOpen(false)}
+            >
+              <Home className="h-4 w-4" />
+              <span>Pocetna</span>
+            </NavLink>
+          </div>
+
+          {!isEmployeeOrAdmin && (
+          <div className="space-y-2">
+            <p className="px-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+              Moje finansije
+            </p>
+
+            <div className="space-y-0.5">
+              {clientLinks.map((item) => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  className={linkClassName}
+                  onClick={() => setOpen(false)}
+                  end={item.path === '/transfers'} // da /transfers ne hvata i /transfers/history
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          </div>
+          )}
+
+          {isEmployeeOrAdmin && (
+            <div className="space-y-2">
+              <p className="px-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+                Employee portal
+              </p>
+
+              <div className="space-y-0.5">
+                {employeeLinks.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    className={linkClassName}
+                    onClick={() => setOpen(false)}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          )}
+        </nav>
+
+        {/* Theme Selector and Logout */}
+        <div className="space-y-2 border-t pt-4">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-foreground">
+                {theme === 'light' && <Sun className="mr-2 h-4 w-4" />}
+                {theme === 'dark' && <Moon className="mr-2 h-4 w-4" />}
+                {theme === 'system' && <Monitor className="mr-2 h-4 w-4" />}
+                <span className="text-xs">{theme === 'system' ? 'Sistem' : theme === 'light' ? 'Svetlo' : 'Tamno'}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => setTheme('light')}>
+                <Sun className="mr-2 h-4 w-4" />
+                Svetlo
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('dark')}>
+                <Moon className="mr-2 h-4 w-4" />
+                Tamno
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('system')}>
+                <Monitor className="mr-2 h-4 w-4" />
+                Sistem
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => {
+              logout();
+              setOpen(false);
+            }}
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Odjavi se
+          </Button>
+        </div>
       </aside>
     </>
   );

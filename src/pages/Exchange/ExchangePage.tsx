@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { RefreshCw, Inbox } from 'lucide-react';
+import { RefreshCw, Inbox, ArrowRightLeft } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { currencyService } from '@/services/currencyService';
 import type { ExchangeRate } from '@/types/celina2';
@@ -11,6 +11,20 @@ import { exchangeSchema, type ExchangeFormData } from '@/utils/validationSchemas
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+
+const currencyColors: Record<string, string> = {
+  RSD: 'text-blue-600 dark:text-blue-400',
+  EUR: 'text-indigo-600 dark:text-indigo-400',
+  USD: 'text-green-600 dark:text-green-400',
+  CHF: 'text-red-600 dark:text-red-400',
+  GBP: 'text-purple-600 dark:text-purple-400',
+  JPY: 'text-orange-600 dark:text-orange-400',
+  CAD: 'text-rose-600 dark:text-rose-400',
+  AUD: 'text-teal-600 dark:text-teal-400',
+};
 
 const SUPPORTED_CURRENCIES = ['RSD', 'EUR', 'CHF', 'USD', 'GBP', 'JPY', 'CAD', 'AUD'] as const;
 
@@ -127,19 +141,26 @@ export default function ExchangePage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div>
-        <div className="flex items-center gap-2">
-          <RefreshCw className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Menjacnica</h1>
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+          <RefreshCw className="h-5 w-5" />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Pregledajte kursnu listu i izvrsiti konverziju valuta.</p>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Menjacnica</h1>
+          <p className="text-sm text-muted-foreground">Pregledajte kursnu listu i izvrsiti konverziju valuta.</p>
+        </div>
       </div>
 
       <section>
-        <h2 className="text-xl font-semibold mb-4">Kursna lista</h2>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <CardTitle>Kursna lista</CardTitle>
+            </div>
+          </CardHeader>
         {loading ? (
-          <Card>
-            <CardContent className="pt-4 space-y-3">
+          <CardContent className="space-y-3">
               {Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="flex gap-4">
                   <div className="h-4 w-16 rounded bg-muted animate-pulse" />
@@ -149,50 +170,49 @@ export default function ExchangePage() {
                   <div className="h-4 w-20 rounded bg-muted animate-pulse" />
                 </div>
               ))}
-            </CardContent>
-          </Card>
+          </CardContent>
+        ) : rates.length === 0 ? (
+          <CardContent>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="rounded-full bg-muted p-3 mb-3">
+                <Inbox className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="font-medium text-muted-foreground">Nema dostupnih kurseva</p>
+              <p className="text-sm text-muted-foreground mt-1">Pokusajte ponovo kasnije.</p>
+            </div>
+          </CardContent>
         ) : (
-          <Card>
-            <CardContent className="pt-4 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2">Valuta</th>
-                    <th className="text-left py-2">Kupovni kurs</th>
-                    <th className="text-left py-2">Prodajni kurs</th>
-                    <th className="text-left py-2">Srednji kurs</th>
-                    <th className="text-left py-2">Datum</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rates.length > 0 ? (
-                    rates.map((rate) => (
-                      <tr key={rate.currency} className="border-b hover:bg-muted/50 transition-colors">
-                        <td className="py-2">{rate.currency}</td>
-                        <td className="py-2">{formatAmount(rate.buyRate, 4)}</td>
-                        <td className="py-2">{formatAmount(rate.sellRate, 4)}</td>
-                        <td className="py-2">{formatAmount(rate.middleRate, 4)}</td>
-                        <td className="py-2">{formatDate(rate.date)}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5} className="py-12">
-                        <div className="flex flex-col items-center justify-center text-center">
-                          <div className="rounded-full bg-muted p-3 mb-3">
-                            <Inbox className="h-6 w-6 text-muted-foreground" />
-                          </div>
-                          <p className="font-medium text-muted-foreground">Nema dostupnih kurseva</p>
-                          <p className="text-sm text-muted-foreground mt-1">Pokusajte ponovo kasnije.</p>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Valuta</TableHead>
+                <TableHead className="text-right">Kupovni kurs</TableHead>
+                <TableHead className="text-right">Prodajni kurs</TableHead>
+                <TableHead className="text-right">Srednji kurs</TableHead>
+                <TableHead className="text-right">Datum</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rates.map((rate) => (
+                <TableRow key={rate.currency} className="hover:bg-muted/50 transition-colors">
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full bg-muted font-bold text-xs ${currencyColors[rate.currency] || ''}`}>
+                        {rate.currency.slice(0, 2)}
+                      </div>
+                      <span className={`font-semibold ${currencyColors[rate.currency] || ''}`}>{rate.currency}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{formatAmount(rate.buyRate, 4)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatAmount(rate.sellRate, 4)}</TableCell>
+                  <TableCell className="text-right tabular-nums font-semibold">{formatAmount(rate.middleRate, 4)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{formatDate(rate.date)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
+        </Card>
       </section>
 
       <section>
@@ -210,7 +230,7 @@ export default function ExchangePage() {
                 <select
                   id="fromCurrency"
                   title="Iz valute"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                   {...register('fromCurrency')}
                 >
                   {SUPPORTED_CURRENCIES.map((currency) => (
@@ -226,7 +246,7 @@ export default function ExchangePage() {
                 <select
                   id="toCurrency"
                   title="U valutu"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                   {...register('toCurrency')}
                 >
                   {SUPPORTED_CURRENCIES.map((currency) => (
@@ -251,7 +271,7 @@ export default function ExchangePage() {
                   id="amount"
                   type="number"
                   step="0.01"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                   {...register('amount', { valueAsNumber: true })}
                 />
                 {errors.amount && <p className="text-sm text-destructive">{errors.amount.message}</p>}
@@ -260,15 +280,28 @@ export default function ExchangePage() {
               {/* Polje za racun uklonjeno - menjacnica je samo informativna */}
 
               <div className="md:col-span-2 flex justify-end">
-                <Button type="submit" className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all">Konvertuj</Button>
+                <Button type="submit" className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all">
+                  <ArrowRightLeft className="mr-2 h-4 w-4" />
+                  Konvertuj
+                </Button>
               </div>
             </form>
 
             {result && (
-              <div className="mt-4 rounded-md border p-3 text-sm">
-                <p>
-                  {watch('amount')} {watch('fromCurrency')} = {formatAmount(result.convertedAmount)}{' '}
-                  {watch('toCurrency')} po kursu {formatAmount(result.rate, 4)}
+              <div className="mt-6 rounded-xl border border-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-950/20 p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50">
+                    <ArrowRightLeft className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <p className="font-semibold text-sm">Rezultat konverzije</p>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                    {formatAmount(result.convertedAmount)} {watch('toCurrency')}
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {watch('amount')} {watch('fromCurrency')} po kursu {formatAmount(result.rate, 4)}
                 </p>
               </div>
             )}

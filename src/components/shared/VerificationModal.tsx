@@ -1,18 +1,8 @@
-//
-// Reusable modal komponenta za verifikaciju placanja i prenosa.
-// - Prikazuje input za OTP kod (4-6 cifara)
-// - react-hook-form + zodResolver(verificationSchema)
-// - Na submit: transactionService.verifyPayment({ transactionId, code })
-// - Props: transactionId, isOpen, onClose, onSuccess
-// - Timer: kod vazi 5 minuta (spec zahtev)
-// - Limit: max 3 neuspesna pokusaja, nakon toga transakcija se otkazuje
-// - Error handling za nevalidan/istekao kod
-// - Spec: "Verifikacija transakcije" iz Celine 2
-
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from '@/lib/notify';
+import { transactionService } from '@/services/transactionService';
 import { verificationSchema, type VerificationFormData } from '@/utils/validationSchemas.celina2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +26,7 @@ export default function VerificationModal({
   const [attemptsLeft, setAttemptsLeft] = useState(3);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
 
   const {
     register,
@@ -47,14 +38,27 @@ export default function VerificationModal({
     defaultValues: { code: '' },
   });
 
+  const sendOtp = useCallback(async () => {
+    try {
+      await transactionService.requestOtp();
+      setOtpSent(true);
+      toast.info('Verifikacioni kod je poslat na vaš email.');
+    } catch {
+      toast.error('Greška pri slanju verifikacionog koda.');
+    }
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return;
 
     setSecondsLeft(300);
     setAttemptsLeft(3);
     setServerError('');
+    setOtpSent(false);
     reset({ code: '' });
-  }, [isOpen, transactionId, reset]);
+
+    sendOtp();
+  }, [isOpen, transactionId, reset, sendOtp]);
 
   useEffect(() => {
     if (!isOpen || secondsLeft <= 0) return;
@@ -90,40 +94,40 @@ export default function VerificationModal({
     setIsSubmitting(true);
     setServerError('');
     try {
-      // FIXME: Hardkodovana verifikacija dok se ne napravi Android app
-      if (data.code !== '1234') {
-        throw new Error('Kod nije validan. Pokušajte ponovo.');
+      const result = await transactionService.verifyPayment({
+        transactionId,
+        code: data.code,
+      });
+
+      if (result.verified) {
+        toast.success('Transakcija je uspešno verifikovana.');
+        reset({ code: '' });
+        onSuccess();
+        onClose();
+      } else if (result.blocked) {
+        toast.error('Maksimalan broj pokušaja je dostignut. Transakcija je otkazana.');
+        closeWithReset();
+      } else {
+        setServerError(result.message || 'Kod nije validan. Pokušajte ponovo.');
+        setAttemptsLeft((prev) => Math.max(0, prev - 1));
       }
-      toast.success('Transakcija je uspešno verifikovana.');
-      reset({ code: '' });
-      onSuccess();
-      onClose();
     } catch (err: unknown) {
       const error = err as { message?: string; response?: { data?: { message?: string } } };
       const msg = error.response?.data?.message || error.message || 'Kod nije validan. Pokušajte ponovo.';
-
-      setAttemptsLeft((prev) => {
-        const next = Math.max(0, prev - 1);
-        if (next === 0) {
-          toast.error('Maksimalan broj pokušaja je dostignut. Transakcija je otkazana.');
-          closeWithReset();
-        }
-        return next;
-      });
-
       setServerError(msg);
+      setAttemptsLeft((prev) => Math.max(0, prev - 1));
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     if (secondsLeft > 0) return;
     setSecondsLeft(300);
     setAttemptsLeft(3);
     setServerError('');
     reset({ code: '' });
-    toast.info('Novi verifikacioni prozor je pokrenut (5 min).');
+    await sendOtp();
   };
 
   if (!isOpen || !transactionId) return null;
@@ -132,7 +136,11 @@ export default function VerificationModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-background rounded-lg p-6 w-full max-w-md shadow-lg">
         <h2 className="text-xl font-bold mb-1">Verifikacija transakcije</h2>
-        <p className="text-sm text-muted-foreground mb-4">Unesite kod sa mobilne potvrde.</p>
+        <p className="text-sm text-muted-foreground mb-4">
+          {otpSent
+            ? 'Verifikacioni kod je poslat na vaš email. Unesite ga ispod.'
+            : 'Slanje verifikacionog koda...'}
+        </p>
 
         {serverError && (
           <Alert variant="destructive" className="mb-4">
@@ -142,12 +150,12 @@ export default function VerificationModal({
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="otp">OTP kod</Label>
+            <Label htmlFor="otp">Verifikacioni kod</Label>
             <Input
               {...register('code')}
               id="otp"
               inputMode="numeric"
-              placeholder="Unesite kod (4-6 cifara)"
+              placeholder="Unesite 6-cifreni kod"
               className={errors.code ? 'border-destructive text-center' : 'text-center'}
             />
             {errors.code && <p className="text-sm text-destructive">{errors.code.message}</p>}

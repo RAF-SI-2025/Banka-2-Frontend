@@ -290,7 +290,7 @@ export default function EmployeeEditPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-28">
       <Button variant="ghost" onClick={() => navigate('/admin/employees')}>
         <ArrowLeft className="mr-2 h-4 w-4" />
         Nazad na listu
@@ -301,7 +301,7 @@ export default function EmployeeEditPage() {
           Izmeni zaposlenog: {employee.firstName} {employee.lastName}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Ažurirajte lične podatke, kontakt informacije, radnu poziciju i permisije zaposlenog.
+          Azurirajte licne podatke, kontakt informacije, radnu poziciju i permisije zaposlenog.
         </p>
       </div>
 
@@ -551,26 +551,28 @@ export default function EmployeeEditPage() {
           </CardContent>
         </Card>
 
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate('/admin/employees')}
-          >
-            Otkaži
-          </Button>
-          <Button
-            type="submit"
-            disabled={saving}
-            className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20"
-          >
-            {saving ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="mr-2 h-4 w-4" />
-            )}
-            {saving ? 'Čuvanje...' : 'Sačuvaj izmene'}
-          </Button>
+        <div className="sticky bottom-0 z-10 -mx-4 rounded-t-xl border-t bg-background/80 px-4 py-4 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.1)] backdrop-blur-lg sm:-mx-6 sm:px-6">
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/admin/employees')}
+            >
+              Otkazi
+            </Button>
+            <Button
+              type="submit"
+              disabled={saving}
+              className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
+            >
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
+              {saving ? 'Cuvanje...' : 'Sacuvaj izmene'}
+            </Button>
+          </div>
         </div>
       </form>
     </div>

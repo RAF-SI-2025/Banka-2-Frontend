@@ -66,7 +66,7 @@ describe('CardListPage - Moje kartice', () => {
         cy.intercept('PATCH', '**/api/cards/*/limit', { statusCode: 200 }).as('changeLimitCard');
 
         cy.visit('http://localhost:3000/cards', {
-            onBeforeLoad: (win: any) => {
+            onBeforeLoad: (win: Cypress.AUTWindow) => {
                 win.sessionStorage.setItem('accessToken', accessToken);
                 win.sessionStorage.setItem('refreshToken', 'refresh-token');
                 win.sessionStorage.setItem('user', JSON.stringify({
@@ -138,7 +138,7 @@ describe('CardListPage - Moje kartice', () => {
         beforeEach(() => {
             cy.intercept('GET', '**/api/cards/my', { body: [] }).as('getEmptyCards');
             cy.visit('http://localhost:3000/cards', {
-                onBeforeLoad: (win: any) => {
+                onBeforeLoad: (win: Cypress.AUTWindow) => {
                     win.sessionStorage.setItem('accessToken', createJwt('ADMIN'));
                     win.sessionStorage.setItem('refreshToken', 'refresh-token');
                     win.sessionStorage.setItem('user', JSON.stringify({
@@ -163,7 +163,7 @@ describe('CardListPage - Moje kartice', () => {
         beforeEach(() => {
             cy.intercept('GET', '**/api/cards/my', { statusCode: 500, body: { error: 'Server error' } }).as('getCardsError');
             cy.visit('http://localhost:3000/cards', {
-                onBeforeLoad: (win: any) => {
+                onBeforeLoad: (win: Cypress.AUTWindow) => {
                     win.sessionStorage.setItem('accessToken', createJwt('ADMIN'));
                     win.sessionStorage.setItem('refreshToken', 'refresh-token');
                     win.sessionStorage.setItem('user', JSON.stringify({

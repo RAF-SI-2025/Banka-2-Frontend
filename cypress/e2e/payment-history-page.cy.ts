@@ -7,8 +7,8 @@ function _fakeJwt(role, email) {
 }
 
 describe('Payment History Page', () => {
-  const adminEmail = 'marko.petrovic@banka.rs';
-  const adminPassword = 'Admin12345';
+  const _adminEmail = 'marko.petrovic@banka.rs';
+  const _adminPassword = 'Admin12345';
 
   const tx1 = {
     id: 101,

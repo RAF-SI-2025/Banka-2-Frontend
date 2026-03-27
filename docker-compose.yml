@@ -7,6 +7,25 @@ services:
     networks:
       - banka2_net
 
+  cypress:
+    build:
+      context: .
+      dockerfile: Dockerfile.cypress
+    container_name: banka2_cypress
+    depends_on:
+      - frontend
+    environment:
+      - CYPRESS_baseUrl=http://frontend.local:3000
+    extra_hosts:
+      - "frontend.local:host-gateway"
+    working_dir: /e2e
+    volumes:
+      - ./:/e2e
+    networks:
+      - banka2_net
+    profiles:
+      - test
+
 networks:
   banka2_net:
     external: true

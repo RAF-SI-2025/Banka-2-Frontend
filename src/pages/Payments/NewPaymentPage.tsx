@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import VerificationModal from '@/components/shared/VerificationModal';
-import { SendHorizonal } from 'lucide-react';
+import { SendHorizonal, Wallet } from 'lucide-react';
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -156,17 +156,22 @@ export default function NewPaymentPage() {
 
   return (
     <div className="container mx-auto py-6 max-w-2xl">
-      <div>
-        <div className="flex items-center gap-2">
-          <SendHorizonal className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Novi platni nalog</h1>
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+          <SendHorizonal className="h-5 w-5" />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Popunite podatke za kreiranje novog platnog naloga.</p>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Novi platni nalog</h1>
+          <p className="text-sm text-muted-foreground">Popunite podatke za kreiranje novog platnog naloga.</p>
+        </div>
       </div>
 
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>Nalog za placanje</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <CardTitle>Nalog za placanje</CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -302,8 +307,16 @@ export default function NewPaymentPage() {
                 </div>
               </div>
 
-              <div className="rounded-md border p-3 text-sm text-muted-foreground">
-                Valuta odabranog racuna: <span className="font-semibold text-foreground">{fromAccountCurrency || '-'}</span>
+              <div className="rounded-lg border border-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-950/20 p-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50">
+                    <Wallet className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Valuta odabranog racuna</p>
+                    <p className="font-bold text-lg text-indigo-600 dark:text-indigo-400">{fromAccountCurrency || '-'}</p>
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end">

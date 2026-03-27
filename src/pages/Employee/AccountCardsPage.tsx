@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   ShieldOff,
   ShieldX,
+  Loader2,
 } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
@@ -18,6 +19,7 @@ import type { Account, CardType, Card as BankCard } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -218,9 +220,9 @@ export default function AccountCardsPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Back button */}
-      <Button variant="ghost" size="sm" onClick={() => navigate('/employee/accounts')}>
+      <Button variant="ghost" onClick={() => navigate('/employee/accounts')}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Nazad na portal racuna
       </Button>
 
@@ -231,107 +233,135 @@ export default function AccountCardsPage() {
             <CreditCardIcon className="h-6 w-6 text-primary" />
             <h1 className="text-3xl font-bold tracking-tight">Portal kartica</h1>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">Pregledajte i upravljajte karticama za odabrani racun.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Pregledajte i upravljajte karticama za odabrani racun.
+          </p>
         </div>
       </div>
 
       {/* Search */}
-      <Card className="p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex-1 min-w-[200px] space-y-1">
-            <label className="text-xs text-muted-foreground">Broj racuna</label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <Search className="h-4 w-4 text-indigo-500" />
+            <CardTitle>Pretraga racuna</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[200px] space-y-1">
+              <label className="text-sm font-medium">Broj racuna</label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="18 cifara"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                  className="pl-8"
+                  onKeyDown={(e) => e.key === 'Enter' && searchCards()}
+                />
+              </div>
+            </div>
+            <div className="flex-1 min-w-[200px] space-y-1">
+              <label className="text-sm font-medium">Ime vlasnika</label>
               <Input
-                placeholder="18 cifara"
-                value={accountNumber}
-                onChange={(e) => setAccountNumber(e.target.value)}
-                className="pl-8"
+                placeholder="Ime ili prezime"
+                value={ownerName}
+                onChange={(e) => setOwnerName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && searchCards()}
               />
             </div>
+            <Button
+              onClick={searchCards}
+              disabled={loading}
+              className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
+            >
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+              Pretrazi
+            </Button>
+            <Button variant="outline" onClick={() => setShowCreateCard(!showCreateCard)}>
+              <Plus className="mr-2 h-4 w-4" /> Nova kartica
+            </Button>
           </div>
-          <div className="flex-1 min-w-[200px] space-y-1">
-            <label className="text-xs text-muted-foreground">Ime vlasnika</label>
-            <Input
-              placeholder="Ime ili prezime"
-              value={ownerName}
-              onChange={(e) => setOwnerName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && searchCards()}
-            />
-          </div>
-          <Button onClick={searchCards} disabled={loading}>
-            <Search className="mr-2 h-4 w-4" />
-            Pretrazi
-          </Button>
-          <Button variant="outline" onClick={() => setShowCreateCard(!showCreateCard)}>
-            <Plus className="mr-2 h-4 w-4" /> Nova kartica
-          </Button>
-        </div>
 
-        {/* Search results list (multiple accounts found by name) */}
-        {searchResults.length > 0 && (
-          <div className="mt-3 border rounded-md divide-y">
-            <p className="px-3 py-2 text-xs text-muted-foreground font-medium">
-              Pronadjeno {searchResults.length} racuna — izaberite:
-            </p>
-            {searchResults.map((acc) => (
-              <button
-                key={acc.id}
-                type="button"
-                className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 transition-colors flex items-center justify-between gap-2"
-                onClick={() => selectSearchResult(acc)}
-              >
-                <span>
-                  <strong>{acc.ownerName || '-'}</strong>
-                  <span className="text-muted-foreground ml-2">{formatAccountNumber(acc.accountNumber)}</span>
-                </span>
-                <Badge variant={acc.status === 'ACTIVE' ? 'success' : acc.status === 'BLOCKED' ? 'destructive' : 'secondary'} className="text-[11px]">
-                  {acc.status === 'ACTIVE' ? 'Aktivan' : acc.status === 'BLOCKED' ? 'Blokiran' : 'Neaktivan'}
-                </Badge>
-              </button>
-            ))}
-          </div>
-        )}
+          {/* Search results list (multiple accounts found by name) */}
+          {searchResults.length > 0 && (
+            <div className="border rounded-md divide-y shadow-sm">
+              <p className="px-3 py-2 text-xs text-muted-foreground font-medium bg-muted/30">
+                Pronadjeno {searchResults.length} racuna -- izaberite:
+              </p>
+              {searchResults.map((acc) => (
+                <button
+                  key={acc.id}
+                  type="button"
+                  className="w-full text-left px-3 py-2.5 text-sm hover:bg-primary/5 transition-colors flex items-center justify-between gap-2"
+                  onClick={() => selectSearchResult(acc)}
+                >
+                  <span>
+                    <strong>{acc.ownerName || '-'}</strong>
+                    <span className="text-muted-foreground ml-2 font-mono text-xs">{formatAccountNumber(acc.accountNumber)}</span>
+                  </span>
+                  <Badge variant={acc.status === 'ACTIVE' ? 'success' : acc.status === 'BLOCKED' ? 'destructive' : 'secondary'}>
+                    {acc.status === 'ACTIVE' ? 'Aktivan' : acc.status === 'BLOCKED' ? 'Blokiran' : 'Neaktivan'}
+                  </Badge>
+                </button>
+              ))}
+            </div>
+          )}
 
-        {/* Account info */}
-        {account && (
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            <span>Racun: <strong>{formatAccountNumber(account.accountNumber)}</strong></span>
-            <span>Vlasnik: <strong>{account.ownerName}</strong></span>
-            <Badge variant={account.status === 'ACTIVE' ? 'success' : account.status === 'BLOCKED' ? 'destructive' : 'secondary'}>
-              {account.status === 'ACTIVE' ? 'Aktivan' : account.status === 'BLOCKED' ? 'Blokiran' : 'Neaktivan'}
-            </Badge>
-          </div>
-        )}
+          {/* Account info */}
+          {account && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3 text-sm">
+              <span>Racun: <strong className="font-mono">{formatAccountNumber(account.accountNumber)}</strong></span>
+              <span>Vlasnik: <strong>{account.ownerName}</strong></span>
+              <Badge variant={account.status === 'ACTIVE' ? 'success' : account.status === 'BLOCKED' ? 'destructive' : 'secondary'}>
+                {account.status === 'ACTIVE' ? 'Aktivan' : account.status === 'BLOCKED' ? 'Blokiran' : 'Neaktivan'}
+              </Badge>
+            </div>
+          )}
+        </CardContent>
       </Card>
 
       {/* Create card form */}
       {showCreateCard && account && (
-        <Card className="p-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Tip kartice</label>
-              <Select value={newCardType} onValueChange={(val) => setNewCardType(val as CardType)}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Izaberite tip" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="VISA">Visa</SelectItem>
-                  <SelectItem value="MASTERCARD">Mastercard</SelectItem>
-                  <SelectItem value="DINACARD">DinaCard</SelectItem>
-                  <SelectItem value="AMERICAN_EXPRESS">American Express</SelectItem>
-                </SelectContent>
-              </Select>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <Plus className="h-4 w-4 text-indigo-500" />
+              <CardTitle>Nova kartica</CardTitle>
             </div>
-            <Button onClick={createNewCard} disabled={isCreating || !newCardType} className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all">
-              <Plus className="mr-2 h-4 w-4" />
-              Kreiraj karticu
-            </Button>
-            <Button variant="ghost" onClick={() => { setShowCreateCard(false); setNewCardType(''); }}>
-              Otkazi
-            </Button>
-          </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Tip kartice</label>
+                <Select value={newCardType} onValueChange={(val) => setNewCardType(val as CardType)}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Izaberite tip" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="VISA">Visa</SelectItem>
+                    <SelectItem value="MASTERCARD">Mastercard</SelectItem>
+                    <SelectItem value="DINACARD">DinaCard</SelectItem>
+                    <SelectItem value="AMERICAN_EXPRESS">American Express</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                onClick={createNewCard}
+                disabled={isCreating || !newCardType}
+                className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
+              >
+                {isCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                Kreiraj karticu
+              </Button>
+              <Button variant="ghost" onClick={() => { setShowCreateCard(false); setNewCardType(''); }}>
+                Otkazi
+              </Button>
+            </div>
+          </CardContent>
         </Card>
       )}
 
@@ -342,41 +372,66 @@ export default function AccountCardsPage() {
         </Alert>
       )}
 
-      {/* Cards table */}
+      {/* Cards display */}
       {loading ? (
-        <Card className="p-4">
-          <div className="space-y-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex gap-4 items-center">
-                <div className="h-4 w-36 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-24 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
-                <div className="h-4 flex-1 rounded bg-muted animate-pulse" />
-              </div>
-            ))}
-          </div>
+        <Card className="overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Broj kartice</TableHead>
+                <TableHead>Tip</TableHead>
+                <TableHead>Vlasnik</TableHead>
+                <TableHead>Limit</TableHead>
+                <TableHead>Istek</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Akcije</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><div className="h-4 w-36 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-20 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-28 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-24 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-20 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-20 rounded bg-muted animate-pulse" /></TableCell>
+                  <TableCell className="text-right"><div className="ml-auto h-4 w-20 rounded bg-muted animate-pulse" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </Card>
       ) : !account ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="rounded-full bg-muted p-4 mb-3">
-            <CreditCardIcon className="h-8 w-8 text-muted-foreground" />
-          </div>
-          <p className="font-medium text-muted-foreground">Pretrazite racun da biste videli kartice</p>
-          <p className="text-sm text-muted-foreground mt-1">Unesite broj racuna i kliknite na pretragu.</p>
-        </div>
-      ) : cards.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="rounded-full bg-muted p-4 mb-3">
-            <CreditCardIcon className="h-8 w-8 text-muted-foreground" />
-          </div>
-          <p className="font-medium text-muted-foreground">Nema kartica za ovaj racun</p>
-          <p className="text-sm text-muted-foreground mt-1">Kreirajte novu karticu pomocu dugmeta iznad.</p>
-        </div>
-      ) : (
         <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                <CreditCardIcon className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="mt-4 text-lg font-semibold">Pretrazite racun da biste videli kartice</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Unesite broj racuna ili ime vlasnika i kliknite na pretragu.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : cards.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                <CreditCardIcon className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="mt-4 text-lg font-semibold">Nema kartica za ovaj racun</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Kreirajte novu karticu pomocu dugmeta iznad.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -396,7 +451,7 @@ export default function AccountCardsPage() {
                   <TableCell>
                     <Badge variant="info">{cardTypeLabels[card.cardType] || card.cardType}</Badge>
                   </TableCell>
-                  <TableCell>{card.holderName}</TableCell>
+                  <TableCell className="font-medium">{card.holderName}</TableCell>
                   <TableCell className="font-medium">
                     {formatBalance(card.limit, account.currency)}
                   </TableCell>
@@ -416,7 +471,11 @@ export default function AccountCardsPage() {
                           disabled={processingId === card.id}
                           title="Blokiraj"
                         >
-                          <ShieldOff className="h-4 w-4" />
+                          {processingId === card.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <ShieldOff className="h-4 w-4" />
+                          )}
                         </Button>
                       )}
                       {card.status === 'BLOCKED' && (
@@ -427,7 +486,11 @@ export default function AccountCardsPage() {
                           disabled={processingId === card.id}
                           title="Deblokiraj"
                         >
-                          <ShieldCheck className="h-4 w-4" />
+                          {processingId === card.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <ShieldCheck className="h-4 w-4" />
+                          )}
                         </Button>
                       )}
                       {card.status !== 'DEACTIVATED' && (
@@ -438,7 +501,11 @@ export default function AccountCardsPage() {
                           disabled={processingId === card.id}
                           title="Deaktiviraj"
                         >
-                          <ShieldX className="h-4 w-4" />
+                          {processingId === card.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <ShieldX className="h-4 w-4" />
+                          )}
                         </Button>
                       )}
                     </div>
