@@ -225,6 +225,26 @@ export default function MyOrdersPage() {
     void loadOrders(true);
   }, [page, limit]);
 
+  /*
+   * TODO [Elena - G3]: REAL-TIME POLLING
+   * Dodaj useEffect koji pokreće polling svakih 5 sekundi
+   * AKO postoji barem jedan order sa statusom APPROVED:
+   *
+   * useEffect(() => {
+   *   const hasActiveOrders = orders.some(o => o.status === 'APPROVED');
+   *   if (!hasActiveOrders) return;
+   *
+   *   const interval = setInterval(() => {
+   *     void loadOrders(false); // false = ne prikazuj loading skeleton
+   *   }, 5000);
+   *
+   *   return () => clearInterval(interval);
+   * }, [orders]);
+   *
+   * Kad svi APPROVED postanu DONE/DECLINED, polling se automatski zaustavlja
+   * jer hasActiveOrders postaje false.
+   */
+
   useEffect(() => {
     setSelectedOrder((current) =>
       current && orders.some((order) => order.id === current.id)
@@ -452,16 +472,60 @@ export default function MyOrdersPage() {
                             <Badge variant={getStatusBadgeVariant(order.status)}>
                               {STATUS_LABELS[order.status]}
                             </Badge>
+                            {/*
+                             * TODO [Elena - G1]: EXECUTION PROGRESS BAR
+                             * Ispod Badge-a dodaj progress bar za ordere koji se izvršavaju:
+                             *
+                             * {order.status === 'APPROVED' && order.remainingPortions < order.quantity && (
+                             *   <div className="mt-1">
+                             *     <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                             *       <div
+                             *         className="h-full bg-emerald-500 rounded-full transition-all"
+                             *         style={{ width: `${((order.quantity - order.remainingPortions) / order.quantity) * 100}%` }}
+                             *       />
+                             *     </div>
+                             *     <p className="text-[10px] text-muted-foreground mt-0.5">
+                             *       {order.quantity - order.remainingPortions}/{order.quantity}
+                             *     </p>
+                             *   </div>
+                             * )}
+                             */}
                           </td>
                           <td className="py-3">{formatDateTime(order.createdAt)}</td>
                           <td className="py-3 text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setSelectedOrder(order)}
-                            >
-                              Detalji
-                            </Button>
+                            <div className="flex items-center justify-end gap-2">
+                              {/*
+                               * TODO [Elena - G2]: CANCEL ORDER DUGME
+                               * Dodaj dugme "Otkaži" LEVO od "Detalji" za PENDING i APPROVED ordere:
+                               *
+                               * {(order.status === 'PENDING' || order.status === 'APPROVED') && (
+                               *   <Button
+                               *     variant="outline"
+                               *     size="sm"
+                               *     className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                               *     onClick={(e) => {
+                               *       e.stopPropagation();
+                               *       // Otvori confirmation dialog:
+                               *       if (window.confirm('Da li ste sigurni da želite da otkažete ovaj order?')) {
+                               *         orderService.decline(order.id)
+                               *           .then(() => { toast.success('Order je otkazan'); loadOrders(false); })
+                               *           .catch(() => toast.error('Greška pri otkazivanju'));
+                               *       }
+                               *       // BONUS: Zameni window.confirm sa shadcn AlertDialog za bolji UX
+                               *     }}
+                               *   >
+                               *     Otkaži
+                               *   </Button>
+                               * )}
+                               */}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setSelectedOrder(order)}
+                              >
+                                Detalji
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       );
