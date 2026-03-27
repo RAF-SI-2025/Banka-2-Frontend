@@ -100,26 +100,35 @@ export default function TransferHistoryPage() {
     });
   }, [transfers]);
 
+  const computedTotalPages = Math.max(1, Math.ceil(sortedTransfers.length / limit));
+
+  useEffect(() => {
+    setTotalPages(computedTotalPages);
+  }, [computedTotalPages]);
+
   const paginatedTransfers = useMemo(() => {
-    const total = Math.max(1, Math.ceil(sortedTransfers.length / limit));
-    if (totalPages !== total) setTotalPages(total);
     const start = page * limit;
     return sortedTransfers.slice(start, start + limit);
-  }, [sortedTransfers, page, totalPages]);
+  }, [sortedTransfers, page]);
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div>
-        <div className="flex items-center gap-2">
-          <Repeat className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Istorija transfera</h1>
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+          <Repeat className="h-5 w-5" />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Pregledajte sve prenose izmedju vasih racuna.</p>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Istorija transfera</h1>
+          <p className="text-sm text-muted-foreground">Pregledajte sve prenose izmedju vasih racuna.</p>
+        </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Filteri</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+            <CardTitle>Filteri</CardTitle>
+          </div>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-4">
           <div className="space-y-2">
@@ -210,12 +219,12 @@ export default function TransferHistoryPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-2">Order no</th>
-                  <th className="text-left py-2">From / To</th>
-                  <th className="text-left py-2">Amount</th>
-                  <th className="text-left py-2">Rate</th>
-                  <th className="text-left py-2">Fee</th>
-                  <th className="text-left py-2">Date</th>
+                  <th className="text-left py-2">R.br.</th>
+                  <th className="text-left py-2">Sa / Na racun</th>
+                  <th className="text-left py-2">Iznos</th>
+                  <th className="text-left py-2">Kurs</th>
+                  <th className="text-left py-2">Provizija</th>
+                  <th className="text-left py-2">Datum</th>
                   <th className="text-left py-2">Status</th>
                 </tr>
               </thead>
@@ -231,9 +240,9 @@ export default function TransferHistoryPage() {
                     </td>
                     <td className="py-2">
                       {formatAmount(transfer.amount)} {transfer.fromCurrency}
-                      {transfer.toCurrency !== transfer.fromCurrency && (
+                      {transfer.toCurrency !== transfer.fromCurrency && transfer.convertedAmount != null && (
                         <div className="text-xs text-muted-foreground">
-                          u {transfer.toCurrency}
+                          {'\u2192'} {formatAmount(transfer.convertedAmount)} {transfer.toCurrency}
                         </div>
                       )}
                     </td>

@@ -94,12 +94,13 @@ function getDirectionIcon(direction: OrderDirection) {
 function getCommission(orderType: OrderType, approximatePrice: number): number {
   if (approximatePrice <= 0) return 0;
 
+  // Spec: Market/Stop → max(14% * price, $7), Limit/StopLimit → max(24% * price, $12)
   const usesLimitPricing =
     orderType === OrderType.LIMIT || orderType === OrderType.STOP_LIMIT;
   const rate = usesLimitPricing ? 0.24 : 0.14;
-  const cap = usesLimitPricing ? 12 : 7;
+  const floor = usesLimitPricing ? 12 : 7;
 
-  return Math.min(approximatePrice * rate, cap);
+  return Math.max(approximatePrice * rate, floor);
 }
 
 function getAccountLabel(order: Order): string {
@@ -239,8 +240,8 @@ export default function MyOrdersPage() {
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-                <ClipboardList className="h-5 w-5 text-white" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+                <ClipboardList className="h-5 w-5" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold">Moji nalozi</h1>

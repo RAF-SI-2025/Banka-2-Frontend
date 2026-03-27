@@ -11,9 +11,11 @@ const actuaryService = {
     firstName?: string,
     lastName?: string
   ): Promise<ActuaryInfo[]> => {
-    const response = await api.get('/actuaries/agents', {
-      params: { email, firstName, lastName },
-    });
+    const params: Record<string, string> = {};
+    if (email) params.email = email;
+    if (firstName) params.firstName = firstName;
+    if (lastName) params.lastName = lastName;
+    const response = await api.get('/actuaries/agents', { params });
     return response.data;
   },
 

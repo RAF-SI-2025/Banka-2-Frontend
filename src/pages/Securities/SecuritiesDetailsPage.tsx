@@ -105,14 +105,23 @@ export default function SecuritiesDetailsPage() {
 
   useEffect(() => {
     if (!id) return;
-    setLoading(true);
-    Promise.all([
-      listingService.getById(Number(id)),
-      listingService.getHistory(Number(id), period),
-    ])
-      .then(([l, h]) => { setListing(l); setHistory(h); })
-      .catch(() => { setListing(null); setHistory([]); })
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [l, h] = await Promise.all([
+          listingService.getById(Number(id)),
+          listingService.getHistory(Number(id), period),
+        ]);
+        if (!cancelled) { setListing(l); setHistory(h); }
+      } catch {
+        if (!cancelled) { setListing(null); setHistory([]); }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
   }, [id, period]);
 
   // Generate fake data when history is empty

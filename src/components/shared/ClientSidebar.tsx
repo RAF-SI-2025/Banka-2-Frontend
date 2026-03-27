@@ -104,6 +104,7 @@ export default function ClientSidebar() {
 
   const employeeLinks: SidebarItem[] = useMemo(
     () => [
+      { label: 'Zaposleni', path: '/admin/employees', icon: <Users className="h-4 w-4" /> },
       { label: 'Portal racuna', path: '/employee/accounts', icon: <Building2 className="h-4 w-4" /> },
       { label: 'Zahtevi za racune', path: '/employee/account-requests', icon: <Wallet className="h-4 w-4" /> },
       { label: 'Portal kartica', path: '/employee/cards', icon: <CreditCard className="h-4 w-4" /> },

@@ -185,6 +185,12 @@ export default function AccountCardsPage() {
   }, []);
 
   const runAction = async (cardId: number, action: 'block' | 'unblock' | 'deactivate') => {
+    if (action === 'deactivate') {
+      const confirmed = window.confirm(
+        'Da li ste sigurni da zelite da deaktivirate karticu? Deaktivirana kartica se NE MOZE ponovo aktivirati.'
+      );
+      if (!confirmed) return;
+    }
     setProcessingId(cardId);
     try {
       if (action === 'block') await cardService.block(cardId);
@@ -228,14 +234,16 @@ export default function AccountCardsPage() {
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <CreditCardIcon className="h-6 w-6 text-primary" />
-            <h1 className="text-3xl font-bold tracking-tight">Portal kartica</h1>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+            <CreditCardIcon className="h-5 w-5" />
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Pregledajte i upravljajte karticama za odabrani racun.
-          </p>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Portal kartica</h1>
+            <p className="text-sm text-muted-foreground">
+              Pregledajte i upravljajte karticama za odabrani racun.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -449,11 +457,11 @@ export default function AccountCardsPage() {
                 <TableRow key={card.id} className="hover:bg-muted/50 transition-colors">
                   <TableCell className="font-mono">{maskCardNumber(card.cardNumber)}</TableCell>
                   <TableCell>
-                    <Badge variant="info">{cardTypeLabels[card.cardType] || card.cardType}</Badge>
+                    <Badge variant="info">{card.cardName || (card.cardType && cardTypeLabels[card.cardType]) || card.cardType || 'Visa Debit'}</Badge>
                   </TableCell>
-                  <TableCell className="font-medium">{card.holderName}</TableCell>
+                  <TableCell className="font-medium">{card.ownerName || card.holderName || '-'}</TableCell>
                   <TableCell className="font-medium">
-                    {formatBalance(card.limit, account.currency)}
+                    {formatBalance(card.cardLimit ?? card.limit ?? 0, account?.currency ?? '')}
                   </TableCell>
                   <TableCell>{formatDate(card.expirationDate)}</TableCell>
                   <TableCell>
@@ -493,13 +501,16 @@ export default function AccountCardsPage() {
                           )}
                         </Button>
                       )}
+                      {card.status === 'DEACTIVATED' && (
+                        <span className="text-xs text-muted-foreground">Deaktivirana</span>
+                      )}
                       {card.status !== 'DEACTIVATED' && (
                         <Button
                           size="sm"
                           variant="destructive"
                           onClick={() => runAction(card.id, 'deactivate')}
                           disabled={processingId === card.id}
-                          title="Deaktiviraj"
+                          title="Deaktiviraj (trajno)"
                         >
                           {processingId === card.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />

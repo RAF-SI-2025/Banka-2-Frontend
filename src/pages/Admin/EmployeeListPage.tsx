@@ -102,11 +102,16 @@ export default function EmployeeListPage() {
     <div className="space-y-6">
       {/* Page header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Upravljanje zaposlenima</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Pregled, pretraga i upravljanje nalozima zaposlenih
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+            <Users className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Upravljanje zaposlenima</h1>
+            <p className="text-sm text-muted-foreground">
+              Pregled, pretraga i upravljanje nalozima zaposlenih
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button

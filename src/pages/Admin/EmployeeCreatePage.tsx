@@ -104,12 +104,17 @@ export default function EmployeeCreatePage() {
         Nazad na listu
       </Button>
 
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Kreiranje novog zaposlenog</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Nakon kreiranja, zaposleni će dobiti email sa linkom za aktivaciju naloga
-          i postavljanje lozinke.
-        </p>
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+          <UserPlus className="h-5 w-5" />
+        </div>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Kreiranje novog zaposlenog</h1>
+          <p className="text-sm text-muted-foreground">
+            Nakon kreiranja, zaposleni će dobiti email sa linkom za aktivaciju naloga
+            i postavljanje lozinke.
+          </p>
+        </div>
       </div>
 
       {serverError && (

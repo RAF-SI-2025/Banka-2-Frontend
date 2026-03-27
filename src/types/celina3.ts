@@ -108,6 +108,7 @@ export interface Order {
   allOrNone: boolean;
   margin: boolean;
   approximatePrice: number;
+  accountId?: number;
   createdAt: string;
   lastModification: string;
 }
@@ -132,6 +133,7 @@ export interface ActuaryInfo {
   employeeId: number;
   employeeName: string;
   employeeEmail: string;
+  employeePosition: string;
   actuaryType: ActuaryType;
   dailyLimit: number;
   usedLimit: number;
@@ -169,6 +171,7 @@ export interface PortfolioSummary {
 // --- Porez ---
 
 export interface TaxRecord {
+  id?: number;
   userId: number;
   userName: string;
   userType: string; // 'CLIENT' | 'EMPLOYEE'

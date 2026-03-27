@@ -188,8 +188,8 @@ export default function SecuritiesListPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-            <BarChart3 className="h-5 w-5 text-white" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+            <BarChart3 className="h-5 w-5" />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Hartije od vrednosti</h1>

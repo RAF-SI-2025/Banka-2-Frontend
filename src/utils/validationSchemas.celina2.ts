@@ -68,16 +68,12 @@ export type ExchangeFormData = z.infer<typeof exchangeSchema>;
 export const createRecipientSchema = z.object({
   name: nameSchema,
   accountNumber: accountNumberSchema,
-  address: z.string().max(200, 'Maksimalno 200 karaktera').optional(),
-  phoneNumber: phoneSchema.optional().or(z.literal('')),
 });
 export type CreateRecipientFormData = z.infer<typeof createRecipientSchema>;
 
 export const editRecipientSchema = z.object({
   name: nameSchema,
   accountNumber: accountNumberSchema,
-  address: z.string().max(200, 'Maksimalno 200 karaktera').optional(),
-  phoneNumber: phoneSchema.optional().or(z.literal('')),
 });
 export type EditRecipientFormData = z.infer<typeof editRecipientSchema>;
 

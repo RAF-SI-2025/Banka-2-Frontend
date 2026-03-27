@@ -247,13 +247,18 @@ export default function EmployeeEditPage() {
     setError('');
 
     try {
-      // Permisije se šalju zajedno sa ostalim podacima kroz PUT update
-      await employeeService.update(Number(id), { ...data, permissions });
-
-      // Ako je deaktiviran, pozovi i deactivate endpoint
+      // If deactivating, use the dedicated deactivate endpoint
       if (!data.isActive && employee?.isActive) {
         await employeeService.deactivate(Number(id));
       }
+
+      // Permisije se šalju zajedno sa ostalim podacima kroz PUT update
+      // Exclude isActive from update payload since deactivate endpoint handles it
+      const updateData = { ...data, permissions };
+      if (!data.isActive && employee?.isActive) {
+        delete (updateData as Record<string, unknown>).isActive;
+      }
+      await employeeService.update(Number(id), updateData);
 
       toast.success('Zaposleni uspešno ažuriran!');
       navigate('/admin/employees');
@@ -296,13 +301,18 @@ export default function EmployeeEditPage() {
         Nazad na listu
       </Button>
 
-      <div className="space-y-1">
-        <h1 className="text-3xl font-bold tracking-tight">
-          Izmeni zaposlenog: {employee.firstName} {employee.lastName}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Azurirajte licne podatke, kontakt informacije, radnu poziciju i permisije zaposlenog.
-        </p>
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+          <User className="h-5 w-5" />
+        </div>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Izmeni zaposlenog: {employee.firstName} {employee.lastName}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Azurirajte licne podatke, kontakt informacije, radnu poziciju i permisije zaposlenog.
+          </p>
+        </div>
       </div>
 
       {error && (

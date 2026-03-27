@@ -88,6 +88,9 @@ export const LoanStatus = {
   APPROVED: 'APPROVED',
   REJECTED: 'REJECTED',
   ACTIVE: 'ACTIVE',
+  PAID: 'PAID',
+  PAID_OFF: 'PAID_OFF',
+  LATE: 'LATE',
   CLOSED: 'CLOSED',
 } as const;
 export type LoanStatus = (typeof LoanStatus)[keyof typeof LoanStatus];
@@ -105,11 +108,14 @@ export interface Account {
   accountNumber: string;        // 18 cifara
   ownerName: string;
   accountType: AccountType;
-  accountSubtype?: AccountSubtype;
+  accountSubType?: string;       // Backend polje (uppercase T)
+  accountSubtype?: AccountSubtype; // Legacy alias
   currency: Currency;
+  currencyCode?: string;         // Backend alias za currency
   balance: number;
   availableBalance: number;
-  reservedBalance: number;       // Rezervisana sredstva
+  reservedBalance: number;       // FE alias
+  reservedFunds?: number;        // Backend polje
   dailyLimit: number;
   monthlyLimit: number;
   dailySpending: number;         // Potroseno danas
@@ -118,12 +124,22 @@ export interface Account {
   status: AccountStatus;
   createdAt: string;
   expirationDate?: string;
-  employeeId?: number;           // Zaposleni koji je kreirao racun
+  createdByEmployee?: string;    // Ime zaposlenog koji je kreirao racun
   name?: string;                 // Korisnikov naziv za racun
+  company?: CompanyInfo;         // Podaci o firmi (za poslovne racune)
+}
+
+export interface CompanyInfo {
+  id?: number;
+  name: string;
+  registrationNumber: string;
+  taxNumber: string;
+  activityCode: string;
+  address?: string;
 }
 
 export interface BusinessAccount extends Account {
-  firm: Firm;
+  firm?: Firm;
 }
 
 export interface Firm {
@@ -172,23 +188,23 @@ export interface PaymentRecipient {
   id: number;
   name: string;
   accountNumber: string;
-  address?: string;
-  phoneNumber?: string;
+  createdAt?: string;
 }
 
 export interface Card {
   id: number;
   cardNumber: string;            // 16 cifara (prikazuje se maskirano)
-  cardType: CardType;
+  cardType?: CardType;
   cardName?: string;             // Backend: "Visa Debit" itd.
+  accountId?: number;            // Backend ID racuna
   accountNumber: string;
-  holderName: string;
-  ownerName?: string;            // Backend alias za holderName
+  holderName?: string;
+  ownerName?: string;            // Backend polje za ime vlasnika
   expirationDate: string;
   cvv?: string;                  // 3 cifre, prikazuje se samo pri kreiranju
   status: CardStatus;
-  limit: number;
-  cardLimit?: number;            // Backend alias za limit
+  limit?: number;                // FE legacy
+  cardLimit?: number;            // Backend polje za limit
   createdAt: string;
 }
 
@@ -214,27 +230,30 @@ export interface ExchangeRate {
 export interface Loan {
   id: number;
   loanNumber?: string;           // Broj kredita (razlicit od id-a)
-  loanType: LoanType;
+  loanType: LoanType | string;
   amount: number;
   repaymentPeriod: number;       // U mesecima
-  interestRateType: InterestRateType;
+  interestRateType?: InterestRateType;
+  interestType?: string;         // BE vraca 'FIXED' / 'VARIABLE'
   nominalRate: number;           // Nominalna kamatna stopa
   effectiveRate: number;         // EKS
   monthlyPayment: number;
   startDate: string;
   endDate: string;
   remainingDebt: number;
-  currency: Currency;
+  currency: Currency | string;
   status: LoanStatus;
   accountNumber: string;
   loanPurpose?: string;          // Svrha kredita
+  createdAt?: string;
 }
 
 export interface Installment {
   id: number;
-  loanNumber: string;
   amount: number;
+  principalAmount: number;       // Iznos glavnice
   interestAmount: number;        // Iznos kamatne stope
+  interestRate: number;          // Kamatna stopa za tu ratu
   currency: Currency;
   expectedDueDate: string;       // Ocekivani datum dospeca
   actualDueDate?: string;        // Pravi datum dospeca
@@ -243,10 +262,11 @@ export interface Installment {
 
 export interface LoanRequest {
   id: number;
-  loanType: LoanType;
-  interestRateType: InterestRateType;
+  loanType: LoanType | string;
+  interestRateType?: InterestRateType;
+  interestType?: string;         // BE vraca 'FIXED' / 'VARIABLE'
   amount: number;
-  currency: Currency;
+  currency: Currency | string;
   loanPurpose: string;
   repaymentPeriod: number;
   accountNumber: string;
@@ -294,10 +314,10 @@ export interface NewCardRequest {
 }
 
 export interface LoanApplicationRequest {
-  loanType: LoanType;
-  interestRateType: InterestRateType;
+  loanType: LoanType | string;
+  interestRateType: InterestRateType | string;
   amount: number;
-  currency: Currency;
+  currency: Currency | string;
   loanPurpose: string;
   repaymentPeriod: number;
   accountNumber: string;
@@ -333,15 +353,11 @@ export interface ChangeLimitRequest {
 export interface CreateRecipientRequest {
   name: string;
   accountNumber: string;
-  address?: string;
-  phoneNumber?: string;
 }
 
 export interface UpdateRecipientRequest {
   name?: string;
   accountNumber?: string;
-  address?: string;
-  phoneNumber?: string;
 }
 
 export interface TransactionFilters {
@@ -365,8 +381,8 @@ export interface AccountFilters {
 }
 
 export interface LoanFilters {
-  loanType?: LoanType;
-  status?: LoanStatus;
+  loanType?: LoanType | string;
+  status?: LoanStatus | string;
   accountNumber?: string;        // Filter po broju racuna
   page?: number;
   limit?: number;

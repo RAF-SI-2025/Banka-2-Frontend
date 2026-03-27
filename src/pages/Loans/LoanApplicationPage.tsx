@@ -117,14 +117,27 @@ export default function LoanApplicationPage() {
   }, [filteredAccounts, setValue, watch]);
 
   const annualRate = useMemo(() => {
-    if (amount <= 500000) return 6.25;
-    if (amount <= 1000000) return 6.0;
-    if (amount <= 2000000) return 5.75;
-    if (amount <= 5000000) return 5.5;
-    if (amount <= 10000000) return 5.25;
-    if (amount <= 20000000) return 5.0;
-    return 4.75;
-  }, [amount]);
+    // Base rate by amount (per spec)
+    let baseRate: number;
+    if (amount <= 500000) baseRate = 6.25;
+    else if (amount <= 1000000) baseRate = 6.0;
+    else if (amount <= 2000000) baseRate = 5.75;
+    else if (amount <= 5000000) baseRate = 5.5;
+    else if (amount <= 10000000) baseRate = 5.25;
+    else if (amount <= 20000000) baseRate = 5.0;
+    else baseRate = 4.75;
+
+    // Margin by loan type (per spec)
+    const marginMap: Record<string, number> = {
+      GOTOVINSKI: 1.75,
+      STAMBENI: 1.50,
+      AUTO: 1.25,
+      REFINANSIRAJUCI: 1.00,
+      STUDENTSKI: 0.75,
+    };
+    const margin = marginMap[selectedLoanType] ?? 1.75;
+    return baseRate + margin;
+  }, [amount, selectedLoanType]);
 
   const monthlyPayment = useMemo(() => {
     if (!amount || !repaymentPeriod || repaymentPeriod <= 0) return 0;

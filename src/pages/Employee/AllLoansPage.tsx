@@ -46,6 +46,8 @@ function statusBadgeVariant(status: LoanStatus): 'success' | 'warning' | 'info' 
   if (status === 'PENDING') return 'warning';
   if (status === 'APPROVED') return 'info';
   if (status === 'REJECTED') return 'destructive';
+  if (status === 'LATE') return 'destructive';
+  if (status === 'PAID' || status === 'PAID_OFF') return 'secondary';
   return 'secondary';
 }
 
@@ -54,6 +56,9 @@ function statusLabel(status: LoanStatus): string {
   if (status === 'PENDING') return 'Na cekanju';
   if (status === 'APPROVED') return 'Odobren';
   if (status === 'REJECTED') return 'Odbijen';
+  if (status === 'PAID') return 'Otplacen';
+  if (status === 'PAID_OFF') return 'Prevremeno otplacen';
+  if (status === 'LATE') return 'Kasnjenje';
   if (status === 'CLOSED') return 'Zatvoren';
   return status;
 }
@@ -110,14 +115,16 @@ export default function AllLoansPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <div className="flex items-center gap-2">
-          <FileText className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Svi krediti</h1>
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+          <FileText className="h-5 w-5" />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pregled svih kredita u bankarskom sistemu sa filterima.
-        </p>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Svi krediti</h1>
+          <p className="text-sm text-muted-foreground">
+            Pregled svih kredita u bankarskom sistemu sa filterima.
+          </p>
+        </div>
       </div>
 
       {/* Filters */}
@@ -168,7 +175,9 @@ export default function AllLoansPage() {
                 <SelectItem value="PENDING">Na cekanju</SelectItem>
                 <SelectItem value="APPROVED">Odobreni</SelectItem>
                 <SelectItem value="REJECTED">Odbijeni</SelectItem>
-                <SelectItem value="CLOSED">Zatvoreni</SelectItem>
+                <SelectItem value="PAID">Otplaceni</SelectItem>
+                <SelectItem value="PAID_OFF">Prevremeno otplaceni</SelectItem>
+                <SelectItem value="LATE">Kasnjenje</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -9,6 +9,23 @@ import type {
 } from '../types/celina2';
 import type { PaginatedResponse } from '../types';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapTransferResponse(data: any): Transfer {
+  return {
+    id: data.id,
+    fromAccountNumber: data.fromAccountNumber,
+    toAccountNumber: data.toAccountNumber,
+    amount: data.amount,
+    fromCurrency: data.fromCurrency,
+    toCurrency: data.toCurrency,
+    exchangeRate: data.exchangeRate ?? undefined,
+    convertedAmount: data.toAmount ?? data.convertedAmount ?? undefined,
+    commission: data.commission ?? undefined,
+    status: data.status,
+    createdAt: data.createdAt,
+  };
+}
+
 export const transactionService = {
   // --- Placanja ---
 
@@ -31,6 +48,11 @@ export const transactionService = {
 
   requestOtp: async (): Promise<{ sent: boolean; message: string }> => {
     const response = await api.post<{ sent: boolean; message: string }>('/payments/request-otp');
+    return response.data;
+  },
+
+  requestOtpViaEmail: async (): Promise<{ sent: boolean; message: string }> => {
+    const response = await api.post<{ sent: boolean; message: string }>('/payments/request-otp-email');
     return response.data;
   },
 
@@ -62,13 +84,13 @@ export const transactionService = {
   // --- Prenosi ---
 
   createTransfer: async (data: TransferRequest): Promise<Transfer> => {
-    const response = await api.post<Transfer>('/transfers/internal', data);
-    return response.data;
+    const response = await api.post('/transfers/internal', data);
+    return mapTransferResponse(response.data);
   },
 
   createFxTransfer: async (data: TransferRequest): Promise<Transfer> => {
-    const response = await api.post<Transfer>('/transfers/fx', data);
-    return response.data;
+    const response = await api.post('/transfers/fx', data);
+    return mapTransferResponse(response.data);
   },
 
   getTransfers: async (filters?: { accountNumber?: string; dateFrom?: string; dateTo?: string }): Promise<Transfer[]> => {
@@ -76,7 +98,15 @@ export const transactionService = {
     if (filters?.accountNumber) params.append('accountNumber', filters.accountNumber);
     if (filters?.dateFrom) params.append('fromDate', filters.dateFrom);
     if (filters?.dateTo) params.append('toDate', filters.dateTo);
-    const response = await api.get<Transfer[]>('/transfers', { params });
+    const response = await api.get('/transfers', { params });
+    const data = Array.isArray(response.data) ? response.data : [];
+    return data.map(mapTransferResponse);
+  },
+
+  getPaymentReceipt: async (paymentId: number): Promise<Blob> => {
+    const response = await api.get(`/payments/${paymentId}/receipt`, {
+      responseType: 'blob',
+    });
     return response.data;
   },
 };

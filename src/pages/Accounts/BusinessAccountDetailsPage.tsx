@@ -16,7 +16,7 @@ import {
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { transactionService } from '@/services/transactionService';
-import type { Account, BusinessAccount, Transaction } from '@/types/celina2';
+import type { Account, CompanyInfo, Transaction } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -77,7 +77,7 @@ export default function BusinessAccountDetailsPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [account, setAccount] = useState<Account | null>(null);
-  const [businessDetails, setBusinessDetails] = useState<BusinessAccount | null>(null);
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [renameValue, setRenameValue] = useState('');
@@ -96,9 +96,21 @@ export default function BusinessAccountDetailsPage() {
     const loadData = async () => {
       setLoading(true);
       try {
-        const accountData = await accountService.getById(accountId);
+        const raw = await accountService.getById(accountId);
+        const accountData = {
+          ...raw,
+          currency: raw.currency || raw.currencyCode || 'RSD',
+          availableBalance: Number(raw.availableBalance) || 0,
+          balance: Number(raw.balance) || 0,
+          reservedBalance: Number(raw.reservedBalance) || Number(raw.reservedFunds) || 0,
+          dailyLimit: Number(raw.dailyLimit) || 0,
+          monthlyLimit: Number(raw.monthlyLimit) || 0,
+          dailySpending: Number(raw.dailySpending) || 0,
+          monthlySpending: Number(raw.monthlySpending) || 0,
+          maintenanceFee: Number(raw.maintenanceFee) || 0,
+        } as Account;
         setAccount(accountData);
-        setBusinessDetails(accountData as unknown as BusinessAccount);
+        setCompanyInfo(accountData.company || null);
         setRenameValue(accountData.name || '');
         setDailyLimit(String(accountData.dailyLimit));
         setMonthlyLimit(String(accountData.monthlyLimit));
@@ -227,21 +239,31 @@ export default function BusinessAccountDetailsPage() {
         <ArrowLeft className="mr-2 h-4 w-4" /> Nazad na racune
       </Button>
 
-      {/* Header */}
-      <div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Building2 className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">{account.name || 'Poslovni racun'}</h1>
-          <Badge variant={statusVariant[account.status]}>
-            {statusLabels[account.status] || account.status}
-          </Badge>
-          <Badge variant="warning">Poslovni</Badge>
+      {/* Hero header */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600 p-6 sm:p-8 text-white shadow-lg shadow-indigo-500/20">
+        <div className="absolute top-0 right-0 -mt-4 -mr-4 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+        <div className="absolute bottom-0 left-0 -mb-6 -ml-6 h-24 w-24 rounded-full bg-white/10 blur-xl" />
+        <div className="relative">
+          <div className="flex flex-wrap items-center gap-3 mb-1">
+            <Building2 className="h-6 w-6" />
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{account.name || 'Poslovni racun'}</h1>
+            <Badge variant={statusVariant[account.status]} className="border-white/20">
+              {statusLabels[account.status] || account.status}
+            </Badge>
+            <Badge variant="warning" className="border-white/20">Poslovni</Badge>
+          </div>
+          <p className="text-indigo-100 font-mono text-sm mb-4">{formatAccountNumber(account.accountNumber)}</p>
+          <div className="text-3xl sm:text-4xl font-bold tracking-tight">
+            {formatBalance(account.balance, account.currency)}
+          </div>
+          <p className="mt-1 text-indigo-100 text-sm">
+            Raspolozivo: {formatBalance(account.availableBalance, account.currency)}
+          </p>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">{formatAccountNumber(account.accountNumber)}</p>
       </div>
 
       {/* Firm info card */}
-      {businessDetails?.firm && (
+      {companyInfo && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -253,20 +275,26 @@ export default function BusinessAccountDetailsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <p className="text-sm text-muted-foreground">Naziv firme</p>
-                <p className="font-medium">{businessDetails.firm.companyName}</p>
+                <p className="font-medium">{companyInfo.name}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Maticni broj</p>
-                <p className="font-medium">{businessDetails.firm.registrationNumber}</p>
+                <p className="font-medium">{companyInfo.registrationNumber}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">PIB</p>
-                <p className="font-medium">{businessDetails.firm.taxId}</p>
+                <p className="font-medium">{companyInfo.taxNumber}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Sifra delatnosti</p>
-                <p className="font-medium">{businessDetails.firm.activityCode}</p>
+                <p className="font-medium">{companyInfo.activityCode}</p>
               </div>
+              {companyInfo.address && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Adresa</p>
+                  <p className="font-medium">{companyInfo.address}</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

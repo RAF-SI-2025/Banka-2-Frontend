@@ -7,9 +7,10 @@ const taxService = {
    * Lista korisnika sa dugovanjima (za supervizor portal).
    */
   getTaxRecords: async (userType?: string, name?: string): Promise<TaxRecord[]> => {
-    const response = await api.get('/tax', {
-      params: { userType, name },
-    });
+    const params: Record<string, string> = {};
+    if (userType) params.userType = userType;
+    if (name) params.name = name;
+    const response = await api.get('/tax', { params });
     return response.data;
   },
 

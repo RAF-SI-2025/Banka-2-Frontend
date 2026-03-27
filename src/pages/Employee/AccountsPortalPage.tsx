@@ -153,12 +153,14 @@ export default function AccountsPortalPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <Wallet className="h-6 w-6 text-primary" />
-            <h1 className="text-3xl font-bold tracking-tight">Portal racuna</h1>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+            <Wallet className="h-5 w-5" />
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">Upravljajte svim bankovnim racunima klijenata.</p>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Portal racuna</h1>
+            <p className="text-sm text-muted-foreground">Upravljajte svim bankovnim racunima klijenata.</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button

@@ -205,7 +205,7 @@ export default function TransferPage() {
   const commission = useMemo(() => {
     if (!amount || amount <= 0) return 0;
     if (fromAccountData?.currency === toAccountData?.currency) return 0;
-    return amount * 0.01;
+    return amount * 0.005;
   }, [amount, fromAccountData, toAccountData]);
 
   const totalDebit = useMemo(() => {

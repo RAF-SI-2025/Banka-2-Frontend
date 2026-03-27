@@ -138,7 +138,7 @@ export default function VerificationModal({
         <h2 className="text-xl font-bold mb-1">Verifikacija transakcije</h2>
         <p className="text-sm text-muted-foreground mb-4">
           {otpSent
-            ? 'Verifikacioni kod je poslat na vaš email. Unesite ga ispod.'
+            ? 'Otvorite mobilnu aplikaciju za verifikacioni kod.'
             : 'Slanje verifikacionog koda...'}
         </p>
 
@@ -178,6 +178,20 @@ export default function VerificationModal({
               className="text-primary disabled:text-muted-foreground"
             >
               {secondsLeft > 0 ? `Pošalji ponovo za ${secondsLeft}s` : 'Pošalji ponovo'}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await transactionService.requestOtpViaEmail();
+                  toast.info('Verifikacioni kod je poslat na vaš email.');
+                } catch {
+                  toast.error('Greška pri slanju email-a.');
+                }
+              }}
+              className="text-muted-foreground hover:text-primary transition-colors"
+            >
+              Nemate telefon? Pošaljite na email
             </button>
           </div>
 

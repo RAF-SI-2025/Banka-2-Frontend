@@ -36,6 +36,9 @@ const accountTypeLabels: Record<string, string> = {
   TEKUCI: 'Tekuci',
   DEVIZNI: 'Devizni',
   POSLOVNI: 'Poslovni',
+  CHECKING: 'Tekuci',
+  FOREIGN: 'Devizni',
+  BUSINESS: 'Poslovni',
 };
 
 const statusLabels: Record<string, string> = {
@@ -105,13 +108,15 @@ export default function AccountDetailsPage() {
         const raw = await accountService.getById(accountId);
         const accountData = {
           ...raw,
-          currency: raw.currency || (raw as unknown as Record<string, unknown>).currencyCode || 'RSD',
+          currency: raw.currency || raw.currencyCode || 'RSD',
           availableBalance: Number(raw.availableBalance) || 0,
           balance: Number(raw.balance) || 0,
+          reservedBalance: Number(raw.reservedBalance) || Number(raw.reservedFunds) || 0,
           dailyLimit: Number(raw.dailyLimit) || 0,
           monthlyLimit: Number(raw.monthlyLimit) || 0,
           dailySpending: Number(raw.dailySpending) || 0,
           monthlySpending: Number(raw.monthlySpending) || 0,
+          maintenanceFee: Number(raw.maintenanceFee) || 0,
         } as Account;
         setAccount(accountData);
         setRenameValue(accountData.name || '');

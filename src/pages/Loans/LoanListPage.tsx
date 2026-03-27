@@ -30,6 +30,8 @@ function statusBadgeVariant(status: Loan['status']): 'success' | 'warning' | 'in
   if (status === 'PENDING') return 'warning';
   if (status === 'APPROVED') return 'info';
   if (status === 'REJECTED') return 'destructive';
+  if (status === 'LATE') return 'destructive';
+  if (status === 'PAID' || status === 'PAID_OFF') return 'secondary';
   return 'secondary';
 }
 
@@ -38,6 +40,9 @@ function statusLabel(status: Loan['status']): string {
   if (status === 'PENDING') return 'Na cekanju';
   if (status === 'APPROVED') return 'Odobren';
   if (status === 'REJECTED') return 'Odbijen';
+  if (status === 'PAID') return 'Otplacen';
+  if (status === 'PAID_OFF') return 'Prevremeno otplacen';
+  if (status === 'LATE') return 'Kasnjenje';
   if (status === 'CLOSED') return 'Zatvoren';
   return status;
 }
@@ -282,6 +287,8 @@ export default function LoanListPage() {
                     <TableRow>
                       <TableHead className="w-16">Rata</TableHead>
                       <TableHead>Iznos</TableHead>
+                      <TableHead>Glavnica</TableHead>
+                      <TableHead>Kamata</TableHead>
                       <TableHead>Datum dospeca</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
@@ -291,6 +298,8 @@ export default function LoanListPage() {
                       <TableRow key={installment.id} className="hover:bg-muted/50 transition-colors">
                         <TableCell className="font-medium">{index + 1}</TableCell>
                         <TableCell className="font-semibold tabular-nums">{formatAmount(installment.amount)} {installment.currency}</TableCell>
+                        <TableCell className="tabular-nums">{formatAmount(installment.principalAmount)} {installment.currency}</TableCell>
+                        <TableCell className="tabular-nums text-muted-foreground">{formatAmount(installment.interestAmount)} {installment.currency}</TableCell>
                         <TableCell>{formatDate(installment.expectedDueDate)}</TableCell>
                         <TableCell>
                           <Badge variant={installment.paid ? 'success' : 'secondary'}>
@@ -308,7 +317,7 @@ export default function LoanListPage() {
               <p className="text-sm text-muted-foreground">
                 Placeno rata: <span className="font-semibold text-foreground">{paidInstallments}</span> / {asArray<Installment>(installments).length}
               </p>
-              {selectedLoan.status === 'ACTIVE' && selectedLoan.remainingDebt > 0 && (
+              {(selectedLoan.status === 'ACTIVE' || selectedLoan.status === 'LATE') && selectedLoan.remainingDebt > 0 && (
                 <Button
                   variant="outline"
                   size="sm"

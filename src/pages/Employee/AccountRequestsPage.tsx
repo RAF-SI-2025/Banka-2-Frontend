@@ -65,12 +65,14 @@ export default function AccountRequestsPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div>
-        <div className="flex items-center gap-2">
-          <Building2 className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Zahtevi za račune</h1>
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+          <Building2 className="h-5 w-5" />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Pregledajte i odobrite zahteve klijenata za otvaranje računa.</p>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Zahtevi za račune</h1>
+          <p className="text-sm text-muted-foreground">Pregledajte i odobrite zahteve klijenata za otvaranje računa.</p>
+        </div>
       </div>
 
       <Card>
@@ -92,7 +94,13 @@ export default function AccountRequestsPage() {
               ))}
             </div>
           ) : requests.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">Nema zahteva za prikaz.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+                <Building2 className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-semibold">Nema zahteva za prikaz</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Trenutno nema zahteva za otvaranje racuna.</p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

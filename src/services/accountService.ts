@@ -11,7 +11,9 @@ export const accountService = {
   // Employee portal - svi racuni
   getAll: async (filters?: AccountFilters): Promise<PaginatedResponse<Account>> => {
     const params = new URLSearchParams();
-    if (filters?.ownerName) params.append('ownerName', filters.ownerName);
+    // BE accepts 'ownerName' for name-based search; FE may pass ownerEmail or ownerName
+    const ownerSearch = filters?.ownerName || filters?.ownerEmail;
+    if (ownerSearch) params.append('ownerName', ownerSearch);
     if (filters?.page !== undefined) params.append('page', String(filters.page));
     if (filters?.limit !== undefined) params.append('limit', String(filters.limit));
 

@@ -102,15 +102,15 @@ function normalizeAccountType(raw: string | undefined): AccountType {
   switch (raw) {
     case 'CHECKING':
     case 'TEKUCI':
-      return 'TEKUCI';
+      return 'CHECKING';
     case 'FOREIGN':
     case 'DEVIZNI':
-      return 'DEVIZNI';
+      return 'FOREIGN';
     case 'BUSINESS':
     case 'POSLOVNI':
-      return 'POSLOVNI';
+      return 'BUSINESS';
     default:
-      return 'TEKUCI';
+      return 'CHECKING';
   }
 }
 
@@ -180,9 +180,10 @@ export default function AccountListPage() {
       const data = await accountService.getMyAccounts();
       const safeData = (Array.isArray(data) ? data : []).map((a) => ({
         ...a,
-        currency: a.currency || (a as unknown as Record<string, unknown>).currencyCode || 'RSD',
+        currency: a.currency || a.currencyCode || 'RSD',
         availableBalance: Number(a.availableBalance) || 0,
         balance: Number(a.balance) || 0,
+        reservedBalance: Number(a.reservedBalance) || Number(a.reservedFunds) || 0,
         accountType: normalizeAccountType(a.accountType),
         accountNumber: a.accountNumber || '',
         name: a.name || undefined,
@@ -377,9 +378,9 @@ export default function AccountListPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">Svi tipovi</SelectItem>
-                <SelectItem value="TEKUCI">Tekuci</SelectItem>
-                <SelectItem value="DEVIZNI">Devizni</SelectItem>
-                <SelectItem value="POSLOVNI">Poslovni</SelectItem>
+                <SelectItem value="CHECKING">Tekuci</SelectItem>
+                <SelectItem value="FOREIGN">Devizni</SelectItem>
+                <SelectItem value="BUSINESS">Poslovni</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -448,14 +449,14 @@ export default function AccountListPage() {
                     }`}
                     onClick={() => setSelectedAccountId(account.id)}
                     onDoubleClick={() => {
-                      if (account.accountType === 'POSLOVNI') {
+                      if (account.accountType === 'BUSINESS' || account.accountType === 'POSLOVNI') {
                         navigate(`/accounts/${account.id}/business`);
                       } else {
                         navigate(`/accounts/${account.id}`);
                       }
                     }}
                   >
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium font-mono">
                       {formatAccountNumber(account.accountNumber)}
                     </TableCell>
                     <TableCell>{account.name || `${accountTypeLabels[account.accountType]} racun`}</TableCell>

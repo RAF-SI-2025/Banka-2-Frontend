@@ -36,7 +36,9 @@ function statusBadgeVariant(status: LoanStatus): 'warning' | 'success' | 'destru
   if (status === 'PENDING') return 'warning';
   if (status === 'APPROVED') return 'success';
   if (status === 'REJECTED') return 'destructive';
+  if (status === 'LATE') return 'destructive';
   if (status === 'ACTIVE') return 'info';
+  if (status === 'PAID' || status === 'PAID_OFF') return 'secondary';
   return 'secondary';
 }
 
@@ -45,6 +47,9 @@ function statusLabel(status: LoanStatus): string {
   if (status === 'APPROVED') return 'Odobren';
   if (status === 'REJECTED') return 'Odbijen';
   if (status === 'ACTIVE') return 'Aktivan';
+  if (status === 'PAID') return 'Otplacen';
+  if (status === 'PAID_OFF') return 'Prevremeno otplacen';
+  if (status === 'LATE') return 'Kasnjenje';
   return status;
 }
 
@@ -140,14 +145,16 @@ export default function LoanRequestsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Zahtevi za kredit</h1>
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+          <ShieldCheck className="h-5 w-5" />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pregledajte i obradite zahteve za kredit klijenata.
-        </p>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Zahtevi za kredit</h1>
+          <p className="text-sm text-muted-foreground">
+            Pregledajte i obradite zahteve za kredit klijenata.
+          </p>
+        </div>
       </div>
 
       {/* Status filter tabs */}
@@ -253,7 +260,7 @@ export default function LoanRequestsPage() {
                         {request.clientName || request.clientEmail || '-'}
                       </TableCell>
                       <TableCell>{request.loanType}</TableCell>
-                      <TableCell>{request.interestRateType}</TableCell>
+                      <TableCell>{request.interestRateType || request.interestType || '-'}</TableCell>
                       <TableCell className="font-medium">
                         {formatAmount(request.amount)} {request.currency}
                       </TableCell>

@@ -186,14 +186,16 @@ export default function CreateAccountPage() {
       </Button>
 
       {/* Header */}
-      <div>
-        <div className="flex items-center gap-2">
-          <Plus className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Kreiranje racuna</h1>
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+          <Plus className="h-5 w-5" />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Kreirajte novi bankovni racun za klijenta.
-        </p>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Kreiranje racuna</h1>
+          <p className="text-sm text-muted-foreground">
+            Kreirajte novi bankovni racun za klijenta.
+          </p>
+        </div>
       </div>
 
       <form className="space-y-6" onSubmit={handleSubmit(onSubmit)} noValidate>

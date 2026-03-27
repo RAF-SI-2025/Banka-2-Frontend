@@ -282,7 +282,7 @@ function getPricePerUnit(
   orderType: OrderType,
   direction: OrderDirection,
   limitValue?: number,
-  stopValue?: number
+  _stopValue?: number
 ): number {
   if (!listing) return 0;
 
@@ -298,10 +298,12 @@ function getPricePerUnit(
   }
 
   if (orderType === OrderType.STOP) {
-    return Number(stopValue ?? 0);
+    // STOP triggers at stopValue, then executes at market price (ask/bid)
+    return direction === OrderDirection.BUY ? ask : bid;
   }
 
-  return Number(limitValue ?? stopValue ?? 0);
+  // STOP_LIMIT: uses limit value as execution price
+  return Number(limitValue ?? 0);
 }
 
 function getPriceSourceLabel(orderType: OrderType, direction: OrderDirection): string {
@@ -317,12 +319,13 @@ function getPriceSourceLabel(orderType: OrderType, direction: OrderDirection): s
 function getCommission(orderType: OrderType, approximatePrice: number): number {
   if (approximatePrice <= 0) return 0;
 
+  // Spec: Market/Stop → max(14% * price, $7), Limit/StopLimit → max(24% * price, $12)
   const usesLimitPricing =
     orderType === OrderType.LIMIT || orderType === OrderType.STOP_LIMIT;
   const rate = usesLimitPricing ? 0.24 : 0.14;
-  const cap = usesLimitPricing ? 12 : 7;
+  const floor = usesLimitPricing ? 12 : 7;
 
-  return Math.min(approximatePrice * rate, cap);
+  return Math.max(approximatePrice * rate, floor);
 }
 
 function getDefaultCurrencyForListing(listing: Listing | null): string {
@@ -710,8 +713,8 @@ export default function CreateOrderPage() {
     <>
       <div className="container mx-auto py-6 space-y-6">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-            <FilePlus2 className="h-5 w-5 text-white" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+            <FilePlus2 className="h-5 w-5" />
           </div>
           <div>
             <h1 className="text-2xl font-bold">Novi nalog</h1>

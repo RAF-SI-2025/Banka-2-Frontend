@@ -8,46 +8,83 @@ import type {
 } from '../types/celina2';
 import type { PaginatedResponse } from '../types';
 
+// BE -> FE loan type mapping
+const loanTypeFromBE: Record<string, string> = {
+  CASH: 'GOTOVINSKI', MORTGAGE: 'STAMBENI', AUTO: 'AUTO',
+  STUDENT: 'STUDENTSKI', REFINANCING: 'REFINANSIRAJUCI',
+};
+
+// FE -> BE loan type mapping
+const loanTypeToBE: Record<string, string> = {
+  GOTOVINSKI: 'CASH', STAMBENI: 'MORTGAGE', AUTO: 'AUTO',
+  STUDENTSKI: 'STUDENT', REFINANSIRAJUCI: 'REFINANCING',
+  CASH: 'CASH', MORTGAGE: 'MORTGAGE', REFINANCING: 'REFINANCING', STUDENT: 'STUDENT',
+};
+
+// BE -> FE interest type mapping
+const interestTypeFromBE: Record<string, string> = {
+  FIXED: 'FIKSNI', VARIABLE: 'VARIJABILNI',
+};
+
+const interestTypeToBE: Record<string, string> = {
+  FIKSNI: 'FIXED', VARIJABILNI: 'VARIABLE', FIXED: 'FIXED', VARIABLE: 'VARIABLE',
+};
+
+function mapLoanFromBE(loan: Loan): Loan {
+  return {
+    ...loan,
+    loanType: (loanTypeFromBE[loan.loanType] || loan.loanType) as Loan['loanType'],
+    interestType: loan.interestType,
+    interestRateType: (interestTypeFromBE[loan.interestType ?? ''] || loan.interestType) as Loan['interestRateType'],
+  };
+}
+
+function mapLoanRequestFromBE(req: LoanRequest): LoanRequest {
+  return {
+    ...req,
+    loanType: (loanTypeFromBE[req.loanType] || req.loanType) as LoanRequest['loanType'],
+    interestType: req.interestType,
+    interestRateType: (interestTypeFromBE[req.interestType ?? ''] || req.interestType) as LoanRequest['interestRateType'],
+  };
+}
+
 export const creditService = {
   getMyLoans: async (): Promise<Loan[]> => {
     const response = await api.get<PaginatedResponse<Loan>>('/loans/my');
-    return Array.isArray(response.data) ? response.data : (response.data?.content ?? []);
+    const raw = Array.isArray(response.data) ? response.data : (response.data?.content ?? []);
+    return raw.map(mapLoanFromBE);
   },
 
   getAll: async (filters?: LoanFilters): Promise<PaginatedResponse<Loan>> => {
     const params = new URLSearchParams();
-    if (filters?.loanType) params.append('loanType', filters.loanType);
+    if (filters?.loanType) params.append('loanType', loanTypeToBE[filters.loanType] || filters.loanType);
     if (filters?.status) params.append('status', filters.status);
     if (filters?.accountNumber) params.append('accountNumber', filters.accountNumber);
     if (filters?.page !== undefined) params.append('page', String(filters.page));
     if (filters?.limit !== undefined) params.append('size', String(filters.limit));
 
     const response = await api.get<PaginatedResponse<Loan>>('/loans', { params });
-    return response.data;
+    const data = response.data;
+    return {
+      ...data,
+      content: (data.content ?? []).map(mapLoanFromBE),
+    };
   },
 
   getById: async (id: number): Promise<Loan> => {
     const response = await api.get<Loan>(`/loans/${id}`);
-    return response.data;
+    return mapLoanFromBE(response.data);
   },
 
   apply: async (data: LoanApplicationRequest): Promise<LoanRequest> => {
-    // Mapiranje FE enum vrednosti -> BE enum vrednosti
-    const loanTypeMap: Record<string, string> = {
-      GOTOVINSKI: 'CASH', STAMBENI: 'MORTGAGE', AUTO: 'AUTO',
-      STUDENTSKI: 'STUDENT', REFINANSIRAJUCI: 'REFINANCING',
-      CASH: 'CASH', MORTGAGE: 'MORTGAGE', REFINANCING: 'REFINANCING', STUDENT: 'STUDENT',
-    };
-    const interestTypeMap: Record<string, string> = {
-      FIKSNI: 'FIXED', VARIJABILNI: 'VARIABLE', FIXED: 'FIXED', VARIABLE: 'VARIABLE',
-    };
+    const { interestRateType, ...rest } = data;
     const payload = {
-      ...data,
-      loanType: loanTypeMap[data.loanType] || data.loanType,
-      interestType: interestTypeMap[data.interestRateType] || data.interestRateType,
+      ...rest,
+      loanType: loanTypeToBE[data.loanType] || data.loanType,
+      interestType: interestTypeToBE[interestRateType ?? ''] || interestRateType,
     };
     const response = await api.post<LoanRequest>('/loans', payload);
-    return response.data;
+    return mapLoanRequestFromBE(response.data);
   },
 
   approve: async (requestId: number): Promise<void> => {
@@ -74,6 +111,10 @@ export const creditService = {
     if (filters?.limit !== undefined) params.append('size', String(filters.limit));
 
     const response = await api.get<PaginatedResponse<LoanRequest>>('/loans/requests', { params });
-    return response.data;
+    const data = response.data;
+    return {
+      ...data,
+      content: (data.content ?? []).map(mapLoanRequestFromBE),
+    };
   },
 };

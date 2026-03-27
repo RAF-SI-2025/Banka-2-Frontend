@@ -42,8 +42,6 @@ export default function RecipientsPage() {
     defaultValues: {
       name: '',
       accountNumber: '',
-      address: '',
-      phoneNumber: '',
     },
   });
 
@@ -52,8 +50,6 @@ export default function RecipientsPage() {
     defaultValues: {
       name: '',
       accountNumber: '',
-      address: '',
-      phoneNumber: '',
     },
   });
 
@@ -84,14 +80,10 @@ export default function RecipientsPage() {
     return safeRecipients.filter((recipient) => {
       const name = normalizeValue(recipient.name);
       const accountNumber = normalizeValue(recipient.accountNumber);
-      const address = normalizeValue(recipient.address);
-      const phoneNumber = normalizeValue(recipient.phoneNumber);
 
       return (
         name.includes(term) ||
-        accountNumber.includes(term) ||
-        address.includes(term) ||
-        phoneNumber.includes(term)
+        accountNumber.includes(term)
       );
     });
   }, [recipients, searchTerm]);
@@ -104,8 +96,6 @@ export default function RecipientsPage() {
       createForm.reset({
         name: '',
         accountNumber: '',
-        address: '',
-        phoneNumber: '',
       });
     }
   };
@@ -117,16 +107,12 @@ export default function RecipientsPage() {
       await paymentRecipientService.create({
         name: data.name.trim(),
         accountNumber: data.accountNumber.trim(),
-        address: data.address?.trim() || '',
-        phoneNumber: data.phoneNumber?.trim() || '',
       });
 
       toast.success('Primalac je uspesno dodat.');
       createForm.reset({
         name: '',
         accountNumber: '',
-        address: '',
-        phoneNumber: '',
       });
       setShowCreateForm(false);
       await loadRecipients();
@@ -143,8 +129,6 @@ export default function RecipientsPage() {
     editForm.reset({
       name: recipient.name,
       accountNumber: recipient.accountNumber,
-      address: recipient.address || '',
-      phoneNumber: recipient.phoneNumber || '',
     });
   };
 
@@ -153,8 +137,6 @@ export default function RecipientsPage() {
     editForm.reset({
       name: '',
       accountNumber: '',
-      address: '',
-      phoneNumber: '',
     });
   };
 
@@ -167,8 +149,6 @@ export default function RecipientsPage() {
       await paymentRecipientService.update(editingRecipientId, {
         name: data.name.trim(),
         accountNumber: data.accountNumber.trim(),
-        address: data.address?.trim() || '',
-        phoneNumber: data.phoneNumber?.trim() || '',
       });
 
       toast.success('Primalac je uspesno izmenjen.');
@@ -278,26 +258,6 @@ export default function RecipientsPage() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="create-address">Adresa</Label>
-                <Input
-                  id="create-address"
-                  placeholder="Unesite adresu"
-                  {...createForm.register('address')}
-                  disabled={creating}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="create-phone">Telefon</Label>
-                <Input
-                  id="create-phone"
-                  placeholder="Unesite telefon"
-                  {...createForm.register('phoneNumber')}
-                  disabled={creating}
-                />
-              </div>
-
               <div className="md:col-span-2 flex justify-end">
                 <Button
                   type="submit"
@@ -322,7 +282,7 @@ export default function RecipientsPage() {
 
         <CardContent className="space-y-4">
           <Input
-            placeholder="Pretraga po imenu, racunu, adresi ili telefonu"
+            placeholder="Pretraga po imenu ili broju racuna"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -333,8 +293,6 @@ export default function RecipientsPage() {
                 <div key={i} className="flex items-center gap-4">
                   <div className="h-4 w-32 rounded bg-muted animate-pulse" />
                   <div className="h-4 w-40 rounded bg-muted animate-pulse" />
-                  <div className="h-4 w-28 rounded bg-muted animate-pulse" />
-                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
                   <div className="h-8 w-28 rounded bg-muted animate-pulse" />
                 </div>
               ))}
@@ -360,8 +318,6 @@ export default function RecipientsPage() {
                   <tr className="border-b">
                     <th className="text-left py-2">Ime</th>
                     <th className="text-left py-2">Broj racuna</th>
-                    <th className="text-left py-2">Adresa</th>
-                    <th className="text-left py-2">Telefon</th>
                     <th className="text-left py-2">Akcije</th>
                   </tr>
                 </thead>
@@ -403,24 +359,6 @@ export default function RecipientsPage() {
                           </td>
 
                           <td className="py-2 align-top">
-                            <Input
-                              id={`edit-address-${recipient.id}`}
-                              placeholder="Adresa"
-                              {...editForm.register('address')}
-                              disabled={updating}
-                            />
-                          </td>
-
-                          <td className="py-2 align-top">
-                            <Input
-                              id={`edit-phone-${recipient.id}`}
-                              placeholder="Telefon"
-                              {...editForm.register('phoneNumber')}
-                              disabled={updating}
-                            />
-                          </td>
-
-                          <td className="py-2 align-top">
                             <div className="flex gap-2">
                               <Button
                                 type="button"
@@ -451,8 +389,6 @@ export default function RecipientsPage() {
                       <tr key={recipient.id} className="border-b hover:bg-muted/50 transition-colors">
                         <td className="py-2">{recipient.name}</td>
                         <td className="py-2">{recipient.accountNumber}</td>
-                        <td className="py-2">{recipient.address || '-'}</td>
-                        <td className="py-2">{recipient.phoneNumber || '-'}</td>
                         <td className="py-2">
                           <div className="flex gap-2">
                             <Button
