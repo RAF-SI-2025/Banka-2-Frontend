@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Inbox } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import orderService from '@/services/orderService';
 import type { Order } from '@/types/celina3';
@@ -13,14 +14,6 @@ function asArray<T>(value: unknown): T[] {
 type OrderStatusValue = 'PENDING' | 'APPROVED' | 'DECLINED' | 'DONE';
 type StatusFilter = OrderStatusValue | 'ALL';
 
-function statusBadgeClass(status: string): string {
-  if (status === 'PENDING') return 'bg-yellow-100 text-yellow-700';
-  if (status === 'APPROVED') return 'bg-green-100 text-green-700';
-  if (status === 'DECLINED') return 'bg-red-100 text-red-700';
-  if (status === 'DONE') return 'bg-gray-100 text-gray-700';
-  return 'bg-muted text-muted-foreground';
-}
-
 function statusLabel(status: string): string {
   if (status === 'PENDING') return 'Na čekanju';
   if (status === 'APPROVED') return 'Odobren';
@@ -31,12 +24,6 @@ function statusLabel(status: string): string {
 
 function directionLabel(direction: string): string {
   return direction === 'BUY' ? 'Kupovina' : 'Prodaja';
-}
-
-function directionBadgeClass(direction: string): string {
-  return direction === 'BUY'
-    ? 'bg-blue-100 text-blue-700'
-    : 'bg-orange-100 text-orange-700';
 }
 
 function orderTypeLabel(type: string): string {
@@ -155,14 +142,16 @@ export default function OrdersListPage() {
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
-      <div>
-        <div className="flex items-center gap-2">
-          <ClipboardList className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Pregled naloga</h1>
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
+          <ClipboardList className="h-5 w-5 text-white" />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pregledajte i obradite naloge za trgovinu hartijama od vrednosti.
-        </p>
+        <div>
+          <h1 className="text-2xl font-bold">Pregled naloga</h1>
+          <p className="text-sm text-muted-foreground">
+            Pregledajte i obradite naloge za trgovinu hartijama od vrednosti
+          </p>
+        </div>
       </div>
 
       {/* Status Filter */}
@@ -302,8 +291,8 @@ export default function OrdersListPage() {
                   const expired = isSettlementDatePassed(order);
 
                   return (
-                    <>{/* fragment for order row + optional detail row */}
-                      <tr key={`order-${order.id}`} className="border-b align-top hover:bg-muted/50 transition-colors">
+                    <React.Fragment key={order.id}>
+                      <tr className="border-b align-top hover:bg-muted/50 transition-colors">
                         <td className="py-2">{order.userName || '-'}</td>
                         <td className="py-2">{orderTypeLabel(order.orderType)}</td>
                         <td className="py-2">
@@ -312,19 +301,24 @@ export default function OrdersListPage() {
                             <span className="text-xs text-muted-foreground ml-1">({order.listingType})</span>
                           </div>
                         </td>
-                        <td className="py-2">{order.quantity}</td>
-                        <td className="py-2">{order.contractSize}</td>
-                        <td className="py-2">{formatAmount(order.pricePerUnit)}</td>
+                        <td className="py-2 font-mono">{order.quantity}</td>
+                        <td className="py-2 font-mono">{order.contractSize}</td>
+                        <td className="py-2 font-mono">{formatAmount(order.pricePerUnit)}</td>
                         <td className="py-2">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${directionBadgeClass(order.direction)}`}>
+                          <Badge variant={order.direction === 'BUY' ? 'success' : 'destructive'}>
                             {directionLabel(order.direction)}
-                          </span>
+                          </Badge>
                         </td>
-                        <td className="py-2">{order.remainingPortions}</td>
+                        <td className="py-2 font-mono">{order.remainingPortions}</td>
                         <td className="py-2">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${statusBadgeClass(order.status)}`}>
+                          <Badge variant={
+                            order.status === 'PENDING' ? 'warning' :
+                            order.status === 'APPROVED' ? 'info' :
+                            order.status === 'DECLINED' ? 'destructive' :
+                            'secondary'
+                          }>
                             {statusLabel(order.status)}
-                          </span>
+                          </Badge>
                         </td>
                         <td className="py-2">
                           <div className="flex flex-wrap gap-2">
@@ -359,7 +353,7 @@ export default function OrdersListPage() {
                         </td>
                       </tr>
                       {isExpanded && (
-                        <tr key={`detail-${order.id}`} className="border-b bg-muted/30">
+                        <tr className="border-b bg-muted/30">
                           <td className="py-3 px-2" colSpan={10}>
                             <div className="grid gap-2 md:grid-cols-3 text-sm">
                               <p>Hartija: <span className="font-medium">{order.listingName} ({order.listingTicker})</span></p>
@@ -388,7 +382,7 @@ export default function OrdersListPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   );
                 })}
               </tbody>

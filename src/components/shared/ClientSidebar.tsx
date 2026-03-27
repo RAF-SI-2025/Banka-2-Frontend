@@ -19,6 +19,10 @@ import {
   Sun,
   Moon,
   Monitor,
+  TrendingUp,
+  Briefcase,
+  ShoppingCart,
+  Calculator,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -89,6 +93,15 @@ export default function ClientSidebar() {
     []
   );
 
+  const tradingLinks: SidebarItem[] = useMemo(
+    () => [
+      { label: 'Berza', path: '/securities', icon: <TrendingUp className="h-4 w-4" /> },
+      { label: 'Portfolio', path: '/portfolio', icon: <Briefcase className="h-4 w-4" /> },
+      { label: 'Moji orderi', path: '/orders/my', icon: <ShoppingCart className="h-4 w-4" /> },
+    ],
+    []
+  );
+
   const employeeLinks: SidebarItem[] = useMemo(
     () => [
       { label: 'Portal racuna', path: '/employee/accounts', icon: <Building2 className="h-4 w-4" /> },
@@ -98,6 +111,9 @@ export default function ClientSidebar() {
       { label: 'Portal klijenata', path: '/employee/clients', icon: <Users className="h-4 w-4" /> },
       { label: 'Zahtevi za kredit', path: '/employee/loan-requests', icon: <ShieldCheck className="h-4 w-4" /> },
       { label: 'Svi krediti', path: '/employee/loans', icon: <FileText className="h-4 w-4" /> },
+      { label: 'Orderi', path: '/employee/orders', icon: <ShoppingCart className="h-4 w-4" /> },
+      { label: 'Aktuari', path: '/employee/actuaries', icon: <TrendingUp className="h-4 w-4" /> },
+      { label: 'Porez', path: '/employee/tax', icon: <Calculator className="h-4 w-4" /> },
     ],
     []
   );
@@ -192,7 +208,7 @@ export default function ClientSidebar() {
                   to={item.path}
                   className={linkClassName}
                   onClick={() => setOpen(false)}
-                  end={item.path === '/transfers'} // da /transfers ne hvata i /transfers/history
+                  end={item.path === '/transfers'}
                 >
                   {item.icon}
                   <span>{item.label}</span>
@@ -201,6 +217,26 @@ export default function ClientSidebar() {
             </div>
           </div>
           )}
+
+          <div className="space-y-2">
+            <p className="px-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+              Berza
+            </p>
+
+            <div className="space-y-0.5">
+              {tradingLinks.map((item) => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  className={linkClassName}
+                  onClick={() => setOpen(false)}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          </div>
 
           {isEmployeeOrAdmin && (
             <div className="space-y-2">

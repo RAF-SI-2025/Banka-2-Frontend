@@ -238,13 +238,17 @@ export default function MyOrdersPage() {
       <div className="container mx-auto py-6 space-y-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <div className="flex items-center gap-2">
-              <ClipboardList className="h-6 w-6 text-primary" />
-              <h1 className="text-3xl font-bold tracking-tight">Moji nalozi</h1>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
+                <ClipboardList className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold">Moji nalozi</h1>
+                <p className="text-sm text-muted-foreground">
+                  Pregled svih vasih BUY i SELL naloga sa detaljima izvrsenja
+                </p>
+              </div>
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Pregled svih vasih BUY i SELL naloga sa detaljima izvrsenja.
-            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 md:justify-end">
@@ -311,7 +315,10 @@ export default function MyOrdersPage() {
         <Card>
           <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <CardTitle>Pregled naloga</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+                Pregled naloga
+              </CardTitle>
               <CardDescription>
                 Lista je automatski sortirana po najnovijem datumu.
               </CardDescription>

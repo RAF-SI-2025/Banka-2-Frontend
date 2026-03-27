@@ -226,15 +226,17 @@ export default function PortfolioPage() {
   const unpaidTaxThisMonth = summary?.unpaidTaxThisMonth ?? 0;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <div className="flex items-center gap-2">
-          <Briefcase className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Moj portfolio</h1>
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
+          <Briefcase className="h-5 w-5 text-white" />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pregled hartija od vrednosti u vašem vlasništvu.
-        </p>
+        <div>
+          <h1 className="text-2xl font-bold">Moj portfolio</h1>
+          <p className="text-sm text-muted-foreground">
+            Pregled hartija od vrednosti u vasem vlasnistvu
+          </p>
+        </div>
       </div>
 
       {error && (
@@ -334,7 +336,10 @@ export default function PortfolioPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Hartije u vlasništvu</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+                Hartije u vlasnistvu
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {items.length === 0 ? (
@@ -382,28 +387,28 @@ export default function PortfolioPage() {
                             </div>
                           </TableCell>
 
-                          <TableCell>{formatAmount(item.quantity, 0)}</TableCell>
-                          <TableCell>{formatAmount(item.averageBuyPrice)}</TableCell>
-                          <TableCell>{formatAmount(item.currentPrice)}</TableCell>
+                          <TableCell className="font-mono">{formatAmount(item.quantity, 0)}</TableCell>
+                          <TableCell className="font-mono">{formatAmount(item.averageBuyPrice)}</TableCell>
+                          <TableCell className="font-mono">{formatAmount(item.currentPrice)}</TableCell>
 
                           <TableCell
-                            className={
+                            className={`font-mono font-semibold ${
                               isProfitPositive
-                                ? 'font-semibold text-emerald-600 dark:text-emerald-400'
-                                : 'font-semibold text-red-600 dark:text-red-400'
-                            }
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-red-600 dark:text-red-400'
+                            }`}
                           >
-                            {formatAmount(item.profit)}
+                            {isProfitPositive ? '+' : ''}{formatAmount(item.profit)}
                           </TableCell>
 
                           <TableCell
-                            className={
+                            className={`font-mono font-semibold ${
                               isProfitPositive
-                                ? 'font-semibold text-emerald-600 dark:text-emerald-400'
-                                : 'font-semibold text-red-600 dark:text-red-400'
-                            }
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-red-600 dark:text-red-400'
+                            }`}
                           >
-                            {formatPercent(item.profitPercent)}
+                            {isProfitPositive ? '+' : ''}{formatPercent(item.profitPercent)}
                           </TableCell>
 
                           <TableCell>{formatDateTime(item.lastModified)}</TableCell>

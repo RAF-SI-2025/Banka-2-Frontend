@@ -180,13 +180,18 @@ export default function ActuaryManagementPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Upravljanje aktuarima</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Pregled agenata, filteri i kontrola dnevnih limita
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
+            <Scale className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">Upravljanje aktuarima</h1>
+            <p className="text-sm text-muted-foreground">
+              Pregled agenata, filteri i kontrola dnevnih limita
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button

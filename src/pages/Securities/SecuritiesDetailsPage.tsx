@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   TrendingUp,
   TrendingDown,
-  ShoppingCart,
   BarChart3,
 } from 'lucide-react';
 import type { Listing, ListingDailyPrice } from '@/types/celina3';
@@ -135,14 +134,23 @@ export default function SecuritiesDetailsPage() {
         </div>
       </div>
 
-      {/* Buy button */}
-      <Button
-        className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20"
-        onClick={() => navigate(`/orders/new?listingId=${listing.id}&direction=BUY`)}
-      >
-        <ShoppingCart className="h-4 w-4 mr-2" />
-        Kupi {listing.ticker}
-      </Button>
+      {/* Buy / Sell buttons */}
+      <div className="flex gap-3">
+        <Button
+          className="bg-gradient-to-r from-emerald-500 to-green-600 text-white font-semibold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all"
+          onClick={() => navigate(`/orders/new?listingId=${listing.id}&direction=BUY`)}
+        >
+          <TrendingUp className="h-4 w-4 mr-2" />
+          Kupi
+        </Button>
+        <Button
+          className="bg-gradient-to-r from-red-500 to-rose-600 text-white font-semibold shadow-lg shadow-red-500/20 hover:shadow-red-500/30 transition-all"
+          onClick={() => navigate(`/orders/new?listingId=${listing.id}&direction=SELL`)}
+        >
+          <TrendingDown className="h-4 w-4 mr-2" />
+          Prodaj
+        </Button>
+      </div>
 
       {/* Chart */}
       <Card>

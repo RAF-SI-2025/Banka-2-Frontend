@@ -76,7 +76,7 @@ export default function SecuritiesListPage() {
       const result = await listingService.getAll(activeTab, debouncedSearch, page, PAGE_SIZE);
       setData(result);
     } catch {
-      setData({ content: [], totalPages: 0, totalElements: 0, number: 0, size: PAGE_SIZE, empty: true } as PaginatedResponse<Listing>);
+      setData({ content: [], totalPages: 0, totalElements: 0, number: 0, size: PAGE_SIZE } as PaginatedResponse<Listing>);
     } finally {
       setLoading(false);
     }
@@ -214,8 +214,10 @@ export default function SecuritiesListPage() {
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
                       onClick={() => navigate(`/securities/${listing.id}`)}
                     >
-                      <TableCell className="font-mono font-semibold">
-                        {listing.ticker}
+                      <TableCell>
+                        <span className="inline-flex items-center rounded-md bg-indigo-50 dark:bg-indigo-950/50 px-2 py-1 font-mono text-xs font-semibold text-indigo-700 dark:text-indigo-300 ring-1 ring-inset ring-indigo-600/20 dark:ring-indigo-500/30">
+                          {listing.ticker}
+                        </span>
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate">
                         {listing.name || '-'}

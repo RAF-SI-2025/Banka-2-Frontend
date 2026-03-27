@@ -5,6 +5,8 @@ import {
   FilePlus2,
   Loader2,
   ShieldCheck,
+  TrendingDown,
+  TrendingUp,
   TriangleAlert,
   Wallet,
   X,
@@ -706,14 +708,16 @@ export default function CreateOrderPage() {
   return (
     <>
       <div className="container mx-auto py-6 space-y-6">
-        <div>
-          <div className="flex items-center gap-2">
-            <FilePlus2 className="h-6 w-6 text-primary" />
-            <h1 className="text-3xl font-bold tracking-tight">Novi nalog</h1>
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
+            <FilePlus2 className="h-5 w-5 text-white" />
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Kreirajte BUY ili SELL nalog i proverite procenu troškova pre slanja.
-          </p>
+          <div>
+            <h1 className="text-2xl font-bold">Novi nalog</h1>
+            <p className="text-sm text-muted-foreground">
+              Kreirajte BUY ili SELL nalog i proverite procenu troskova pre slanja
+            </p>
+          </div>
         </div>
 
         {loadError && (
@@ -812,20 +816,25 @@ export default function CreateOrderPage() {
                   <fieldset className="space-y-3">
                     <legend className="text-sm font-medium">Smer</legend>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      {Object.values(OrderDirection).map((option) => (
-                        <label
-                          key={option}
-                          className={cn(
-                            'flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm transition-colors',
-                            direction === option
-                              ? 'border-primary bg-primary/5 shadow-sm'
-                              : 'border-input hover:border-primary/50'
-                          )}
-                        >
-                          <input type="radio" value={option} {...register('direction')} />
-                          <span>{DIRECTION_LABELS[option]}</span>
-                        </label>
-                      ))}
+                      {Object.values(OrderDirection).map((option) => {
+                        const isBuy = option === OrderDirection.BUY;
+                        const isSelected = direction === option;
+                        return (
+                          <label
+                            key={option}
+                            className={cn(
+                              'flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm font-medium transition-all',
+                              isSelected && isBuy && 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 shadow-sm',
+                              isSelected && !isBuy && 'border-red-500 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 shadow-sm',
+                              !isSelected && 'border-input hover:border-muted-foreground/50'
+                            )}
+                          >
+                            <input type="radio" value={option} {...register('direction')} className="sr-only" />
+                            {isBuy ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                            <span>{DIRECTION_LABELS[option]}</span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </fieldset>
 
