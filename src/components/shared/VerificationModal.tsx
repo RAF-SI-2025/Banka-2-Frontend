@@ -13,7 +13,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from '@/lib/notify';
-import { transactionService } from '@/services/transactionService';
 import { verificationSchema, type VerificationFormData } from '@/utils/validationSchemas.celina2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -91,14 +90,17 @@ export default function VerificationModal({
     setIsSubmitting(true);
     setServerError('');
     try {
-      await transactionService.verifyPayment({ transactionId, code: data.code });
+      // FIXME: Hardkodovana verifikacija dok se ne napravi Android app
+      if (data.code !== '1234') {
+        throw new Error('Kod nije validan. Pokušajte ponovo.');
+      }
       toast.success('Transakcija je uspešno verifikovana.');
       reset({ code: '' });
       onSuccess();
       onClose();
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      const msg = error.response?.data?.message || 'Kod nije validan. Pokušajte ponovo.';
+      const error = err as { message?: string; response?: { data?: { message?: string } } };
+      const msg = error.response?.data?.message || error.message || 'Kod nije validan. Pokušajte ponovo.';
 
       setAttemptsLeft((prev) => {
         const next = Math.max(0, prev - 1);
