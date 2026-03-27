@@ -1,13 +1,12 @@
 // FE2-09a/09b: Kursna lista i kalkulator konverzije
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { RefreshCw, Inbox } from 'lucide-react';
 import { toast } from '@/lib/notify';
-import { accountService } from '@/services/accountService';
 import { currencyService } from '@/services/currencyService';
-import type { Account, ExchangeRate } from '@/types/celina2';
+import type { ExchangeRate } from '@/types/celina2';
 import { exchangeSchema, type ExchangeFormData } from '@/utils/validationSchemas.celina2';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,7 +62,6 @@ function normalizeExchangeRates(rates: ExchangeRate[]): ExchangeRate[] {
 
 export default function ExchangePage() {
   const [rates, setRates] = useState<ExchangeRate[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<{ convertedAmount: number; rate: number } | null>(null);
 
@@ -71,7 +69,6 @@ export default function ExchangePage() {
     register,
     handleSubmit,
     watch,
-    setValue,
     formState: { errors },
   } = useForm<ExchangeFormData>({
     resolver: zodResolver(exchangeSchema),
@@ -79,7 +76,6 @@ export default function ExchangePage() {
       fromCurrency: 'EUR',
       toCurrency: 'RSD',
       amount: 0,
-      accountNumber: '',
     },
   });
 
@@ -87,54 +83,27 @@ export default function ExchangePage() {
     const load = async () => {
       setLoading(true);
       try {
-        const [exchangeRates, myAccounts] = await Promise.all([
-          currencyService.getExchangeRates(),
-          accountService.getMyAccounts(),
-        ]);
-
+        const exchangeRates = await currencyService.getExchangeRates();
         const safeRates = normalizeExchangeRates(asArray<ExchangeRate>(exchangeRates));
-        const safeAccounts = asArray<Account>(myAccounts);
-
         setRates(safeRates);
-        setAccounts(safeAccounts);
-
-        if (safeAccounts.length > 0) {
-          setValue('accountNumber', safeAccounts[0].accountNumber);
-        }
       } catch {
         toast.error('Neuspešno učitavanje kursne liste.');
         setRates([]);
-        setAccounts([]);
       } finally {
         setLoading(false);
       }
     };
 
     load();
-  }, [setValue]);
+  }, []);
 
   const fromCurrency = watch('fromCurrency');
   const toCurrency = watch('toCurrency');
   const amount = watch('amount');
-  const accountNumber = watch('accountNumber');
-
-  const safeAccounts = useMemo(() => asArray<Account>(accounts), [accounts]);
-  const eligibleAccounts = useMemo(
-    () => safeAccounts.filter((account) => account.currency === fromCurrency),
-    [safeAccounts, fromCurrency]
-  );
-
-  useEffect(() => {
-    if (eligibleAccounts.length > 0) {
-      setValue('accountNumber', eligibleAccounts[0].accountNumber);
-    } else {
-      setValue('accountNumber', '');
-    }
-  }, [eligibleAccounts, setValue]);
 
   useEffect(() => {
     setResult(null);
-  }, [fromCurrency, toCurrency, amount, accountNumber]);
+  }, [fromCurrency, toCurrency, amount]);
 
   const onSubmit = async (data: ExchangeFormData) => {
     if (data.fromCurrency === data.toCurrency) {
@@ -148,7 +117,6 @@ export default function ExchangePage() {
         fromCurrency: data.fromCurrency as never,
         toCurrency: data.toCurrency as never,
         amount: data.amount,
-        accountNumber: data.accountNumber,
       });
       setResult({ convertedAmount: conversion.convertedAmount, rate: conversion.exchangeRate });
     } catch {
