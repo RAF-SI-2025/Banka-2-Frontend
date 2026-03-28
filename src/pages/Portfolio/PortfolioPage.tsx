@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useEffect, useState, useMemo, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Briefcase,
@@ -7,7 +7,10 @@ import {
   Receipt,
   Wallet,
   ArrowRightLeft,
+  LineChart,
 } from 'lucide-react';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import type { PieLabelRenderProps } from 'recharts';
 
 import portfolioService from '@/services/portfolioService';
 import { toast } from '@/lib/notify';
@@ -85,6 +88,18 @@ function getListingTypeBadgeVariant(
   }
 }
 
+const PIE_COLORS: Record<string, string> = {
+  STOCK: '#6366f1',   // indigo
+  FUTURES: '#f59e0b', // amber
+  FOREX: '#10b981',   // emerald
+};
+
+const PIE_LABELS: Record<string, string> = {
+  STOCK: 'Akcije',
+  FUTURES: 'Fjučersi',
+  FOREX: 'Forex',
+};
+
 function SummarySkeleton() {
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -114,6 +129,72 @@ function TableSkeleton() {
             ))}
           </div>
         ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PortfolioDistributionChart({ items }: { items: PortfolioItem[] }) {
+  const data = useMemo(() => {
+    const groups: Record<string, number> = {};
+    items.forEach((item) => {
+      const type = item.listingType || 'OTHER';
+      const value = item.quantity * item.currentPrice;
+      groups[type] = (groups[type] ?? 0) + value;
+    });
+    return Object.entries(groups).map(([type, value]) => ({
+      name: PIE_LABELS[type] ?? type,
+      value,
+      type,
+    }));
+  }, [items]);
+
+  if (data.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+          Distribucija portfolija
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={300}>
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={100}
+              innerRadius={55}
+              paddingAngle={3}
+              label={(props: PieLabelRenderProps) =>
+                `${String(props.name ?? '')} ${(((props.percent as number) ?? 0) * 100).toFixed(0)}%`
+              }
+            >
+              {data.map((entry) => (
+                <Cell
+                  key={entry.type}
+                  fill={PIE_COLORS[entry.type] ?? '#94a3b8'}
+                  strokeWidth={0}
+                />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(value) => formatAmount(Number(value))}
+              contentStyle={{
+                borderRadius: '8px',
+                border: '1px solid hsl(var(--border))',
+                backgroundColor: 'hsl(var(--popover))',
+                color: 'hsl(var(--popover-foreground))',
+              }}
+            />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
       </CardContent>
     </Card>
   );
@@ -333,6 +414,22 @@ export default function PortfolioPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Portfolio Distribution Pie Chart */}
+          {items.length > 0 && <PortfolioDistributionChart items={items} />}
+
+          {/* Profit Placeholder */}
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-10 text-center">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <LineChart className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="font-medium">Profit grafikon dolazi uskoro</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Vizuelni prikaz profita po periodima bice dostupan u narednoj verziji.
+              </p>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
