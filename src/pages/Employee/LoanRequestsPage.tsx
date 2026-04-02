@@ -74,7 +74,7 @@ function statusBgTint(status: LoanStatus): string {
 export default function LoanRequestsPage() {
   const [loanRequests, setLoanRequests] = useState<LoanRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('PENDING');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [rejectingLoanId, setRejectingLoanId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState('');

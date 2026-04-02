@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import * as Dialog from '@radix-ui/react-dialog';
+import { Loader2, Mail, ShieldCheck, X } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { transactionService } from '@/services/transactionService';
 import { verificationSchema, type VerificationFormData } from '@/utils/validationSchemas.celina2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface VerificationModalProps {
   isOpen: boolean;
@@ -118,69 +119,146 @@ export default function VerificationModal({ isOpen, onClose, onVerified }: Verif
     await sendOtp();
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-background rounded-lg p-6 w-full max-w-md shadow-lg">
-        <h2 className="text-xl font-bold mb-1">Verifikacija transakcije</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          {otpSent
-            ? 'Otvorite mobilnu aplikaciju za verifikacioni kod.'
-            : 'Slanje verifikacionog koda...'}
-        </p>
+    <Dialog.Root
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isSubmitting) onClose();
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-background shadow-2xl">
+          {/* Header */}
+          <div className="flex items-start justify-between border-b p-6">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/20">
+                <ShieldCheck className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <Dialog.Title className="text-xl font-semibold">
+                  Verifikacija transakcije
+                </Dialog.Title>
+                <Dialog.Description className="mt-1 text-sm text-muted-foreground">
+                  {otpSent
+                    ? 'Otvorite mobilnu aplikaciju za verifikacioni kod.'
+                    : 'Slanje verifikacionog koda...'}
+                </Dialog.Description>
+              </div>
+            </div>
 
-        {serverError && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertDescription>{serverError}</AlertDescription>
-          </Alert>
-        )}
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="otp">Verifikacioni kod</Label>
-            <Input
-              {...register('code')}
-              id="otp"
-              inputMode="numeric"
-              placeholder="Unesite 6-cifreni kod"
-              className={errors.code ? 'border-destructive text-center' : 'text-center'}
-              autoFocus
-            />
-            {errors.code && <p className="text-sm text-destructive">{errors.code.message}</p>}
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                aria-label="Zatvori"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </Dialog.Close>
           </div>
 
-          <div className="rounded-md border p-3 text-sm space-y-1">
-            <p>Kod važi još: <span className="font-semibold">{formattedTime}</span></p>
-            <p>Preostalo pokušaja: <span className="font-semibold">{attemptsLeft}</span></p>
-          </div>
+          {/* Body */}
+          <div className="p-6">
+            {/* Error message */}
+            {serverError && (
+              <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {serverError}
+              </div>
+            )}
 
-          <div className="flex items-center justify-between text-sm">
-            <button type="button" onClick={handleResend} disabled={secondsLeft > 0}
-              className="text-primary disabled:text-muted-foreground">
-              {secondsLeft > 0 ? `Pošalji ponovo za ${secondsLeft}s` : 'Pošalji ponovo'}
-            </button>
-            <button type="button" className="text-muted-foreground hover:text-primary transition-colors"
-              onClick={async () => {
-                try {
-                  await transactionService.requestOtpViaEmail();
-                  toast.info('Kod poslat na email.');
-                } catch { toast.error('Greška.'); }
-              }}>
-              Pošaljite na email
-            </button>
-          </div>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+              {/* OTP Input */}
+              <div className="space-y-2">
+                <Label htmlFor="otp" className="text-sm font-medium">
+                  Verifikacioni kod
+                </Label>
+                <Input
+                  {...register('code')}
+                  id="otp"
+                  inputMode="numeric"
+                  placeholder="- - - - - -"
+                  className={`h-12 text-center text-xl font-semibold tracking-[0.5em] ${
+                    errors.code ? 'border-destructive focus-visible:ring-destructive' : ''
+                  }`}
+                  autoFocus
+                />
+                {errors.code && (
+                  <p className="text-sm font-medium text-destructive">{errors.code.message}</p>
+                )}
+              </div>
 
-          <div className="flex justify-end gap-2 mt-4">
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
-              Otkaži
-            </Button>
-            <Button type="submit" disabled={isSubmitting || attemptsLeft <= 0 || secondsLeft === 0}>
-              {isSubmitting ? 'Provera...' : 'Potvrdi'}
-            </Button>
+              {/* Timer & attempts info */}
+              <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Kod važi još</span>
+                  <span className={`font-mono font-semibold ${secondsLeft <= 60 ? 'text-destructive' : ''}`}>
+                    {formattedTime}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-muted-foreground">Preostalo pokušaja</span>
+                  <span className={`font-semibold ${attemptsLeft <= 1 ? 'text-destructive' : ''}`}>
+                    {attemptsLeft}
+                  </span>
+                </div>
+              </div>
+
+              {/* Resend & email fallback */}
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={secondsLeft > 0}
+                  className="text-sm text-primary transition-colors hover:text-primary/80 disabled:text-muted-foreground disabled:cursor-not-allowed"
+                >
+                  {secondsLeft > 0 ? `Pošalji ponovo za ${secondsLeft}s` : 'Pošalji ponovo'}
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-primary"
+                  onClick={async () => {
+                    try {
+                      await transactionService.requestOtpViaEmail();
+                      toast.info('Kod poslat na email.');
+                    } catch { toast.error('Greška.'); }
+                  }}
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  Pošaljite na email
+                </button>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  disabled={isSubmitting}
+                >
+                  Otkaži
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || attemptsLeft <= 0 || secondsLeft === 0}
+                  className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Provera...
+                    </>
+                  ) : (
+                    'Potvrdi'
+                  )}
+                </Button>
+              </div>
+            </form>
           </div>
-        </form>
-      </div>
-    </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

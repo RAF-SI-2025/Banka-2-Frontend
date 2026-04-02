@@ -31,7 +31,9 @@ function asArray<T>(value: unknown): T[] {
 
 function formatAmount(value: number | null | undefined, decimals = 2): string {
   const num = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+  return Number.isFinite(num)
+    ? num.toLocaleString('sr-RS', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    : (0).toFixed(decimals);
 }
 
 export default function NewPaymentPage() {
@@ -132,10 +134,11 @@ export default function NewPaymentPage() {
   const fromAccountCurrency = accountLookup.get(selectedFrom)?.currency;
 
   return (
-    <div className="container mx-auto py-6 max-w-2xl">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
-          <SendHorizonal className="h-5 w-5" />
+    <div className="container mx-auto py-8 max-w-3xl space-y-8">
+      {/* Page header */}
+      <div className="flex items-center gap-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+          <SendHorizonal className="h-6 w-6" />
         </div>
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Novi platni nalog</h1>
@@ -143,57 +146,75 @@ export default function NewPaymentPage() {
         </div>
       </div>
 
-      <Card className="mt-6">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
-            <CardTitle>Nalog za placanje</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-4">
+      {isLoading ? (
+        /* Skeleton loading state */
+        <Card className="rounded-2xl border shadow-sm">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-muted animate-pulse" />
+              <div className="h-6 w-48 rounded bg-muted animate-pulse" />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+              <div className="h-11 w-full rounded-xl bg-muted animate-pulse" />
+            </div>
+            <div className="space-y-2">
+              <div className="h-4 w-44 rounded bg-muted animate-pulse" />
+              <div className="h-11 w-full rounded-xl bg-muted animate-pulse" />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <div className="h-4 w-32 rounded bg-muted animate-pulse" />
-                <div className="h-10 w-full rounded bg-muted animate-pulse" />
-              </div>
-              <div className="space-y-2">
-                <div className="h-4 w-40 rounded bg-muted animate-pulse" />
-                <div className="h-10 w-full rounded bg-muted animate-pulse" />
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <div className="h-4 w-28 rounded bg-muted animate-pulse" />
-                  <div className="h-10 w-full rounded bg-muted animate-pulse" />
-                </div>
-                <div className="space-y-2">
-                  <div className="h-4 w-28 rounded bg-muted animate-pulse" />
-                  <div className="h-10 w-full rounded bg-muted animate-pulse" />
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <div className="h-4 w-20 rounded bg-muted animate-pulse" />
-                  <div className="h-10 w-full rounded bg-muted animate-pulse" />
-                </div>
-                <div className="space-y-2">
-                  <div className="h-4 w-28 rounded bg-muted animate-pulse" />
-                  <div className="h-10 w-full rounded bg-muted animate-pulse" />
-                </div>
+                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                <div className="h-11 w-full rounded-xl bg-muted animate-pulse" />
               </div>
               <div className="space-y-2">
-                <div className="h-4 w-32 rounded bg-muted animate-pulse" />
-                <div className="h-[88px] w-full rounded bg-muted animate-pulse" />
+                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                <div className="h-11 w-full rounded-xl bg-muted animate-pulse" />
               </div>
             </div>
-          ) : (
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="fromAccount">Racun platioca</Label>
+                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                <div className="h-11 w-full rounded-xl bg-muted animate-pulse" />
+              </div>
+              <div className="space-y-2">
+                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                <div className="h-11 w-full rounded-xl bg-muted animate-pulse" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+              <div className="h-[88px] w-full rounded-xl bg-muted animate-pulse" />
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                  <div className="h-11 w-full rounded-xl bg-muted animate-pulse" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+          {/* Section 1: Racun platioca */}
+          <Card className="rounded-2xl border shadow-sm">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2">
+                <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+                <CardTitle className="text-lg">Racun platioca</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="fromAccount" className="text-sm font-medium text-muted-foreground">Izaberite racun</Label>
                 <select
                   id="fromAccount"
                   title="Racun platioca"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   {...register('fromAccountNumber')}
                 >
                   <option value="">Izaberite racun</option>
@@ -209,12 +230,36 @@ export default function NewPaymentPage() {
                 )}
               </div>
 
+              {/* Currency info box */}
+              <div className="rounded-xl border border-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-950/20 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/50">
+                    <Wallet className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Valuta odabranog racuna</p>
+                    <p className="font-bold text-xl font-mono tabular-nums text-indigo-600 dark:text-indigo-400">{fromAccountCurrency || '-'}</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Section 2: Primalac */}
+          <Card className="rounded-2xl border shadow-sm">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2">
+                <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+                <CardTitle className="text-lg">Podaci o primaocu</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="savedRecipient">Sacuvani primalac (opciono)</Label>
+                <Label htmlFor="savedRecipient" className="text-sm font-medium text-muted-foreground">Sacuvani primalac (opciono)</Label>
                 <select
                   id="savedRecipient"
                   title="Sacuvani primalac"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   onChange={(e) => {
                     const accountNumber = e.target.value;
                     if (!accountNumber) return;
@@ -232,37 +277,48 @@ export default function NewPaymentPage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="toAccount">Racun primaoca</Label>
-                  <Input id="toAccount" {...register('toAccountNumber')} placeholder="18 cifara" />
+                  <Label htmlFor="toAccount" className="text-sm font-medium text-muted-foreground">Racun primaoca</Label>
+                  <Input id="toAccount" className="h-11 rounded-xl" {...register('toAccountNumber')} placeholder="18 cifara" />
                   {errors.toAccountNumber && (
                     <p className="text-sm text-destructive">{errors.toAccountNumber.message}</p>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="recipientName">Naziv primaoca</Label>
-                  <Input id="recipientName" {...register('recipientName')} placeholder="Naziv primaoca" />
+                  <Label htmlFor="recipientName" className="text-sm font-medium text-muted-foreground">Naziv primaoca</Label>
+                  <Input id="recipientName" className="h-11 rounded-xl" {...register('recipientName')} placeholder="Naziv primaoca" />
                   {errors.recipientName && <p className="text-sm text-destructive">{errors.recipientName.message}</p>}
                 </div>
               </div>
+            </CardContent>
+          </Card>
 
+          {/* Section 3: Detalji placanja */}
+          <Card className="rounded-2xl border shadow-sm">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2">
+                <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+                <CardTitle className="text-lg">Detalji placanja</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="amount">Iznos</Label>
-                  <Input id="amount" type="number" step="0.01" {...register('amount', { valueAsNumber: true })} />
+                  <Label htmlFor="amount" className="text-sm font-medium text-muted-foreground">Iznos</Label>
+                  <Input id="amount" className="h-11 rounded-xl font-mono tabular-nums" type="number" step="0.01" {...register('amount', { valueAsNumber: true })} />
                   {errors.amount && <p className="text-sm text-destructive">{errors.amount.message}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="paymentCode">Sifra placanja</Label>
-                  <Input id="paymentCode" {...register('paymentCode')} placeholder="289" />
+                  <Label htmlFor="paymentCode" className="text-sm font-medium text-muted-foreground">Sifra placanja</Label>
+                  <Input id="paymentCode" className="h-11 rounded-xl font-mono" {...register('paymentCode')} placeholder="289" />
                   {errors.paymentCode && <p className="text-sm text-destructive">{errors.paymentCode.message}</p>}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="purpose">Svrha placanja</Label>
+                <Label htmlFor="purpose" className="text-sm font-medium text-muted-foreground">Svrha placanja</Label>
                 <textarea
                   id="purpose"
-                  className="flex min-h-[88px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex min-h-[88px] w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   {...register('paymentPurpose')}
                   placeholder="Unesite svrhu placanja"
                 />
@@ -271,44 +327,34 @@ export default function NewPaymentPage() {
 
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label htmlFor="model">Model</Label>
-                  <Input id="model" {...register('model')} placeholder="npr. 97" />
+                  <Label htmlFor="model" className="text-sm font-medium text-muted-foreground">Model</Label>
+                  <Input id="model" className="h-11 rounded-xl font-mono" {...register('model')} placeholder="npr. 97" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="callNumber">Poziv na broj</Label>
-                  <Input id="callNumber" {...register('callNumber')} placeholder="Opcionalno" />
+                  <Label htmlFor="callNumber" className="text-sm font-medium text-muted-foreground">Poziv na broj</Label>
+                  <Input id="callNumber" className="h-11 rounded-xl font-mono" {...register('callNumber')} placeholder="Opcionalno" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="referenceNumber">Referentni broj</Label>
-                  <Input id="referenceNumber" {...register('referenceNumber')} placeholder="Opcionalno" />
+                  <Label htmlFor="referenceNumber" className="text-sm font-medium text-muted-foreground">Referentni broj</Label>
+                  <Input id="referenceNumber" className="h-11 rounded-xl font-mono" {...register('referenceNumber')} placeholder="Opcionalno" />
                 </div>
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="rounded-lg border border-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-950/20 p-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50">
-                    <Wallet className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Valuta odabranog racuna</p>
-                    <p className="font-bold text-lg text-indigo-600 dark:text-indigo-400">{fromAccountCurrency || '-'}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
-                >
-                  {isSubmitting ? 'Kreiranje...' : 'Nastavi na verifikaciju'}
-                </Button>
-              </div>
-            </form>
-          )}
-        </CardContent>
-      </Card>
+          {/* Submit section */}
+          <div className="flex justify-end pt-2">
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="h-11 px-8 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all duration-200"
+            >
+              <SendHorizonal className="h-4 w-4 mr-2" />
+              {isSubmitting ? 'Kreiranje...' : 'Nastavi na verifikaciju'}
+            </Button>
+          </div>
+        </form>
+      )}
 
       <VerificationModal
         isOpen={showVerification}

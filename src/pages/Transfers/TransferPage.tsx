@@ -282,12 +282,17 @@ export default function TransferPage() {
         </div>
       </div>
 
-      <Card className="mt-6">
+      <Card className="mt-6 rounded-2xl shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
             <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
             <CardTitle>{showConfirmStep ? 'Potvrda prenosa' : 'Novi prenos'}</CardTitle>
           </div>
+          <p className="text-sm text-muted-foreground">
+            {showConfirmStep
+              ? 'Proverite podatke pre potvrde prenosa.'
+              : 'Popunite podatke za interni prenos sredstava.'}
+          </p>
         </CardHeader>
 
         <CardContent>
@@ -316,50 +321,61 @@ export default function TransferPage() {
               <p className="mt-1 text-sm text-muted-foreground">Nemate dostupnih racuna za prenos.</p>
             </div>
           ) : showConfirmStep && submittedData && fromAccountData && toAccountData ? (
-            <div className="space-y-4">
-              <div className="rounded-md border p-4 space-y-2 text-sm">
-                <p>
-                  <span className="font-medium">Racun posiljaoca:</span> {fromAccountData.accountNumber} |{' '}
-                  {fromAccountData.currency}
-                </p>
-                <p>
-                  <span className="font-medium">Racun primaoca:</span> {toAccountData.accountNumber} |{' '}
-                  {toAccountData.currency}
-                </p>
-                <p>
-                  <span className="font-medium">Iznos:</span> {formatAmount(submittedData.amount)}{' '}
-                  {fromAccountData.currency}
-                </p>
+            <div className="space-y-5">
+              <div className="rounded-xl border bg-muted/30 p-5 space-y-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Racun posiljaoca</span>
+                  <span className="font-mono font-medium">{fromAccountData.accountNumber} | {fromAccountData.currency}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Racun primaoca</span>
+                  <span className="font-mono font-medium">{toAccountData.accountNumber} | {toAccountData.currency}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Iznos</span>
+                  <span className="font-mono font-medium">
+                    {formatAmount(submittedData.amount)} {fromAccountData.currency}
+                  </span>
+                </div>
 
                 {exchangePreview && (
                   <>
-                    <p>
-                      <span className="font-medium">Kurs:</span> 1 {fromAccountData.currency} ={' '}
-                      {formatAmount(exchangePreview.rate, 4)} {toAccountData.currency}
-                    </p>
-                    <p>
-                      <span className="font-medium">Konvertovani iznos:</span>{' '}
-                      {formatAmount(exchangePreview.convertedAmount)} {toAccountData.currency}
-                    </p>
-                    <p>
-                      <span className="font-medium">Provizija:</span> {formatAmount(commission)}{' '}
-                      {fromAccountData.currency}
-                    </p>
-                    <p>
-                      <span className="font-medium">Ukupno za terecenje:</span> {formatAmount(totalDebit)}{' '}
-                      {fromAccountData.currency}
-                    </p>
+                    <div className="border-t pt-3 flex items-center justify-between">
+                      <span className="text-muted-foreground">Kurs</span>
+                      <span className="font-mono font-medium">
+                        1 {fromAccountData.currency} = {formatAmount(exchangePreview.rate, 4)} {toAccountData.currency}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Konvertovani iznos</span>
+                      <span className="font-mono font-medium">
+                        {formatAmount(exchangePreview.convertedAmount)} {toAccountData.currency}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Provizija (0.5%)</span>
+                      <span className="font-mono font-medium">
+                        {formatAmount(commission)} {fromAccountData.currency}
+                      </span>
+                    </div>
+                    <div className="border-t pt-3 flex items-center justify-between">
+                      <span className="font-semibold">Ukupno za terecenje</span>
+                      <span className="font-mono font-semibold text-indigo-600 dark:text-indigo-400">
+                        {formatAmount(totalDebit)} {fromAccountData.currency}
+                      </span>
+                    </div>
                   </>
                 )}
 
                 {!exchangePreview && (
-                  <p>
-                    <span className="font-medium">Valute:</span> isti kurs nije potreban
-                  </p>
+                  <div className="border-t pt-3 flex items-center justify-between">
+                    <span className="text-muted-foreground">Konverzija</span>
+                    <span className="font-medium">Nije potrebna (ista valuta)</span>
+                  </div>
                 )}
               </div>
 
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-3">
                 <Button
                   type="button"
                   variant="outline"
@@ -379,13 +395,13 @@ export default function TransferPage() {
               </div>
             </div>
           ) : (
-            <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+            <form className="space-y-5" onSubmit={handleSubmit(onSubmit)} noValidate>
               <div className="space-y-2">
                 <Label htmlFor="fromAccount">Racun posiljaoca</Label>
                 <select
                   id="fromAccount"
                   title="Racun posiljaoca"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   {...register('fromAccountNumber')}
                   disabled={isSubmitting}
                 >
@@ -409,7 +425,7 @@ export default function TransferPage() {
                   <div className="flex items-center gap-2">
                     <Wallet className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                     <span className="text-muted-foreground">Raspolozivo stanje:</span>
-                    <span className="font-bold text-indigo-600 dark:text-indigo-400">{formatAmount(fromAccountData.availableBalance)} {fromAccountData.currency}</span>
+                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{formatAmount(fromAccountData.availableBalance)} {fromAccountData.currency}</span>
                   </div>
                 </div>
               )}
@@ -419,7 +435,7 @@ export default function TransferPage() {
                 <select
                   id="toAccount"
                   title="Racun primaoca"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   {...register('toAccountNumber')}
                   disabled={isSubmitting}
                 >
@@ -459,21 +475,31 @@ export default function TransferPage() {
               </div>
 
               {exchangePreview && fromAccountData && toAccountData && (
-                <div className="space-y-1 rounded-md border p-3 text-sm">
-                  <p>
-                    Kurs: 1 {fromAccountData.currency} = {formatAmount(exchangePreview.rate, 4)}{' '}
-                    {toAccountData.currency}
-                  </p>
-                  <p>
-                    Konvertovani iznos: {formatAmount(exchangePreview.convertedAmount)}{' '}
-                    {toAccountData.currency}
-                  </p>
-                  <p>
-                    Provizija: {formatAmount(commission)} {fromAccountData.currency}
-                  </p>
-                  <p>
-                    Ukupno za terecenje: {formatAmount(totalDebit)} {fromAccountData.currency}
-                  </p>
+                <div className="rounded-xl border bg-muted/30 p-4 space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Kurs</span>
+                    <span className="font-mono font-medium">
+                      1 {fromAccountData.currency} = {formatAmount(exchangePreview.rate, 4)} {toAccountData.currency}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Konvertovani iznos</span>
+                    <span className="font-mono font-medium">
+                      {formatAmount(exchangePreview.convertedAmount)} {toAccountData.currency}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Provizija (0.5%)</span>
+                    <span className="font-mono font-medium">
+                      {formatAmount(commission)} {fromAccountData.currency}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between border-t pt-2">
+                    <span className="font-medium">Ukupno za terecenje</span>
+                    <span className="font-mono font-semibold text-indigo-600 dark:text-indigo-400">
+                      {formatAmount(totalDebit)} {fromAccountData.currency}
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -481,10 +507,13 @@ export default function TransferPage() {
                 toAccountData &&
                 fromAccountData.currency === toAccountData.currency &&
                 amount > 0 && (
-                  <div className="space-y-1 rounded-md border p-3 text-sm">
-                    <p>
-                      Prenos bez konverzije: {formatAmount(amount)} {fromAccountData.currency}
-                    </p>
+                  <div className="rounded-xl border bg-muted/30 p-4 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Prenos bez konverzije</span>
+                      <span className="font-mono font-semibold text-indigo-600 dark:text-indigo-400">
+                        {formatAmount(amount)} {fromAccountData.currency}
+                      </span>
+                    </div>
                   </div>
                 )}
 
