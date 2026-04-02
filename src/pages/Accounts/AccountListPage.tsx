@@ -177,17 +177,20 @@ export default function AccountListPage() {
     setError('');
     try {
       const data = await accountService.getMyAccounts();
-      const safeData = (Array.isArray(data) ? data : []).map((a) => ({
+      const safeData = (Array.isArray(data) ? data : []).map((a) => {
+        const aAny = a as unknown as Record<string, unknown>;
+        return {
         ...a,
-        currency: a.currency || a.currencyCode || 'RSD',
+        currency: a.currency || (aAny.currencyCode as string) || 'RSD',
         availableBalance: Number(a.availableBalance) || 0,
         balance: Number(a.balance) || 0,
-        reservedBalance: Number(a.reservedBalance) || Number(a.reservedFunds) || 0,
+        reservedBalance: Number(a.reservedBalance) || Number(aAny.reservedFunds) || 0,
         accountType: normalizeAccountType(a.accountType),
         accountNumber: a.accountNumber || '',
         name: a.name || undefined,
         status: a.status || 'ACTIVE',
-      })) as Account[];
+      };
+      }) as Account[];
       setAccounts(safeData);
       if (safeData.length > 0 && selectedAccountId === null) {
         const sorted = [...safeData].sort((a, b) => b.availableBalance - a.availableBalance);

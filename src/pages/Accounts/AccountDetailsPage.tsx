@@ -190,12 +190,13 @@ export default function AccountDetailsPage() {
       setLoading(true);
       try {
         const raw = await accountService.getById(accountId);
+        const rawAny = raw as unknown as Record<string, unknown>;
         const accountData = {
           ...raw,
-          currency: raw.currency || raw.currencyCode || 'RSD',
+          currency: raw.currency || (rawAny.currencyCode as string) || 'RSD',
           availableBalance: Number(raw.availableBalance) || 0,
           balance: Number(raw.balance) || 0,
-          reservedBalance: Number(raw.reservedBalance) || Number(raw.reservedFunds) || 0,
+          reservedBalance: Number(raw.reservedBalance) || Number(rawAny.reservedFunds) || 0,
           dailyLimit: Number(raw.dailyLimit) || 0,
           monthlyLimit: Number(raw.monthlyLimit) || 0,
           dailySpending: Number(raw.dailySpending) || 0,

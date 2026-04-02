@@ -31,20 +31,20 @@ const interestTypeToBE: Record<string, string> = {
 };
 
 function mapLoanFromBE(loan: Loan): Loan {
+  const rawInterestType = (loan as unknown as Record<string, unknown>).interestType as string | undefined;
   return {
     ...loan,
     loanType: (loanTypeFromBE[loan.loanType] || loan.loanType) as Loan['loanType'],
-    interestType: loan.interestType,
-    interestRateType: (interestTypeFromBE[loan.interestType ?? ''] || loan.interestType) as Loan['interestRateType'],
+    interestRateType: (interestTypeFromBE[rawInterestType ?? loan.interestRateType ?? ''] || rawInterestType || loan.interestRateType) as Loan['interestRateType'],
   };
 }
 
 function mapLoanRequestFromBE(req: LoanRequest): LoanRequest {
+  const rawInterestType = (req as unknown as Record<string, unknown>).interestType as string | undefined;
   return {
     ...req,
     loanType: (loanTypeFromBE[req.loanType] || req.loanType) as LoanRequest['loanType'],
-    interestType: req.interestType,
-    interestRateType: (interestTypeFromBE[req.interestType ?? ''] || req.interestType) as LoanRequest['interestRateType'],
+    interestRateType: (interestTypeFromBE[rawInterestType ?? req.interestRateType ?? ''] || rawInterestType || req.interestRateType) as LoanRequest['interestRateType'],
   };
 }
 

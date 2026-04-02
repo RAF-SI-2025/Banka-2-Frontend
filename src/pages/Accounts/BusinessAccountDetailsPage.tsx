@@ -16,7 +16,7 @@ import {
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { transactionService } from '@/services/transactionService';
-import type { Account, CompanyInfo, Transaction } from '@/types/celina2';
+import type { Account, Firm, Transaction } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -77,7 +77,7 @@ export default function BusinessAccountDetailsPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [account, setAccount] = useState<Account | null>(null);
-  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
+  const [companyInfo, setCompanyInfo] = useState<Firm | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [renameValue, setRenameValue] = useState('');
@@ -97,12 +97,13 @@ export default function BusinessAccountDetailsPage() {
       setLoading(true);
       try {
         const raw = await accountService.getById(accountId);
+        const rawAny = raw as unknown as Record<string, unknown>;
         const accountData = {
           ...raw,
-          currency: raw.currency || raw.currencyCode || 'RSD',
+          currency: raw.currency || (rawAny.currencyCode as string) || 'RSD',
           availableBalance: Number(raw.availableBalance) || 0,
           balance: Number(raw.balance) || 0,
-          reservedBalance: Number(raw.reservedBalance) || Number(raw.reservedFunds) || 0,
+          reservedBalance: Number(raw.reservedBalance) || Number(rawAny.reservedFunds) || 0,
           dailyLimit: Number(raw.dailyLimit) || 0,
           monthlyLimit: Number(raw.monthlyLimit) || 0,
           dailySpending: Number(raw.dailySpending) || 0,
@@ -110,7 +111,7 @@ export default function BusinessAccountDetailsPage() {
           maintenanceFee: Number(raw.maintenanceFee) || 0,
         } as Account;
         setAccount(accountData);
-        setCompanyInfo(accountData.company || null);
+        setCompanyInfo((rawAny.company as Firm) || (rawAny.firm as Firm) || null);
         setRenameValue(accountData.name || '');
         setDailyLimit(String(accountData.dailyLimit));
         setMonthlyLimit(String(accountData.monthlyLimit));
@@ -275,7 +276,7 @@ export default function BusinessAccountDetailsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <p className="text-sm text-muted-foreground">Naziv firme</p>
-                <p className="font-medium">{companyInfo.name}</p>
+                <p className="font-medium">{companyInfo.companyName}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Maticni broj</p>
@@ -283,7 +284,7 @@ export default function BusinessAccountDetailsPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">PIB</p>
-                <p className="font-medium">{companyInfo.taxNumber}</p>
+                <p className="font-medium">{companyInfo.taxId}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Sifra delatnosti</p>

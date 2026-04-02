@@ -89,6 +89,9 @@ export const LoanStatus = {
   REJECTED: 'REJECTED',
   ACTIVE: 'ACTIVE',
   CLOSED: 'CLOSED',
+  LATE: 'LATE',
+  PAID: 'PAID',
+  PAID_OFF: 'PAID_OFF',
 } as const;
 export type LoanStatus = (typeof LoanStatus)[keyof typeof LoanStatus];
 
