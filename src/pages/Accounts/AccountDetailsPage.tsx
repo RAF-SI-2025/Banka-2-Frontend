@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ResponsiveContainer, LineChart, Line } from 'recharts';
+import VerificationModal from '@/components/shared/VerificationModal';
 
 const accountTypeLabels: Record<string, string> = {
   TEKUCI: 'Tekuci',
@@ -175,6 +176,7 @@ export default function AccountDetailsPage() {
   const [isSavingLimits, setIsSavingLimits] = useState(false);
   const [showLimits, setShowLimits] = useState(false);
   const [showRename, setShowRename] = useState(false);
+  const [showVerification, setShowVerification] = useState(false);
 
   // Stable sparkline data
   const sparklineRef = useRef<number[] | null>(null);
@@ -259,7 +261,7 @@ export default function AccountDetailsPage() {
     }
   };
 
-  const saveLimits = async () => {
+  const saveLimits = () => {
     if (!account) return;
     const parsedDaily = Number(dailyLimit);
     const parsedMonthly = Number(monthlyLimit);
@@ -267,18 +269,29 @@ export default function AccountDetailsPage() {
       toast.error('Limiti moraju biti nenegativni brojevi.');
       return;
     }
+    // Validation passed — open OTP verification modal
+    setShowVerification(true);
+  };
+
+  const handleLimitVerified = async (otpCode: string) => {
+    if (!account) return;
+    const parsedDaily = Number(dailyLimit);
+    const parsedMonthly = Number(monthlyLimit);
 
     setIsSavingLimits(true);
     try {
       await accountService.changeLimit(account.id, {
         dailyLimit: parsedDaily,
         monthlyLimit: parsedMonthly,
+        otpCode,
       });
       setAccount({ ...account, dailyLimit: parsedDaily, monthlyLimit: parsedMonthly });
       toast.success('Limiti su uspesno sacuvani.');
+      setShowVerification(false);
       setShowLimits(false);
-    } catch {
-      toast.error('Promena limita nije uspela.');
+    } catch (err) {
+      // Re-throw so VerificationModal can handle it (decrement attempts, show error)
+      throw err;
     } finally {
       setIsSavingLimits(false);
     }
@@ -587,6 +600,13 @@ export default function AccountDetailsPage() {
           </div>
         )}
       </section>
+
+      {/* OTP Verification Modal for limit changes */}
+      <VerificationModal
+        isOpen={showVerification}
+        onClose={() => setShowVerification(false)}
+        onVerified={handleLimitVerified}
+      />
     </div>
   );
 }

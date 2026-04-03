@@ -17,7 +17,7 @@ import { toast } from '@/lib/notify';
 import { useAuth } from '@/context/AuthContext';
 import { cardService } from '@/services/cardService';
 import { accountService } from '@/services/accountService';
-import type { Card, Account } from '@/types/celina2';
+import type { Card, Account, AuthorizedPerson } from '@/types/celina2';
 import { asArray, formatAmount, formatDate } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Card as UICard, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,7 +28,7 @@ import { Switch } from '@/components/ui/switch';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { CreditCard, Loader2, Plus, Wifi, Shield, Calendar } from 'lucide-react';
+import { CreditCard, Loader2, Plus, Wifi, Shield, Calendar, UserPlus } from 'lucide-react';
 
 
 function maskCardNumber(number: string): string {
@@ -236,6 +236,16 @@ export default function CardListPage() {
   const [newCardLimit, setNewCardLimit] = useState('100000');
   const [creatingCard, setCreatingCard] = useState(false);
 
+  // Authorized person state (for business accounts)
+  const [cardRecipient, setCardRecipient] = useState<'self' | 'authorized'>('self');
+  const [authorizedPersons, setAuthorizedPersons] = useState<AuthorizedPerson[]>([]);
+  const [selectedAuthorizedPersonId, setSelectedAuthorizedPersonId] = useState<string>('');
+  const [showNewAuthorizedPerson, setShowNewAuthorizedPerson] = useState(false);
+  const [newApFirstName, setNewApFirstName] = useState('');
+  const [newApLastName, setNewApLastName] = useState('');
+  const [newApEmail, setNewApEmail] = useState('');
+  const [newApPhone, setNewApPhone] = useState('');
+
   const loadCards = async () => {
     setLoading(true);
     try {
@@ -249,6 +259,9 @@ export default function CardListPage() {
     }
   };
 
+  const selectedAccount = accounts.find((a) => String(a.id) === selectedAccountId);
+  const isBizAccount = selectedAccount?.accountType === 'BUSINESS' || selectedAccount?.accountType === 'POSLOVNI';
+
   useEffect(() => {
     loadCards();
     accountService.getMyAccounts().then((data) => {
@@ -256,17 +269,29 @@ export default function CardListPage() {
     }).catch(() => setAccounts([]));
   }, []);
 
+  // Fetch authorized persons when a business account is selected
+  useEffect(() => {
+    if (isBizAccount && selectedAccount?.accountNumber) {
+      cardService.getAuthorizedPersons(selectedAccount.accountNumber)
+        .then((data) => setAuthorizedPersons(Array.isArray(data) ? data : []))
+        .catch(() => setAuthorizedPersons([]));
+    } else {
+      setAuthorizedPersons([]);
+      setCardRecipient('self');
+    }
+  }, [selectedAccountId, isBizAccount, selectedAccount?.accountNumber]);
+
   const handleCreateCard = async () => {
     if (!selectedAccountId) {
       toast.error('Izaberite racun za karticu.');
       return;
     }
 
-    const selectedAccount = accounts.find((a) => String(a.id) === selectedAccountId);
+    const acct = accounts.find((a) => String(a.id) === selectedAccountId);
     const cardsForAccount = asArray<Card>(cards).filter(
-      (c) => c.accountNumber === selectedAccount?.accountNumber && c.status !== 'DEACTIVATED'
+      (c) => c.accountNumber === acct?.accountNumber && c.status !== 'DEACTIVATED'
     );
-    const isBusiness = selectedAccount?.accountType === 'BUSINESS' || selectedAccount?.accountType === 'POSLOVNI';
+    const isBusiness = acct?.accountType === 'BUSINESS' || acct?.accountType === 'POSLOVNI';
     const maxCards = isBusiness ? 1 : 2;
     if (cardsForAccount.length >= maxCards) {
       toast.error(
@@ -277,16 +302,51 @@ export default function CardListPage() {
       return;
     }
 
+    // Validate authorized person for business accounts
+    if (isBusiness && cardRecipient === 'authorized') {
+      if (showNewAuthorizedPerson) {
+        if (!newApFirstName.trim() || !newApLastName.trim() || !newApEmail.trim() || !newApPhone.trim()) {
+          toast.error('Popunite sve podatke o ovlascenom licu.');
+          return;
+        }
+      } else if (!selectedAuthorizedPersonId) {
+        toast.error('Izaberite ovlasceno lice.');
+        return;
+      }
+    }
+
     setCreatingCard(true);
     try {
-      await cardService.submitRequest({
+      const requestData: { accountId: number; cardLimit?: number; authorizedPersonId?: number; authorizedPerson?: Partial<import('@/types/celina2').AuthorizedPerson> } = {
         accountId: Number(selectedAccountId),
         cardLimit: Number(newCardLimit) || 100000,
-      });
+      };
+
+      if (isBusiness && cardRecipient === 'authorized') {
+        if (showNewAuthorizedPerson) {
+          requestData.authorizedPerson = {
+            firstName: newApFirstName.trim(),
+            lastName: newApLastName.trim(),
+            email: newApEmail.trim(),
+            phoneNumber: newApPhone.trim(),
+          };
+        } else {
+          requestData.authorizedPersonId = Number(selectedAuthorizedPersonId);
+        }
+      }
+
+      await cardService.submitRequest(requestData);
       toast.success('Zahtev za karticu je uspesno podnet! Ceka odobrenje zaposlenog.');
       setShowNewCard(false);
       setSelectedAccountId('');
       setNewCardLimit('100000');
+      setCardRecipient('self');
+      setSelectedAuthorizedPersonId('');
+      setShowNewAuthorizedPerson(false);
+      setNewApFirstName('');
+      setNewApLastName('');
+      setNewApEmail('');
+      setNewApPhone('');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       toast.error(error.response?.data?.message || 'Podnosenje zahteva nije uspelo.');
@@ -428,6 +488,100 @@ export default function CardListPage() {
                 <Input type="number" value={newCardLimit} onChange={(e) => setNewCardLimit(e.target.value)} />
               </div>
             </div>
+
+            {/* Authorized person section — only for business accounts */}
+            {isBizAccount && (
+              <div className="space-y-4 rounded-xl border p-4 bg-muted/30">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <UserPlus className="h-4 w-4 text-indigo-500" />
+                  Kartica za
+                </div>
+                <Select value={cardRecipient} onValueChange={(val) => {
+                  setCardRecipient(val as 'self' | 'authorized');
+                  setSelectedAuthorizedPersonId('');
+                  setShowNewAuthorizedPerson(false);
+                }}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="self">Za sebe (vlasnik racuna)</SelectItem>
+                    <SelectItem value="authorized">Za ovlasceno lice</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {cardRecipient === 'authorized' && (
+                  <div className="space-y-4">
+                    {/* Select existing or add new */}
+                    <Select
+                      value={showNewAuthorizedPerson ? '__new__' : selectedAuthorizedPersonId}
+                      onValueChange={(val) => {
+                        if (val === '__new__') {
+                          setShowNewAuthorizedPerson(true);
+                          setSelectedAuthorizedPersonId('');
+                        } else {
+                          setShowNewAuthorizedPerson(false);
+                          setSelectedAuthorizedPersonId(val);
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Izaberite ovlasceno lice" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {authorizedPersons.map((ap) => (
+                          <SelectItem key={ap.id} value={String(ap.id)}>
+                            {ap.firstName} {ap.lastName} — {ap.email}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="__new__">+ Novo ovlasceno lice</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {/* New authorized person form */}
+                    {showNewAuthorizedPerson && (
+                      <div className="grid gap-3 md:grid-cols-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div className="space-y-2">
+                          <Label>Ime *</Label>
+                          <Input
+                            value={newApFirstName}
+                            onChange={(e) => setNewApFirstName(e.target.value)}
+                            placeholder="Ime ovlascenog lica"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Prezime *</Label>
+                          <Input
+                            value={newApLastName}
+                            onChange={(e) => setNewApLastName(e.target.value)}
+                            placeholder="Prezime ovlascenog lica"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Email *</Label>
+                          <Input
+                            type="email"
+                            value={newApEmail}
+                            onChange={(e) => setNewApEmail(e.target.value)}
+                            placeholder="email@primer.rs"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Telefon *</Label>
+                          <Input
+                            type="tel"
+                            value={newApPhone}
+                            onChange={(e) => setNewApPhone(e.target.value)}
+                            placeholder="+381..."
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <Button
               onClick={handleCreateCard}
               disabled={creatingCard || !selectedAccountId}

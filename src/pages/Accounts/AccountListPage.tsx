@@ -14,6 +14,7 @@ import {
   Wallet,
   Plus,
   CreditCard,
+  ArrowUpDown,
 } from 'lucide-react';
 import type { Account, AccountType, Transaction, TransactionStatus, TransactionFilters } from '@/types/celina2';
 import { useAuth } from '@/context/AuthContext';
@@ -168,6 +169,7 @@ export default function AccountListPage() {
   const [txDateFrom, setTxDateFrom] = useState('');
   const [txDateTo, setTxDateTo] = useState('');
   const [showTxFilters, setShowTxFilters] = useState(false);
+  const [txSortBy, setTxSortBy] = useState<'date' | 'type'>('date');
 
   const selectedAccount = accounts.find((a) => a.id === selectedAccountId) ?? null;
 
@@ -283,6 +285,42 @@ export default function AccountListPage() {
     return sum;
   }, 0);
   const totalFxAccounts = accounts.filter(a => a.currency !== 'RSD').length;
+
+  // --- Transaction type classification ---
+  function classifyTxType(tx: Transaction): string {
+    if (!selectedAccount) return 'Ostalo';
+    const isOutgoing = tx.fromAccountNumber === selectedAccount.accountNumber;
+    const isInternal = accounts.some(
+      (a) => a.accountNumber === (isOutgoing ? tx.toAccountNumber : tx.fromAccountNumber)
+    );
+    // Check if it looks like an exchange (same owner, different currency hint in description)
+    const descLower = (tx.paymentPurpose || (tx as unknown as Record<string, string>).description || '').toLowerCase();
+    if (descLower.includes('menjac') || descLower.includes('konverzij') || descLower.includes('exchange')) {
+      return 'Menjacnica';
+    }
+    if (isInternal) return 'Transfer';
+    return isOutgoing ? 'Isplata' : 'Uplata';
+  }
+
+  const txTypeSortOrder: Record<string, number> = {
+    'Uplata': 0,
+    'Isplata': 1,
+    'Transfer': 2,
+    'Menjacnica': 3,
+    'Ostalo': 4,
+  };
+
+  const sortedTransactions = [...transactions].sort((a, b) => {
+    if (txSortBy === 'type') {
+      const typeA = txTypeSortOrder[classifyTxType(a)] ?? 99;
+      const typeB = txTypeSortOrder[classifyTxType(b)] ?? 99;
+      if (typeA !== typeB) return typeA - typeB;
+      // Secondary sort by date within same type
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+    // Default: sort by date descending
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
 
   // --- Transaction pagination info ---
   const txFrom = txTotalElements > 0 ? txPage * txRowsPerPage + 1 : 0;
@@ -637,6 +675,16 @@ export default function AccountListPage() {
                 </CardTitle>
               </div>
               <div className="flex items-center gap-2">
+                <Select value={txSortBy} onValueChange={(val) => setTxSortBy(val as 'date' | 'type')}>
+                  <SelectTrigger className="w-[180px] h-9">
+                    <ArrowUpDown className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date">Po datumu</SelectItem>
+                    <SelectItem value="type">Po tipu transakcije</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button
                   variant={showTxFilters ? 'secondary' : 'outline'}
                   size="icon"
@@ -738,6 +786,7 @@ export default function AccountListPage() {
                     <TableRow>
                       <TableHead className="w-[40px]"></TableHead>
                       <TableHead>Datum</TableHead>
+                      <TableHead>Tip</TableHead>
                       <TableHead>Primalac / Posiljalac</TableHead>
                       <TableHead>Svrha</TableHead>
                       <TableHead className="text-right">Iznos</TableHead>
@@ -745,7 +794,7 @@ export default function AccountListPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {transactions.map((tx) => {
+                    {sortedTransactions.map((tx) => {
                       const isOutgoing = tx.fromAccountNumber === selectedAccount.accountNumber;
                       return (
                         <TableRow key={tx.id} className="hover:bg-muted/50 transition-colors">
@@ -758,6 +807,11 @@ export default function AccountListPage() {
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
                             {formatDate(tx.createdAt)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="text-[11px] font-medium whitespace-nowrap">
+                              {classifyTxType(tx)}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             {tx.recipientName || '\u2014'}

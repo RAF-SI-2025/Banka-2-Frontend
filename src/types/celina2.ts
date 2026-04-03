@@ -333,6 +333,7 @@ export interface CreateAccountRequest {
 export interface ChangeLimitRequest {
   dailyLimit?: number;
   monthlyLimit?: number;
+  otpCode?: string;
 }
 
 export interface CreateRecipientRequest {

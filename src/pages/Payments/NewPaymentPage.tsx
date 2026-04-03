@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import VerificationModal from '@/components/shared/VerificationModal';
-import { SendHorizonal, Wallet, ArrowRight, User, FileText, Hash } from 'lucide-react';
+import { SendHorizonal, Wallet, ArrowRight, User, FileText, Hash, BookUser, CheckCircle2, X } from 'lucide-react';
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -49,6 +49,8 @@ export default function NewPaymentPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting] = useState(false);
   const [showVerification, setShowVerification] = useState(false);
+  const [saveRecipientPrompt, setSaveRecipientPrompt] = useState<{ name: string; accountNumber: string } | null>(null);
+  const [savingRecipient, setSavingRecipient] = useState(false);
 
   const {
     register,
@@ -487,6 +489,83 @@ export default function NewPaymentPage() {
 
       </div>{/* end grid */}
 
+      {/* Save recipient prompt - shown after successful payment */}
+      {saveRecipientPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-up">
+          <Card className="w-full max-w-md mx-4 rounded-2xl border shadow-2xl">
+            <CardContent className="p-6 space-y-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+                    <BookUser className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-base">Sacuvaj primaoca?</h3>
+                    <p className="text-sm text-muted-foreground">Za brze buduce uplate</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Zatvori"
+                  title="Zatvori"
+                  onClick={() => {
+                    setSaveRecipientPrompt(null);
+                    navigate('/payments/history');
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted transition-colors"
+                >
+                  <X className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </div>
+
+              <div className="rounded-xl border bg-muted/30 p-4 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold">{saveRecipientPrompt.name}</span>
+                </div>
+                <p className="text-xs font-mono text-muted-foreground ml-6">{saveRecipientPrompt.accountNumber}</p>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1 h-11 rounded-xl"
+                  onClick={() => {
+                    setSaveRecipientPrompt(null);
+                    navigate('/payments/history');
+                  }}
+                >
+                  Preskoci
+                </Button>
+                <Button
+                  disabled={savingRecipient}
+                  className="flex-1 h-11 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all duration-200"
+                  onClick={async () => {
+                    setSavingRecipient(true);
+                    try {
+                      await paymentRecipientService.create({
+                        name: saveRecipientPrompt.name,
+                        accountNumber: saveRecipientPrompt.accountNumber,
+                      });
+                      toast.success('Primalac sacuvan u sablone.');
+                    } catch {
+                      toast.error('Cuvanje primaoca nije uspelo.');
+                    } finally {
+                      setSavingRecipient(false);
+                      setSaveRecipientPrompt(null);
+                      navigate('/payments/history');
+                    }
+                  }}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  {savingRecipient ? 'Cuvanje...' : 'Sacuvaj'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <VerificationModal
         isOpen={showVerification}
         onClose={() => setShowVerification(false)}
@@ -509,16 +588,15 @@ export default function NewPaymentPage() {
             toast.success('Placanje je uspesno izvrseno.');
             setShowVerification(false);
 
-            // Sacuvaj primaoca
+            // Proveri da li je primalac vec sacuvan — ako nije, ponudi opciju cuvanja
             const toAcc = formData.toAccountNumber;
             const recipName = formData.recipientName || 'Novi primalac';
-            if (toAcc && !recipients.some(r => r.accountNumber === toAcc)) {
-              try {
-                await paymentRecipientService.create({ name: recipName, accountNumber: toAcc });
-                toast.success('Primalac sacuvan u sablone.');
-              } catch { /* ignore */ }
+            const isAlreadySaved = toAcc && recipients.some(r => r.accountNumber === toAcc);
+            if (toAcc && !isAlreadySaved) {
+              setSaveRecipientPrompt({ name: recipName, accountNumber: toAcc });
+            } else {
+              navigate('/payments/history');
             }
-            navigate('/payments/history');
           } catch (err: unknown) {
             const error = err as { response?: { data?: { message?: string } } };
             toast.error(error.response?.data?.message || 'Kreiranje placanja nije uspelo.');

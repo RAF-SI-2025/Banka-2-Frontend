@@ -5,14 +5,15 @@ import {
   Users, UserPlus, Building2, BookUser, ShieldCheck, FileText,
   Wallet, Send, CreditCard,
   TrendingUp, Landmark, ArrowRightLeft, PiggyBank,
-  ChevronRight, Banknote, BarChart3, Clock, Eye, EyeOff,
+  ChevronRight, Banknote, BarChart3, Clock, Eye, EyeOff, Plus,
 } from 'lucide-react';
 import { accountService } from '@/services/accountService';
 import { currencyService } from '@/services/currencyService';
 import { transactionService } from '@/services/transactionService';
 import { employeeService } from '@/services/employeeService';
 import { creditService } from '@/services/creditService';
-import type { Account, ExchangeRate, Transaction } from '@/types/celina2';
+import { paymentRecipientService } from '@/services/paymentRecipientService';
+import type { Account, ExchangeRate, Transaction, PaymentRecipient } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -224,6 +225,7 @@ export default function HomePage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
+  const [recipients, setRecipients] = useState<PaymentRecipient[]>([]);
   const [loading, setLoading] = useState(true);
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [adminStats, setAdminStats] = useState({ employees: 0, active: 0, loans: 0, loading: true });
@@ -236,15 +238,17 @@ export default function HomePage() {
         try { return await fn(); } catch { return fb; }
       };
       try {
-        const [myAccounts, recentTx, rates] = await Promise.all([
+        const [myAccounts, recentTx, rates, savedRecipients] = await Promise.all([
           safe(() => accountService.getMyAccounts(), []),
           safe(() => transactionService.getAll({ page: 0, limit: 6 }), { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 }),
           safe(() => currencyService.getExchangeRates(), []),
+          safe(() => paymentRecipientService.getAll(), []),
         ]);
         setAccounts(asArray<Account>(myAccounts));
         const txSrc = recentTx?.content ?? recentTx;
         setTransactions(asArray<Transaction>(txSrc).slice(0, 6));
         setExchangeRates(asArray<ExchangeRate>(rates).filter(r => r.currency !== 'RSD').slice(0, 7));
+        setRecipients(asArray<PaymentRecipient>(savedRecipients).slice(0, 6));
       } catch { toast.error('Greska pri ucitavanju.'); } finally { setLoading(false); }
     };
     load();
@@ -537,6 +541,57 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+
+      {/* Quick Payment - Saved Recipients */}
+      {!loading && recipients.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Send className="h-5 w-5 text-indigo-500" />
+              Brzo placanje
+            </h2>
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => navigate('/payments/recipients')}>
+              Svi primaoci <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-thin">
+            {recipients.map((recipient) => {
+              const initials = recipient.name
+                .split(/\s+/)
+                .map(w => w.charAt(0).toUpperCase())
+                .slice(0, 2)
+                .join('');
+              return (
+                <button
+                  key={recipient.id}
+                  type="button"
+                  onClick={() => navigate(`/payments/new?to=${encodeURIComponent(recipient.accountNumber)}&recipient=${encodeURIComponent(recipient.name)}`)}
+                  className="flex-shrink-0 group flex flex-col items-center gap-2.5 rounded-2xl border bg-card p-4 w-32 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-indigo-500/30"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white text-sm font-bold shadow-lg shadow-indigo-500/20 transition-transform duration-300 group-hover:scale-110">
+                    {initials || '?'}
+                  </div>
+                  <div className="text-center min-w-0 w-full">
+                    <p className="text-sm font-semibold truncate">{recipient.name}</p>
+                    <p className="text-[11px] text-muted-foreground font-mono truncate">{recipient.accountNumber}</p>
+                  </div>
+                </button>
+              );
+            })}
+            {/* Add new recipient button */}
+            <button
+              type="button"
+              onClick={() => navigate('/payments/recipients')}
+              className="flex-shrink-0 group flex flex-col items-center justify-center gap-2.5 rounded-2xl border border-dashed border-muted-foreground/30 bg-muted/20 p-4 w-32 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-indigo-500/40 hover:bg-muted/40"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 text-muted-foreground transition-all duration-300 group-hover:bg-indigo-500/10 group-hover:text-indigo-500">
+                <Plus className="h-5 w-5" />
+              </div>
+              <p className="text-sm font-medium text-muted-foreground group-hover:text-indigo-500 transition-colors">Dodaj</p>
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* Two columns: Transactions + Exchange rates */}
       <div className="grid gap-6 lg:grid-cols-5">
