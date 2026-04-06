@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   lint:
     name: ESLint
@@ -41,7 +45,7 @@ jobs:
         with:
           build: npm run build
           start: npx serve -s dist -l 3000
-          wait-on: 'http://localhost:3000'
+          wait-on: "http://localhost:3000"
           wait-on-timeout: 120
           config: video=false
           spec: |
@@ -63,6 +67,7 @@ jobs:
         with:
           name: cypress-mocked-screenshots
           path: cypress/screenshots
+          if-no-files-found: ignore
 
   cypress-live:
     name: Cypress E2E Tests (Live)
@@ -78,10 +83,11 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping -h localhost"
+          --health-cmd="mysqladmin ping -h localhost -proot"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -91,14 +97,27 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull backend image
+        run: docker pull ghcr.io/raf-si-2025/banka2-backend:latest
+
       - name: Start backend container
         run: |
           docker run -d --name backend --network host \
-            -e SPRING_DATASOURCE_URL=jdbc:mysql://127.0.0.1:3306/banka2?useUnicode=true\&characterEncoding=UTF-8 \
-            -e SPRING_DATASOURCE_USERNAME=banka2user \
-            -e SPRING_DATASOURCE_PASSWORD=banka2pass \
-            -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
-            -e SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT=org.hibernate.dialect.MySQLDialect \
+            -e SPRING_DATASOURCE_URL="jdbc:mysql://127.0.0.1:3306/banka2?useUnicode=true&characterEncoding=UTF-8" \
+            -e SPRING_DATASOURCE_USERNAME="banka2user" \
+            -e SPRING_DATASOURCE_PASSWORD="banka2pass" \
+            -e SPRING_JPA_HIBERNATE_DDL_AUTO="update" \
+            -e SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT="org.hibernate.dialect.MySQLDialect" \
             ghcr.io/raf-si-2025/banka2-backend:latest
 
       - name: Wait for backend to be ready
@@ -107,11 +126,15 @@ jobs:
           for i in $(seq 1 60); do
             if curl -sf http://localhost:8080/swagger-ui.html > /dev/null 2>&1 || curl -sf http://localhost:8080/ > /dev/null 2>&1; then
               echo "Backend is ready!"
-              break
+              exit 0
             fi
             echo "Attempt $i - waiting..."
             sleep 5
           done
+
+          echo "Backend failed to start in time."
+          docker logs backend || true
+          exit 1
 
       - name: Seed database
         run: |
@@ -120,25 +143,27 @@ jobs:
           echo "Database seeded successfully!"
 
       - name: Build frontend
-        run: npm ci && npm run build
+        run: npm run build
 
       - name: Create CI nginx config
         run: |
           sed 's|http://banka2_backend:8080/|http://127.0.0.1:8080/|g' nginx.conf > nginx.ci.conf
 
+      - name: Build frontend nginx image
+        run: docker build -t banka2-frontend:ci-test .
+
       - name: Start frontend with nginx
         run: |
-          docker build -t frontend-ci .
           docker run -d --name frontend --network host \
-            -v $(pwd)/nginx.ci.conf:/etc/nginx/conf.d/default.conf:ro \
-            frontend-ci
+            -v "$(pwd)/nginx.ci.conf:/etc/nginx/conf.d/default.conf:ro" \
+            banka2-frontend:ci-test
           sleep 3
 
       - name: Run Cypress live tests
         uses: cypress-io/github-action@v6
         with:
           install: false
-          wait-on: 'http://localhost'
+          wait-on: "http://localhost"
           wait-on-timeout: 60
           config: video=false,baseUrl=http://localhost
           spec: cypress/e2e/celina2-live-e2e.cy.ts
@@ -149,10 +174,15 @@ jobs:
         with:
           name: cypress-live-screenshots
           path: cypress/screenshots
+          if-no-files-found: ignore
 
       - name: Show backend logs on failure
         if: failure()
-        run: docker logs backend
+        run: docker logs backend || true
+
+      - name: Show frontend logs on failure
+        if: failure()
+        run: docker logs frontend || true
 
   build-docker:
     name: Build Docker Image
