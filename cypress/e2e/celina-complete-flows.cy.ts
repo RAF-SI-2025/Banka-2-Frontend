@@ -185,6 +185,11 @@ function setupCommonIntercepts() {
     statusCode: 200,
     body: { accessToken: 'fake-access-token' },
   }).as('authRefresh');
+  cy.intercept('GET', '**/api/payment-recipients', { statusCode: 200, body: [] });
+  cy.intercept('GET', '**/api/exchange-rates', { statusCode: 200, body: [] });
+  cy.intercept('GET', '**/api/loans/my*', { statusCode: 200, body: { content: [] } });
+  cy.intercept('GET', '**/api/cards', { statusCode: 200, body: [] });
+  cy.intercept('GET', '**/api/transfers*', { statusCode: 200, body: [] });
 }
 
 // ==========================================================================
@@ -687,13 +692,12 @@ describe('Stock Trading Flow', () => {
 
     // --- Step 2: Click on AAPL to see details ---
     cy.contains('tr', 'AAPL').click();
-    cy.wait('@listings'); // detail fetch
 
     cy.url().should('include', '/securities/');
     cy.contains('Apple Inc.').should('be.visible');
 
     // --- Step 3: Click Buy to go to order form ---
-    cy.contains('Kupi').click();
+    cy.contains('button', 'Kupi AAPL').click();
     cy.url().should('include', '/orders/new');
     cy.wait('@getMyAccounts');
 
@@ -802,8 +806,8 @@ describe('Admin Employee Management Flow', () => {
     cy.get('input[name="phoneNumber"]').type('+381601234567');
     cy.get('input[name="address"]').type('Knez Mihailova 10, Beograd');
 
-    // Date of birth — use the date-input component
-    cy.get('input[name="dateOfBirth"]').type('1995-05-15');
+    // Date of birth — DateInput component uses dd/mm/yyyy format with id, no name attribute
+    cy.get('#dateOfBirth').type('15/05/1995');
 
     // Select gender via the Select component (shadcn)
     cy.contains('button', /Pol|Gender|Izaberite/).first().then(($btn) => {

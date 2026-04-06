@@ -107,10 +107,15 @@ describe('Actuary Management - Agent List', () => {
   it('displays all agents in the table', () => {
     cy.visit('/employee/actuaries', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getAgents');
-    cy.contains('Marko Petrovic').should('be.visible');
-    cy.contains('Ana Markovic').should('be.visible');
-    cy.contains('Stefan Jovic').should('be.visible');
-    cy.contains('Milica Nikolic').should('be.visible');
+    // Component uses splitName() to split into first/last name columns
+    cy.contains('td', 'Marko').should('be.visible');
+    cy.contains('td', 'Petrovic').should('be.visible');
+    cy.contains('td', 'Ana').should('be.visible');
+    cy.contains('td', 'Markovic').should('be.visible');
+    cy.contains('td', 'Stefan').should('be.visible');
+    cy.contains('td', 'Jovic').should('be.visible');
+    cy.contains('td', 'Milica').should('be.visible');
+    cy.contains('td', 'Nikolic').should('be.visible');
   });
 
   it('shows agent email addresses', () => {
@@ -145,7 +150,9 @@ describe('Actuary Management - Agent List', () => {
   it('shows search/filter input for agents', () => {
     cy.visit('/employee/actuaries', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getAgents');
-    cy.get('input[placeholder*="Pretrazi"], input[type="text"]').should('have.length.at.least', 1);
+    // Filter panel is hidden by default; click the filter button to show it
+    cy.get('button[title="Filteri"]').click();
+    cy.get('input[placeholder="Pretraga po email-u"]').should('have.length.at.least', 1);
   });
 
   it('opens filter panel with email, first name, last name fields', () => {
@@ -249,8 +256,10 @@ describe('Actuary Management - Reset Used Limit', () => {
 
     cy.visit('/employee/actuaries', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getAgents');
-    // Find the reset button
-    cy.get('table tbody tr').first().find('button').filter(':has(svg)').last().click({ force: true });
+    // Accept the window.confirm dialog
+    cy.on('window:confirm', () => true);
+    // Click "Resetuj limit" text button in the first row
+    cy.get('table tbody tr').first().contains('button', 'Resetuj limit').click({ force: true });
     cy.wait('@resetLimit');
   });
 
@@ -262,7 +271,8 @@ describe('Actuary Management - Reset Used Limit', () => {
 
     cy.visit('/employee/actuaries', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getAgents');
-    cy.get('table tbody tr').first().find('button').filter(':has(svg)').last().click({ force: true });
+    cy.on('window:confirm', () => true);
+    cy.get('table tbody tr').first().contains('button', 'Resetuj limit').click({ force: true });
     cy.wait('@resetLimit');
   });
 
@@ -274,14 +284,17 @@ describe('Actuary Management - Reset Used Limit', () => {
 
     cy.visit('/employee/actuaries', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getAgents');
-    cy.get('table tbody tr').first().find('button').filter(':has(svg)').last().click({ force: true });
+    cy.on('window:confirm', () => true);
+    cy.get('table tbody tr').first().contains('button', 'Resetuj limit').click({ force: true });
     cy.wait('@resetLimitError');
   });
 
   it('shows agent with 100% used limit (Milica - 200000/200000)', () => {
     cy.visit('/employee/actuaries', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getAgents');
-    cy.contains('Milica Nikolic').should('be.visible');
+    // Component splits name into first/last name columns
+    cy.contains('td', 'Milica').should('be.visible');
+    cy.contains('td', 'Nikolic').should('be.visible');
     // Her limit is fully used
     cy.contains('200.000').should('exist');
   });
@@ -289,7 +302,8 @@ describe('Actuary Management - Reset Used Limit', () => {
   it('shows agent with 0% used limit (Stefan - 0/750000)', () => {
     cy.visit('/employee/actuaries', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getAgents');
-    cy.contains('Stefan Jovic').should('be.visible');
+    cy.contains('td', 'Stefan').should('be.visible');
+    cy.contains('td', 'Jovic').should('be.visible');
   });
 });
 
@@ -349,7 +363,7 @@ describe('Tax Portal - List Users and Tax Records', () => {
   it('shows search input for filtering users', () => {
     cy.visit('/employee/tax', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getTaxRecords');
-    cy.get('input[placeholder*="Pretrazi"], input[type="text"]').should('have.length.at.least', 1);
+    cy.get('input[placeholder="Pretraga po imenu"]').should('have.length.at.least', 1);
   });
 
   it('filters tax records by name search', () => {
@@ -360,7 +374,7 @@ describe('Tax Portal - List Users and Tax Records', () => {
 
     cy.visit('/employee/tax', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getTaxRecords');
-    cy.get('input[placeholder*="Pretrazi"], input[type="text"]').first().type('Stefan');
+    cy.get('input[placeholder="Pretraga po imenu"]').first().type('Stefan');
   });
 
   it('filters tax records by user type', () => {

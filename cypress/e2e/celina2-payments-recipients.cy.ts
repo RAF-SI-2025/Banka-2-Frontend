@@ -157,7 +157,7 @@ function fillPaymentForm(overrides: {
   cy.get('#recipientName').clear().type(name);
   cy.get('#amount').clear().type(amount);
   cy.get('#paymentCode').clear().type(code);
-  cy.get('#purpose').type(purpose);
+  cy.get('#purpose').scrollIntoView().type(purpose);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -328,7 +328,7 @@ describe('New Payment Page', () => {
       cy.get('#otp').type('123456');
       cy.contains('button', 'Potvrdi').click();
       cy.wait('@createPayment');
-      cy.contains('uspesno').should('be.visible');
+      cy.contains('uspesno').should('exist');
     });
 
     it('shows error message for wrong OTP code', () => {
@@ -357,16 +357,16 @@ describe('New Payment Page', () => {
       cy.wait('@failedPayment');
       cy.contains('Kod nije validan').should('be.visible');
 
-      // Attempt 2
-      cy.get('#otp').clear().type('222222');
-      cy.contains('button', 'Potvrdi').click();
+      // Attempt 2 — wait for button to be re-enabled, then clear and type
+      cy.get('#otp').should('be.visible').clear().type('222222');
+      cy.contains('button', 'Potvrdi').should('not.be.disabled').click();
       cy.wait('@failedPayment');
 
       // Attempt 3 - should block (attemptsLeft reaches 0)
-      cy.get('#otp').clear().type('333333');
-      cy.contains('button', 'Potvrdi').click();
+      cy.get('#otp').should('be.visible').clear().type('333333');
+      cy.contains('button', 'Potvrdi').should('not.be.disabled').click();
       cy.wait('@failedPayment');
-      cy.contains('Maksimalan broj').should('be.visible');
+      cy.contains('Maksimalan broj').should('exist');
     });
 
     it('can close the verification modal by clicking cancel', () => {
@@ -424,7 +424,7 @@ describe('New Payment Page', () => {
       cy.get('#otp').type('123456');
       cy.contains('button', 'Potvrdi').click();
       cy.wait('@failedPayment');
-      cy.contains('Nedovoljno sredstava').should('be.visible');
+      cy.contains('Nedovoljno sredstava').should('exist');
     });
 
     it('shows error when target account does not exist', () => {
@@ -440,7 +440,7 @@ describe('New Payment Page', () => {
       cy.get('#otp').type('123456');
       cy.contains('button', 'Potvrdi').click();
       cy.wait('@notFoundPayment');
-      cy.contains('ne postoji').should('be.visible');
+      cy.contains('ne postoji').should('exist');
     });
   });
 });

@@ -188,7 +188,7 @@ describe('Employee Portal - Create Account Page', () => {
     cy.get('input[name="companyName"]').type('Test DOO');
     cy.get('input[name="registrationNumber"]').type('12345678');
     cy.get('input[name="taxId"]').type('987654321');
-    cy.get('input[name="activityCode"]').type('6201');
+    cy.get('input[name="activityCode"]').type('62.01');
     cy.get('input[name="firmAddress"]').type('Nemanjina 4');
     cy.get('input[name="firmCity"]').type('Beograd');
     cy.get('input[name="firmCountry"]').type('Srbija');
@@ -253,7 +253,7 @@ describe('Employee Portal - Accounts Management', () => {
   it('loads the accounts portal page with header', () => {
     cy.visit('/employee/accounts', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getAllAccounts');
-    cy.contains('Portal racuna').should('be.visible');
+    cy.contains('h1', 'Portal racuna').should('be.visible');
   });
 
   it('displays account table with all accounts', () => {
@@ -421,7 +421,7 @@ describe('Employee Portal - Clients Management', () => {
   it('loads the clients portal page with header', () => {
     cy.visit('/employee/clients', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getClients');
-    cy.contains('Portal klijenata').should('be.visible');
+    cy.contains('h1', 'Portal klijenata').should('be.visible');
   });
 
   it('displays client list with names and emails', () => {
@@ -589,7 +589,7 @@ describe('Employee Portal - Account Cards Management', () => {
     cy.visit('/employee/accounts/1/cards', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getAccount');
     cy.wait('@getAccountCards');
-    cy.contains('Portal kartica').should('be.visible');
+    cy.contains('h1', 'Portal kartica').should('be.visible');
   });
 
   it('displays all cards for the account', () => {
@@ -651,14 +651,19 @@ describe('Employee Portal - Account Cards Management', () => {
       statusCode: 200,
       body: {},
     }).as('deactivateCard');
+    // Also intercept card 102 deactivate in case it matches first
+    cy.intercept('PATCH', '**/api/cards/102/deactivate', {
+      statusCode: 200,
+      body: {},
+    });
 
     cy.on('window:confirm', () => true);
 
     cy.visit('/employee/accounts/1/cards', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getAccount');
     cy.wait('@getAccountCards');
-    // The deactivate button is icon-only (destructive variant) - click first destructive button
-    cy.get('button.bg-destructive, button[class*="destructive"]').first().click({ force: true });
+    // Find the first card's deactivate button (variant="destructive" renders with bg-destructive class)
+    cy.get('[class*="bg-destructive"]').filter('button').first().click({ force: true });
     cy.wait('@deactivateCard');
   });
 

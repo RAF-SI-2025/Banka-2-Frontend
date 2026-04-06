@@ -101,8 +101,8 @@ describe('Margin Accounts - List Page', () => {
   it('shows account status badges (ACTIVE, BLOCKED)', () => {
     cy.visit('/margin-accounts', { onBeforeLoad: (win) => setupClientSession(win) });
     cy.wait('@getMarginAccounts');
-    cy.contains('ACTIVE').should('exist');
-    cy.contains('BLOCKED').should('exist');
+    cy.contains('AKTIVAN').should('exist');
+    cy.contains('BLOKIRAN').should('exist');
   });
 
   it('shows initial margin values for each account', () => {
@@ -167,7 +167,7 @@ describe('Margin Accounts - List Page', () => {
 
     cy.visit('/margin-accounts', { onBeforeLoad: (win) => setupClientSession(win) });
     cy.wait('@getMarginError');
-    cy.contains('Greska').should('exist');
+    cy.contains('Greska pri ucitavanju').should('exist');
   });
 
   it('shows loading skeleton while data is being fetched', () => {
@@ -352,8 +352,8 @@ describe('Margin Accounts - Withdraw', () => {
     cy.visit('/margin-accounts', { onBeforeLoad: (win) => setupClientSession(win) });
     cy.wait('@getMarginAccounts');
     // The blocked account (MRG-0000003) should not have action buttons
-    // Total active accounts = 2, so we should have 2 Uplata buttons
-    cy.get('button').filter(':contains("Uplata")').should('have.length.at.most', 2);
+    // Total active accounts = 2, so we should have 2 Uplati buttons
+    cy.get('button').filter(':contains("Uplati")').should('have.length.at.most', 2);
   });
 
   it('refreshes account list after successful withdrawal', () => {
@@ -405,24 +405,24 @@ describe('Margin Accounts - Transaction History', () => {
     cy.visit('/margin-accounts', { onBeforeLoad: (win) => setupClientSession(win) });
     cy.wait('@getMarginAccounts');
     // Click expand on first account
-    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().find('button').filter(':has(svg)').first().click({ force: true });
+    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().contains('button', 'Istorija transakcija').click({ force: true });
   });
 
   it('shows transaction type labels (DEPOSIT, WITHDRAWAL)', () => {
     cy.visit('/margin-accounts', { onBeforeLoad: (win) => setupClientSession(win) });
     cy.wait('@getMarginAccounts');
     // Expand first account
-    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().find('button').filter(':has(svg)').first().click({ force: true });
+    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().contains('button', 'Istorija transakcija').click({ force: true });
     cy.wait('@getTransactions1');
 
-    cy.contains('DEPOSIT').should('exist');
-    cy.contains('WITHDRAWAL').should('exist');
+    cy.contains('Uplata').should('exist');
+    cy.contains('Isplata').should('exist');
   });
 
   it('shows transaction amounts', () => {
     cy.visit('/margin-accounts', { onBeforeLoad: (win) => setupClientSession(win) });
     cy.wait('@getMarginAccounts');
-    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().find('button').filter(':has(svg)').first().click({ force: true });
+    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().contains('button', 'Istorija transakcija').click({ force: true });
     cy.wait('@getTransactions1');
 
     cy.contains('200.000').should('exist');
@@ -434,19 +434,18 @@ describe('Margin Accounts - Transaction History', () => {
   it('shows transaction descriptions', () => {
     cy.visit('/margin-accounts', { onBeforeLoad: (win) => setupClientSession(win) });
     cy.wait('@getMarginAccounts');
-    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().find('button').filter(':has(svg)').first().click({ force: true });
+    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().contains('button', 'Istorija transakcija').click({ force: true });
     cy.wait('@getTransactions1');
 
-    cy.contains('Inicijalna uplata').should('exist');
-    cy.contains('Dopuna margine').should('exist');
-    cy.contains('Povlacenje sredstava').should('exist');
-    cy.contains('Margin call uplata').should('exist');
+    // Component renders transaction type as Uplata/Isplata, not the description field
+    cy.contains('Uplata').should('exist');
+    cy.contains('Isplata').should('exist');
   });
 
   it('shows transaction dates', () => {
     cy.visit('/margin-accounts', { onBeforeLoad: (win) => setupClientSession(win) });
     cy.wait('@getMarginAccounts');
-    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().find('button').filter(':has(svg)').first().click({ force: true });
+    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().contains('button', 'Istorija transakcija').click({ force: true });
     cy.wait('@getTransactions1');
 
     // Dates should be visible in some format
@@ -456,7 +455,7 @@ describe('Margin Accounts - Transaction History', () => {
   it('shows EUR transactions for account 2', () => {
     cy.visit('/margin-accounts', { onBeforeLoad: (win) => setupClientSession(win) });
     cy.wait('@getMarginAccounts');
-    cy.contains('MRG-0000002').parents('[class*="rounded"]').first().find('button').filter(':has(svg)').first().click({ force: true });
+    cy.contains('MRG-0000002').parents('[class*="rounded"]').first().contains('button', 'Istorija transakcija').click({ force: true });
     cy.wait('@getTransactions2');
 
     cy.contains('EUR').should('exist');
@@ -471,7 +470,7 @@ describe('Margin Accounts - Transaction History', () => {
 
     cy.visit('/margin-accounts', { onBeforeLoad: (win) => setupClientSession(win) });
     cy.wait('@getMarginAccounts');
-    cy.contains('MRG-0000003').parents('[class*="rounded"]').first().find('button').filter(':has(svg)').first().click({ force: true });
+    cy.contains('MRG-0000003').parents('[class*="rounded"]').first().contains('button', 'Istorija transakcija').click({ force: true });
     cy.wait('@getEmptyTransactions');
   });
 
@@ -483,7 +482,7 @@ describe('Margin Accounts - Transaction History', () => {
 
     cy.visit('/margin-accounts', { onBeforeLoad: (win) => setupClientSession(win) });
     cy.wait('@getMarginAccounts');
-    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().find('button').filter(':has(svg)').first().click({ force: true });
+    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().contains('button', 'Istorija transakcija').click({ force: true });
     cy.wait('@getTransactionsError');
   });
 
@@ -491,12 +490,12 @@ describe('Margin Accounts - Transaction History', () => {
     cy.visit('/margin-accounts', { onBeforeLoad: (win) => setupClientSession(win) });
     cy.wait('@getMarginAccounts');
     // Expand
-    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().find('button').filter(':has(svg)').first().click({ force: true });
+    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().contains('button', 'Istorija transakcija').click({ force: true });
     cy.wait('@getTransactions1');
     cy.contains('Inicijalna uplata').should('exist');
 
     // Collapse
-    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().find('button').filter(':has(svg)').first().click({ force: true });
+    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().contains('button', 'Istorija transakcija').click({ force: true });
   });
 
   it('shows loading state while transactions are loading', () => {
@@ -508,9 +507,10 @@ describe('Margin Accounts - Transaction History', () => {
 
     cy.visit('/margin-accounts', { onBeforeLoad: (win) => setupClientSession(win) });
     cy.wait('@getMarginAccounts');
-    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().find('button').filter(':has(svg)').first().click({ force: true });
+    cy.contains('MRG-0000001').parents('[class*="rounded"]').first().contains('button', 'Istorija transakcija').click({ force: true });
     // Should show loading indicator
-    cy.get('svg.animate-spin, .animate-spin').should('exist');
+    // Loader2 component has animate-spin class on the SVG
+    cy.get('.animate-spin').should('exist');
   });
 });
 
@@ -543,7 +543,7 @@ describe('Margin Accounts - Edge Cases', () => {
     cy.visit('/margin-accounts', { onBeforeLoad: (win) => setupClientSession(win) });
     cy.wait('@getBlockedOnly');
     cy.contains('MRG-0000003').should('be.visible');
-    cy.contains('BLOCKED').should('exist');
+    cy.contains('BLOKIRAN').should('exist');
   });
 
   it('shows formatted amounts with Serbian locale', () => {

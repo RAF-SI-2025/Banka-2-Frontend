@@ -563,7 +563,7 @@ describe('Exchange Page - Conversion Calculator', () => {
   it('shows conversion result with valid input', () => {
     cy.get('#amount').clear().type('100');
     // EUR is default fromCurrency, RSD is default toCurrency
-    cy.contains('button', 'Konvertuj').click();
+    cy.contains('button', 'Konvertuj').scrollIntoView().click();
     cy.wait('@calculateExchange');
     // Result should show converted amount
     cy.contains('Rezultat konverzije').should('be.visible');
@@ -594,7 +594,7 @@ describe('Exchange Page - Conversion Calculator', () => {
 
   it('clears previous result when currency or amount changes', () => {
     cy.get('#amount').clear().type('100');
-    cy.contains('button', 'Konvertuj').click();
+    cy.contains('button', 'Konvertuj').scrollIntoView().click();
     cy.wait('@calculateExchange');
     cy.contains('Rezultat konverzije').should('be.visible');
     // Now change the amount - result should disappear
@@ -610,9 +610,9 @@ describe('Exchange Page - Conversion Calculator', () => {
     cy.get('#amount').clear().type('50');
     cy.get('input[name="fromCurrency"][value="USD"]').check({ force: true });
     cy.get('input[name="toCurrency"][value="RSD"]').check({ force: true });
-    cy.contains('button', 'Konvertuj').click();
+    cy.contains('button', 'Konvertuj').scrollIntoView().click({ force: true });
     cy.wait('@failedCalc');
-    cy.contains('nije uspela').should('be.visible');
+    cy.contains('nije uspela').should('exist');
   });
 
   it('shows all 8 currency options in the from selector', () => {

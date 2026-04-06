@@ -831,11 +831,13 @@ describe('SupervisorDashboardPage - dashboard overview', () => {
   });
 
   it('shows quick action links', () => {
-    cy.contains('Brze akcije').should('be.visible');
-    cy.contains('Orderi').should('be.visible');
-    cy.contains('Aktuari').should('be.visible');
-    cy.contains('Porez').should('be.visible');
-    cy.contains('Berze').should('be.visible');
+    cy.get('main').within(() => {
+      cy.contains('Brze akcije').should('be.visible');
+      cy.contains('Orderi').should('be.visible');
+      cy.contains('Aktuari').should('be.visible');
+      cy.contains('Porez').should('be.visible');
+      cy.contains('Berze').should('be.visible');
+    });
   });
 
   it('shows loading skeleton initially', () => {

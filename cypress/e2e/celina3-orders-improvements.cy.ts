@@ -123,6 +123,16 @@ describe('Celina 3 - My Orders improvements', () => {
   const visitMyOrdersPage = (useClock = false) => {
     mockCurrentUser();
 
+    // Intercept common endpoints that layout/sidebar may call
+    cy.intercept('POST', '**/api/auth/refresh', { statusCode: 200, body: { accessToken: 'fake-access-token' } });
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/payment-recipients', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/exchange-rates', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/loans/my*', { statusCode: 200, body: { content: [] } });
+    cy.intercept('GET', '**/api/payments*', { statusCode: 200, body: { content: [], totalElements: 0, totalPages: 0 } });
+    cy.intercept('GET', '**/api/cards', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/transfers*', { statusCode: 200, body: [] });
+
     if (useClock) {
       cy.clock(new Date('2026-03-28T10:00:00Z').getTime(), ['setInterval', 'clearInterval']);
     }

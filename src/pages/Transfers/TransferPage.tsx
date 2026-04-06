@@ -263,6 +263,7 @@ export default function TransferPage() {
       navigate('/accounts');
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, 'Kreiranje prenosa nije uspelo.'));
+      throw error; // Re-throw so VerificationModal can track attempts
     } finally {
       setIsSubmitting(false);
     }

@@ -600,6 +600,7 @@ export default function NewPaymentPage() {
           } catch (err: unknown) {
             const error = err as { response?: { data?: { message?: string } } };
             toast.error(error.response?.data?.message || 'Kreiranje placanja nije uspelo.');
+            throw err; // Re-throw so VerificationModal can track attempts
           }
         }}
       />

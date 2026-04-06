@@ -318,9 +318,12 @@ describe('Accounts - Account List Page', () => {
     // Open filters
     cy.get('button[title="Filteri"]').click();
 
-    // Select CHECKING filter
-    cy.contains('Svi tipovi').click();
+    // Select CHECKING filter — click the SelectTrigger (combobox) button to open dropdown
+    cy.get('button[role="combobox"]').click();
     cy.get('[role="option"]').contains('Tekuci').click();
+
+    // Wait for filter to apply
+    cy.wait(300);
 
     // Only CHECKING account should be visible in the account cards
     cy.contains('h3', 'Glavni racun').should('be.visible');

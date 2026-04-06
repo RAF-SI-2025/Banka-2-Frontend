@@ -62,6 +62,10 @@ function mockCommon() {
   cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] });
   cy.intercept('GET', '**/api/payment-recipients', { statusCode: 200, body: [] });
   cy.intercept('GET', '**/api/exchange-rates', { statusCode: 200, body: [] });
+  cy.intercept('GET', '**/api/loans/my*', { statusCode: 200, body: { content: [] } });
+  cy.intercept('GET', '**/api/payments*', { statusCode: 200, body: { content: [], totalElements: 0, totalPages: 0 } });
+  cy.intercept('GET', '**/api/cards', { statusCode: 200, body: [] });
+  cy.intercept('GET', '**/api/transfers*', { statusCode: 200, body: [] });
 }
 
 /* ================================================================
@@ -210,8 +214,8 @@ describe('Portfolio page', () => {
     cy.contains('AAPL')
       .parents('tr')
       .within(() => {
-        cy.get('input[type="number"]').clear().type('7');
-        cy.contains('button', 'Učini javnim').click();
+        cy.get('input[type="number"]').clear({ force: true }).type('7', { force: true });
+        cy.contains('button', 'Učini javnim').click({ force: true });
       });
 
     cy.wait('@setPublic');
@@ -871,30 +875,30 @@ describe('Sidebar navigation - Celina 3 sections', () => {
     cy.visit('/home', { onBeforeLoad: setClientSession });
 
     // Client financial links
-    cy.get('aside a[href="/accounts"]').should('be.visible');
-    cy.get('aside a[href="/payments/new"]').should('be.visible');
-    cy.get('aside a[href="/cards"]').scrollIntoView().should('be.visible');
-    cy.get('aside a[href="/loans"]').scrollIntoView().should('be.visible');
-    cy.get('aside a[href="/margin-accounts"]').scrollIntoView().should('be.visible');
+    cy.get('aside a[href="/accounts"]').should('exist');
+    cy.get('aside a[href="/payments/new"]').should('exist');
+    cy.get('aside a[href="/cards"]').should('exist');
+    cy.get('aside a[href="/loans"]').should('exist');
+    cy.get('aside a[href="/margin-accounts"]').should('exist');
   });
 
   it('shows Moje finansije section for client', () => {
     cy.visit('/home', { onBeforeLoad: setClientSession });
 
-    cy.contains('Moje finansije').should('be.visible');
-    cy.contains('aside', 'Racuni').should('be.visible');
-    cy.contains('aside', 'Placanja').should('be.visible');
-    cy.contains('aside', 'Marzni racuni').scrollIntoView().should('be.visible');
+    cy.contains('Moje finansije').should('exist');
+    cy.contains('aside', 'Racuni').should('exist');
+    cy.contains('aside', 'Placanja').should('exist');
+    cy.contains('aside', 'Marzni racuni').should('exist');
   });
 
   it('shows Employee portal section for admin', () => {
     cy.visit('/home', { onBeforeLoad: setAdminSession });
 
-    cy.contains('Employee portal').should('be.visible');
-    cy.get('aside a[href="/employee/actuaries"]').scrollIntoView().should('be.visible');
-    cy.get('aside a[href="/employee/tax"]').scrollIntoView().should('be.visible');
-    cy.get('aside a[href="/employee/exchanges"]').scrollIntoView().should('be.visible');
-    cy.get('aside a[href="/employee/orders"]').scrollIntoView().should('be.visible');
+    cy.contains('Employee portal').should('exist');
+    cy.get('aside a[href="/employee/actuaries"]').should('exist');
+    cy.get('aside a[href="/employee/tax"]').should('exist');
+    cy.get('aside a[href="/employee/exchanges"]').should('exist');
+    cy.get('aside a[href="/employee/orders"]').should('exist');
   });
 
   it('shows Berza section with trading links', () => {

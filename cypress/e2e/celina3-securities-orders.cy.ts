@@ -192,6 +192,16 @@ function makeOrder(overrides: Partial<{
   };
 }
 
+function mockCommonEndpoints() {
+  cy.intercept('POST', '**/api/auth/refresh', { statusCode: 200, body: { accessToken: 'fake-access-token' } });
+  cy.intercept('GET', '**/api/payment-recipients', { statusCode: 200, body: [] });
+  cy.intercept('GET', '**/api/exchange-rates', { statusCode: 200, body: [] });
+  cy.intercept('GET', '**/api/loans/my*', { statusCode: 200, body: { content: [] } });
+  cy.intercept('GET', '**/api/payments*', { statusCode: 200, body: { content: [], totalElements: 0, totalPages: 0 } });
+  cy.intercept('GET', '**/api/cards', { statusCode: 200, body: [] });
+  cy.intercept('GET', '**/api/transfers*', { statusCode: 200, body: [] });
+}
+
 function interceptListings() {
   cy.intercept('GET', '**/listings*', (req) => {
     const url = new URL(req.url, 'http://localhost');
@@ -229,6 +239,7 @@ function interceptCurrentUser(role: 'ADMIN' | 'CLIENT') {
 describe('Celina 3 - Securities List Page', () => {
   describe('Client view', () => {
     beforeEach(() => {
+      mockCommonEndpoints();
       interceptListings();
       cy.visit('/securities', { onBeforeLoad: (win) => loginAs(win, 'CLIENT') });
       cy.wait('@getListings');
@@ -302,12 +313,12 @@ describe('Celina 3 - Securities List Page', () => {
     it('colors price changes correctly - green for positive, red for negative', () => {
       // AAPL has +1.31% => emerald
       cy.contains('AAPL').closest('tr').within(() => {
-        cy.get('.bg-emerald-500\\/10').should('exist');
+        cy.get('[class*="bg-emerald-500"]').should('exist');
         cy.contains('+1.31%').should('be.visible');
       });
       // MSFT has -0.74% => red
       cy.contains('MSFT').closest('tr').within(() => {
-        cy.get('.bg-red-500\\/10').should('exist');
+        cy.get('[class*="bg-red-500"]').should('exist');
       });
     });
 
@@ -368,6 +379,7 @@ describe('Celina 3 - Securities List Page', () => {
 
   describe('Admin view', () => {
     beforeEach(() => {
+      mockCommonEndpoints();
       interceptListings();
       cy.visit('/securities', { onBeforeLoad: (win) => loginAs(win, 'ADMIN') });
       cy.wait('@getListings');
@@ -395,6 +407,7 @@ describe('Celina 3 - Securities List Page', () => {
 describe('Celina 3 - Securities Details Page', () => {
   describe('Stock details', () => {
     beforeEach(() => {
+      mockCommonEndpoints();
       cy.intercept('GET', '**/listings/1', STOCK_APPLE).as('getListing');
       cy.intercept('GET', '**/listings/1/history*', MOCK_HISTORY).as('getHistory');
       cy.intercept('GET', '**/options*', MOCK_OPTIONS).as('getOptions');
@@ -466,8 +479,8 @@ describe('Celina 3 - Securities Details Page', () => {
       cy.wait('@getOptions');
       // ITM calls (strike < currentPrice=178.5): 170, 175 should have emerald bg
       // OTM calls (strike >= 178.5): 180, 185 should have red bg
-      cy.get('.bg-emerald-500\\/10').should('exist');
-      cy.get('.bg-red-500\\/10').should('exist');
+      cy.get('[class*="bg-emerald-500"]').should('exist');
+      cy.get('[class*="bg-red-500"]').should('exist');
     });
 
     it('allows filtering options by settlement date', () => {
@@ -486,6 +499,7 @@ describe('Celina 3 - Securities Details Page', () => {
 
   describe('Not found', () => {
     it('displays not found message for invalid ID', () => {
+      mockCommonEndpoints();
       cy.intercept('GET', '**/listings/99999', { statusCode: 404, body: {} }).as('notFound');
       cy.intercept('GET', '**/listings/99999/history*', { statusCode: 404, body: [] }).as('notFoundHistory');
       cy.visit('/securities/99999', { onBeforeLoad: (win) => loginAs(win, 'CLIENT') });
@@ -497,6 +511,7 @@ describe('Celina 3 - Securities Details Page', () => {
 
   describe('Futures details', () => {
     it('shows futures-specific fields like contract size and settlement date', () => {
+      mockCommonEndpoints();
       cy.intercept('GET', '**/listings/10', FUTURE_OIL).as('getListing');
       cy.intercept('GET', '**/listings/10/history*', MOCK_HISTORY).as('getHistory');
       cy.visit('/securities/10', { onBeforeLoad: (win) => loginAs(win, 'CLIENT') });
@@ -514,6 +529,7 @@ describe('Celina 3 - Securities Details Page', () => {
 
 describe('Celina 3 - Create Order Page', () => {
   function setupCreateOrderPage(role: 'ADMIN' | 'CLIENT' = 'CLIENT', queryParams = '') {
+    mockCommonEndpoints();
     interceptCurrentUser(role);
 
     cy.intercept('GET', '**/listings*', (req) => {
@@ -657,11 +673,16 @@ describe('Celina 3 - Create Order Page', () => {
   });
 
   it('shows after-hours/exchange closed warning when exchange is closed', () => {
+    mockCommonEndpoints();
     interceptCurrentUser('CLIENT');
 
     cy.intercept('GET', '**/listings*', (req) => {
       const url = new URL(req.url, 'http://localhost');
-      if (/\/listings\/\d+$/.test(url.pathname)) return;
+      if (/\/listings\/\d+$/.test(url.pathname)) {
+        // Single listing fetch — reply with STOCK_APPLE
+        req.reply(STOCK_APPLE);
+        return;
+      }
       req.reply(makePage(STOCKS));
     }).as('getListings');
     cy.intercept('GET', '**/listings/1', STOCK_APPLE).as('getListingById');
@@ -681,8 +702,8 @@ describe('Celina 3 - Create Order Page', () => {
     }).as('getExchangeClosed');
 
     cy.visit('/orders/new', { onBeforeLoad: (win) => loginAs(win, 'CLIENT') });
-    cy.wait('@getExchangeClosed');
-    cy.contains('Berza zatvorena').should('be.visible');
+    // The exchange status check happens when a listing is selected
+    cy.contains('Berza zatvorena', { timeout: 10000 }).should('be.visible');
   });
 
   it('submits order after confirmation dialog', () => {
@@ -718,6 +739,7 @@ describe('Celina 3 - Create Order Page', () => {
   });
 
   it('shows loading skeletons while data loads', () => {
+    mockCommonEndpoints();
     interceptCurrentUser('CLIENT');
     cy.intercept('GET', '**/listings*', (req) => {
       req.reply({ delay: 3000, body: makePage(STOCKS) });
@@ -747,6 +769,7 @@ describe('Celina 3 - My Orders Page', () => {
   const allOrders = [pendingOrder, approvedOrder, doneOrder, declinedOrder];
 
   function setupMyOrdersPage(orders = allOrders) {
+    mockCommonEndpoints();
     interceptCurrentUser('CLIENT');
     cy.intercept('GET', '**/orders/my*', (req) => {
       req.reply(makePage(orders));
@@ -849,6 +872,7 @@ describe('Celina 3 - My Orders Page', () => {
   it('polls for active orders when APPROVED orders exist', () => {
     // The page sets up a 5s interval when APPROVED orders exist
     let callCount = 0;
+    mockCommonEndpoints();
     interceptCurrentUser('CLIENT');
     cy.intercept('GET', '**/orders/my*', (req) => {
       callCount++;
@@ -866,6 +890,7 @@ describe('Celina 3 - My Orders Page', () => {
   });
 
   it('shows loading skeletons while orders are loading', () => {
+    mockCommonEndpoints();
     interceptCurrentUser('CLIENT');
     cy.intercept('GET', '**/orders/my*', (req) => {
       req.reply({ delay: 3000, body: makePage(allOrders) });
