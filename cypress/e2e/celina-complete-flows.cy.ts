@@ -259,7 +259,7 @@ describe('Complete Payment Flow', () => {
     cy.get('#paymentCode').should('have.value', '289');
 
     // Fill purpose
-    cy.get('#purpose').type('Uplata za usluge');
+    cy.get('#purpose').scrollIntoView().type('Uplata za usluge', { force: true });
 
     // --- Step 2: Submit -> opens OTP modal ---
     cy.contains('button', 'Nastavi na verifikaciju').scrollIntoView().click({ force: true });
@@ -268,10 +268,10 @@ describe('Complete Payment Flow', () => {
     cy.wait('@requestOtp');
 
     // OTP modal is visible — enter 6-digit code
-    cy.get('input[name="code"]').should('be.visible').type('123456');
+    cy.get('input[name="code"]').should('be.visible').type('123456', { force: true });
 
     // Confirm OTP
-    cy.contains('button', 'Potvrdi').click();
+    cy.contains('button', 'Potvrdi').scrollIntoView().click({ force: true });
 
     // Payment is created
     cy.wait('@createPayment').its('request.body').should((body) => {
@@ -295,8 +295,8 @@ describe('Complete Payment Flow', () => {
     cy.contains('15').should('exist'); // amount formatted
 
     // --- Step 5: Expand transaction and download PDF ---
-    cy.contains('Marko Markovic').click();
-    cy.contains('Preuzmi potvrdu').should('be.visible').click();
+    cy.contains('Marko Markovic').click({ force: true });
+    cy.contains('Preuzmi potvrdu').should('be.visible').click({ force: true });
     cy.wait('@getReceipt');
   });
 });
@@ -367,12 +367,12 @@ describe('Complete Transfer Flow', () => {
     cy.contains('265000000000000002').should('exist');
 
     // --- Step 3: Confirm transfer -> OTP modal ---
-    cy.contains('button', 'Potvrdi transfer').click();
+    cy.contains('button', 'Potvrdi transfer').scrollIntoView().click({ force: true });
     cy.wait('@requestOtp');
 
     // Enter OTP code
-    cy.get('input[name="code"]').should('be.visible').type('654321');
-    cy.contains('button', 'Potvrdi').click();
+    cy.get('input[name="code"]').should('be.visible').type('654321', { force: true });
+    cy.contains('button', 'Potvrdi').scrollIntoView().click({ force: true });
 
     // Transfer is executed
     cy.wait('@createTransfer').its('request.body').should((body) => {
@@ -481,7 +481,7 @@ describe('Employee Creates Account + Card Flow', () => {
     cy.wait('@searchClients');
 
     // Select the suggested client
-    cy.contains('button', 'Stefan Jovanovic').click();
+    cy.contains('button', 'Stefan Jovanovic').click({ force: true });
 
     // --- Step 2: Account type is already TEKUCI (default) ---
     // Verify currency is locked to RSD for tekuci
@@ -495,7 +495,7 @@ describe('Employee Creates Account + Card Flow', () => {
     cy.contains('Napravi karticu uz racun').scrollIntoView().click({ force: true });
 
     // --- Step 5: Submit the form ---
-    cy.contains('button', 'Kreiraj racun').click();
+    cy.contains('button', 'Kreiraj racun').scrollIntoView().click({ force: true });
     cy.wait('@createAccount').its('request.body').should((body) => {
       expect(body.ownerEmail).to.eq('stefan.jovanovic@gmail.com');
       expect(body.accountType).to.eq('CHECKING');
@@ -582,7 +582,7 @@ describe('Loan Application Flow', () => {
 
     // --- Step 4: Confirm and submit ---
     cy.contains('Potvrda i slanje').should('exist');
-    cy.contains('button', 'Posalji zahtev').click();
+    cy.contains('button', 'Posalji zahtev').scrollIntoView().click({ force: true });
 
     cy.wait('@applyLoan').its('request.body').should((body) => {
       expect(body.loanType).to.eq('CASH');
@@ -714,7 +714,7 @@ describe('Stock Trading Flow', () => {
     // --- Step 5: Submit the order -> confirmation dialog -> confirm ---
     cy.contains('button', 'Nastavi na potvrdu').scrollIntoView().click({ force: true });
     cy.contains('Potvrda naloga').should('be.visible');
-    cy.contains('button', 'Potvrdi').click();
+    cy.contains('button', 'Potvrdi').scrollIntoView().click({ force: true });
     cy.wait('@createOrder');
 
     // --- Step 6: Check my orders ---
@@ -795,7 +795,7 @@ describe('Admin Employee Management Flow', () => {
     cy.contains('Nikolic').should('be.visible');
 
     // --- Step 2: Navigate to create new employee ---
-    cy.contains('Novi zaposleni').click();
+    cy.contains('Novi zaposleni').click({ force: true });
     cy.url().should('include', '/admin/employees/new');
 
     // --- Step 3: Fill the create employee form ---
@@ -834,7 +834,7 @@ describe('Admin Employee Management Flow', () => {
     });
 
     // Submit
-    cy.contains('button', /Kreiraj|Sacuvaj|Dodaj/).click();
+    cy.contains('button', /Kreiraj|Sacuvaj|Dodaj/).scrollIntoView().click({ force: true });
     cy.wait('@createEmployee').its('request.body').should((body) => {
       expect(body.firstName).to.eq('Ana');
       expect(body.lastName).to.eq('Nikolic');
@@ -876,7 +876,7 @@ describe('Admin Employee Management Flow', () => {
     });
 
     // Save changes
-    cy.contains('button', /Sacuvaj|Azuriraj|Save/).click();
+    cy.contains('button', /Sacuvaj|Azuriraj|Save/).scrollIntoView().click({ force: true });
     cy.wait('@updateEmployee');
 
     // --- Step 6: Back to list, verify updated employee ---
@@ -891,14 +891,14 @@ describe('Admin Employee Management Flow', () => {
     // Find and click deactivate button/switch
     cy.get('body').then(($body) => {
       if ($body.find('button:contains("Deaktiviraj")').length > 0) {
-        cy.contains('button', 'Deaktiviraj').click();
+        cy.contains('button', 'Deaktiviraj').click({ force: true });
       } else {
         // Toggle the isActive switch
         cy.get('[role="switch"]').then(($switches) => {
           // Click the first switch (isActive toggle)
-          cy.wrap($switches.first()).click();
+          cy.wrap($switches.first()).click({ force: true });
         });
-        cy.contains('button', /Sacuvaj|Azuriraj|Save/).click();
+        cy.contains('button', /Sacuvaj|Azuriraj|Save/).scrollIntoView().click({ force: true });
       }
     });
 

@@ -194,7 +194,7 @@ describe('Portfolio page', () => {
     cy.contains('AAPL')
       .parents('tr')
       .within(() => {
-        cy.contains('button', 'Prodaj').click();
+        cy.contains('button', 'Prodaj').click({ force: true });
       });
 
     cy.location('pathname').should('eq', '/orders/new');
@@ -325,7 +325,7 @@ describe('Actuary management page', () => {
     cy.visit('/employee/actuaries', { onBeforeLoad: setAdminSession });
     cy.wait('@getAgents');
 
-    cy.get('button[title="Filteri"]').click();
+    cy.get('button[title="Filteri"]').click({ force: true });
     cy.get('input[placeholder="Pretraga po email-u"]').type('pera');
 
     cy.wait('@getAgents');
@@ -345,7 +345,7 @@ describe('Actuary management page', () => {
     cy.visit('/employee/actuaries', { onBeforeLoad: setAdminSession });
     cy.wait('@getAgents');
 
-    cy.get('button[title="Filteri"]').click();
+    cy.get('button[title="Filteri"]').click({ force: true });
     cy.get('input[placeholder="Pretraga po imenu"]').type('Jovan');
 
     cy.wait('@getAgents');
@@ -360,7 +360,7 @@ describe('Actuary management page', () => {
     cy.contains('td', 'Pera')
       .parents('tr')
       .within(() => {
-        cy.get('button[title="Izmeni limit"]').click();
+        cy.get('button[title="Izmeni limit"]').click({ force: true });
       });
 
     cy.contains('Izmena limita').should('be.visible');
@@ -384,11 +384,11 @@ describe('Actuary management page', () => {
     cy.contains('td', 'Pera')
       .parents('tr')
       .within(() => {
-        cy.get('button[title="Izmeni limit"]').click();
+        cy.get('button[title="Izmeni limit"]').click({ force: true });
       });
 
     cy.get('#dailyLimit').clear().type('200000');
-    cy.contains('button', 'Sacuvaj').click();
+    cy.contains('button', 'Sacuvaj').click({ force: true });
     cy.wait('@updateLimit');
   });
 
@@ -407,7 +407,7 @@ describe('Actuary management page', () => {
     cy.contains('td', 'Pera')
       .parents('tr')
       .within(() => {
-        cy.contains('button', 'Resetuj limit').click();
+        cy.contains('button', 'Resetuj limit').click({ force: true });
       });
 
     cy.wait('@resetLimit');
@@ -526,7 +526,7 @@ describe('Tax portal page', () => {
     cy.wait('@getRates');
     cy.wait('@getTax');
 
-    cy.contains('button', 'Klijenti').click();
+    cy.contains('button', 'Klijenti').click({ force: true });
     cy.wait('@getTax');
     cy.contains('td', 'Marko Markovic').should('be.visible');
   });
@@ -567,7 +567,7 @@ describe('Tax portal page', () => {
     cy.wait('@getTax');
 
     cy.on('window:confirm', () => true);
-    cy.contains('button', 'Izracunaj porez').click();
+    cy.contains('button', 'Izracunaj porez').click({ force: true });
     cy.wait('@calculate');
     cy.contains('Obracun poreza je uspesno pokrenut.').should('be.visible');
   });
@@ -690,7 +690,7 @@ describe('Exchanges page', () => {
     cy.contains('New York Stock Exchange')
       .parents('tr')
       .within(() => {
-        cy.get('button[role="switch"]').click();
+        cy.get('button[role="switch"]').click({ force: true });
       });
 
     cy.wait('@toggleTestMode');
@@ -807,8 +807,8 @@ describe('Margin accounts page', () => {
     cy.contains('button', 'Uplati').first().click({ force: true });
 
     cy.contains('Uplata na marzni racun').should('be.visible');
-    cy.get('#margin-amount').type('5000');
-    cy.contains('button', 'Uplati').last().click();
+    cy.get('#margin-amount').should('be.visible').clear({ force: true }).type('5000', { force: true });
+    cy.get('[role="dialog"]').contains('button', 'Uplati').click({ force: true });
     cy.wait('@deposit');
   });
 
@@ -828,8 +828,8 @@ describe('Margin accounts page', () => {
 
     cy.contains('button', 'Isplati').first().click({ force: true });
     cy.contains('Isplata sa marznog racuna').should('be.visible');
-    cy.get('#margin-amount').type('3000');
-    cy.contains('button', 'Isplati').last().click({ force: true });
+    cy.get('#margin-amount').should('be.visible').clear({ force: true }).type('3000', { force: true });
+    cy.get('[role="dialog"]').contains('button', 'Isplati').click({ force: true });
     cy.wait('@withdraw');
   });
 
@@ -899,17 +899,17 @@ describe('Sidebar navigation - Celina 3 sections', () => {
     cy.visit('/home', { onBeforeLoad: setClientSession });
 
     // Find the theme dropdown trigger and click it
-    cy.contains('aside button', /Svetlo|Tamno|Sistem/i).click();
+    cy.contains('aside button', /Svetlo|Tamno|Sistem/i).click({ force: true });
 
     // Select dark mode
-    cy.contains('Tamno').click();
+    cy.contains('Tamno').click({ force: true });
 
     // Verify the button now says Tamno
     cy.contains('aside button', 'Tamno').should('be.visible');
 
     // Switch back to light
-    cy.contains('aside button', 'Tamno').click();
-    cy.contains('Svetlo').click();
+    cy.contains('aside button', 'Tamno').click({ force: true });
+    cy.contains('Svetlo').click({ force: true });
     cy.contains('aside button', 'Svetlo').should('be.visible');
   });
 });

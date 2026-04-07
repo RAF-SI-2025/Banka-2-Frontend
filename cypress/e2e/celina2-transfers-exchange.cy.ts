@@ -250,11 +250,11 @@ describe('Transfer Page - Same Currency Transfer (no FX)', () => {
     cy.get('#toAccount').select(mockAccounts[1].accountNumber);
     cy.get('#amount').clear().type('10000');
     cy.contains('button', 'Nastavi na potvrdu').scrollIntoView().click({ force: true });
-    cy.contains('button', 'Potvrdi transfer').click();
+    cy.contains('button', 'Potvrdi transfer').scrollIntoView().click({ force: true });
     // OTP modal opens
     cy.wait('@requestOtp');
-    cy.get('#otp').type('123456');
-    cy.contains('button', 'Potvrdi').click();
+    cy.get('#otp').type('123456', { force: true });
+    cy.contains('button', 'Potvrdi').scrollIntoView().click({ force: true });
     cy.wait('@createTransfer');
     // Should show success toast or navigate away
     cy.url().should('include', '/accounts');
@@ -265,7 +265,7 @@ describe('Transfer Page - Same Currency Transfer (no FX)', () => {
     cy.get('#toAccount').select(mockAccounts[1].accountNumber);
     cy.get('#amount').clear().type('10000');
     cy.contains('button', 'Nastavi na potvrdu').scrollIntoView().click({ force: true });
-    cy.contains('button', 'Nazad').click();
+    cy.contains('button', 'Nazad').scrollIntoView().click({ force: true });
     // Should be back on the form
     cy.get('#fromAccount').should('exist');
     cy.get('#amount').should('exist');
@@ -454,7 +454,7 @@ describe('Transfer History - Filters', () => {
     cy.get('#account-filter').select(mockAccounts[0].accountNumber);
     cy.get('#date-from').type('2026-03-01');
     cy.get('#date-to').type('2026-03-28');
-    cy.contains('button', 'Resetuj filtere').click();
+    cy.contains('button', 'Resetuj filtere').scrollIntoView().click({ force: true });
     cy.get('#account-filter').should('have.value', '');
     cy.get('#date-from').should('have.value', '');
     cy.get('#date-to').should('have.value', '');

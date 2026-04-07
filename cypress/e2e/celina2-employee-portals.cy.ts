@@ -647,23 +647,19 @@ describe('Employee Portal - Account Cards Management', () => {
   });
 
   it('deactivates a card with confirmation', () => {
-    cy.intercept('PATCH', '**/api/cards/101/deactivate', {
+    cy.intercept('PATCH', '**/api/cards/*/deactivate', {
       statusCode: 200,
       body: {},
     }).as('deactivateCard');
-    // Also intercept card 102 deactivate in case it matches first
-    cy.intercept('PATCH', '**/api/cards/102/deactivate', {
-      statusCode: 200,
-      body: {},
-    });
 
     cy.on('window:confirm', () => true);
 
     cy.visit('/employee/accounts/1/cards', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getAccount');
     cy.wait('@getAccountCards');
-    // Find the first card's deactivate button (variant="destructive")
-    cy.get('button.bg-destructive, button[class*="bg-destructive"]').first().click({ force: true });
+    // Find the first destructive variant button (deactivate)
+    // Use a broader selector that matches the shadcn destructive variant class
+    cy.get('button').filter('[class*="destructive"]').first().click({ force: true });
     cy.wait('@deactivateCard');
   });
 

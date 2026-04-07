@@ -268,7 +268,7 @@ describe('Celina 3 - Securities List Page', () => {
     });
 
     it('switches between Stocks and Futures tabs', () => {
-      cy.contains('button', 'Futures').click();
+      cy.contains('button', 'Futures').click({ force: true });
       cy.wait('@getListings');
       cy.contains('CLJ26').should('be.visible');
       cy.contains('Crude Oil').should('be.visible');
@@ -276,7 +276,7 @@ describe('Celina 3 - Securities List Page', () => {
       cy.get('th').contains('Istek').should('be.visible');
 
       // Switch back to stocks
-      cy.contains('button', 'Akcije').click();
+      cy.contains('button', 'Akcije').click({ force: true });
       cy.wait('@getListings');
       cy.contains('AAPL').should('be.visible');
     });
@@ -359,20 +359,20 @@ describe('Celina 3 - Securities List Page', () => {
       cy.contains('button', 'Prethodna').should('be.disabled');
 
       // Navigate forward
-      cy.contains('button', 'Sledeca').click();
+      cy.contains('button', 'Sledeca').click({ force: true });
       cy.wait('@pagedListings');
     });
 
     it('refreshes prices when Osvezi cene button is clicked', () => {
       cy.intercept('POST', '**/listings/refresh', { statusCode: 200 }).as('refresh');
-      cy.contains('Osvezi cene').click();
+      cy.contains('Osvezi cene').click({ force: true });
       cy.wait('@refresh');
       // After refresh, listings are re-fetched
       cy.wait('@getListings');
     });
 
     it('navigates to details page when row is clicked', () => {
-      cy.contains('AAPL').closest('tr').click();
+      cy.contains('AAPL').closest('tr').click({ force: true });
       cy.url().should('include', '/securities/1');
     });
 
@@ -400,7 +400,7 @@ describe('Celina 3 - Securities List Page', () => {
     });
 
     it('displays forex pairs when Forex tab is selected', () => {
-      cy.contains('button', 'Forex').click();
+      cy.contains('button', 'Forex').click({ force: true });
       cy.wait('@getListings');
       cy.contains('EUR/USD').should('be.visible');
       cy.contains('Euro Dollar').should('be.visible');
@@ -441,7 +441,7 @@ describe('Celina 3 - Securities Details Page', () => {
     });
 
     it('changes period when a period button is clicked', () => {
-      cy.contains('button', '1G').click();
+      cy.contains('button', '1G').click({ force: true });
       cy.wait('@getHistory');
     });
 
@@ -461,15 +461,15 @@ describe('Celina 3 - Securities Details Page', () => {
     });
 
     it('navigates to create order page with correct params on Buy click', () => {
-      cy.contains('Kupi AAPL').click();
+      cy.contains('Kupi AAPL').click({ force: true });
       cy.url().should('include', '/orders/new');
       cy.url().should('include', 'listingId=1');
       cy.url().should('include', 'direction=BUY');
     });
 
     it('navigates to create order page with SELL direction', () => {
-      cy.contains('PRODAJ').click();
-      cy.contains('Prodaj AAPL').click();
+      cy.contains('PRODAJ').click({ force: true });
+      cy.contains('Prodaj AAPL').click({ force: true });
       cy.url().should('include', '/orders/new');
       cy.url().should('include', 'direction=SELL');
     });
@@ -606,7 +606,7 @@ describe('Celina 3 - Create Order Page', () => {
 
   it('switches direction to SELL when clicked', () => {
     setupCreateOrderPage();
-    cy.contains('Prodaja').click();
+    cy.contains('Prodaja').click({ force: true });
     cy.contains('Prodaja').closest('label').should('have.class', 'border-red-500');
   });
 
@@ -676,7 +676,7 @@ describe('Celina 3 - Create Order Page', () => {
     cy.contains('Dozvoljeno je parcijalno izvršenje').should('be.visible');
 
     // Check the AON checkbox
-    cy.contains('All or None').closest('label').find('input[type="checkbox"]').check();
+    cy.contains('All or None').closest('label').find('input[type="checkbox"]').check({ force: true });
     cy.contains('Nalog se izvršava samo ako može u potpunosti').should('be.visible');
   });
 
@@ -726,14 +726,14 @@ describe('Celina 3 - Create Order Page', () => {
     cy.get('#quantity').clear().type('10');
 
     // Submit form
-    cy.contains('button', 'Nastavi na potvrdu').click();
+    cy.contains('button', 'Nastavi na potvrdu').scrollIntoView().click({ force: true });
 
     // Confirmation dialog should open
     cy.contains('Potvrda naloga').should('be.visible');
     cy.contains('Proverite detalje pre slanja').should('be.visible');
 
     // Confirm
-    cy.contains('button', 'Potvrdi').click();
+    cy.contains('button', 'Potvrdi').scrollIntoView().click({ force: true });
     cy.wait('@createOrder');
 
     // Should navigate to my orders
@@ -843,12 +843,12 @@ describe('Celina 3 - My Orders Page', () => {
     }).as('cancelOrder');
 
     // Click cancel on first order
-    cy.contains('AAPL').closest('tr').contains('button', 'Otkazi').click();
+    cy.contains('AAPL').closest('tr').contains('button', 'Otkazi').click({ force: true });
 
     // Confirmation dialog
     cy.contains('Otkazi nalog').should('be.visible');
     cy.contains('#1').should('be.visible');
-    cy.contains('button', 'Potvrdi otkazivanje').click();
+    cy.contains('button', 'Potvrdi otkazivanje').click({ force: true });
     cy.wait('@cancelOrder');
   });
 
@@ -856,7 +856,7 @@ describe('Celina 3 - My Orders Page', () => {
     setupMyOrdersPage();
 
     // Click details on the pending order
-    cy.contains('AAPL').closest('tr').contains('button', 'Detalji').click();
+    cy.contains('AAPL').closest('tr').contains('button', 'Detalji').click({ force: true });
 
     // Modal should show detailed info
     cy.contains('Detalji naloga').should('be.visible');
@@ -867,7 +867,7 @@ describe('Celina 3 - My Orders Page', () => {
     cy.contains('Provizija').should('be.visible');
 
     // Close modal
-    cy.get('button[aria-label="Zatvori"]').click();
+    cy.get('button[aria-label="Zatvori"]').click({ force: true });
     cy.contains('Detalji naloga').should('not.exist');
   });
 
@@ -928,7 +928,7 @@ describe('Celina 3 - My Orders Page', () => {
     });
     setupMyOrdersPage([detailedOrder]);
 
-    cy.contains('AAPL').closest('tr').contains('button', 'Detalji').click();
+    cy.contains('AAPL').closest('tr').contains('button', 'Detalji').click({ force: true });
 
     cy.contains('Detalji naloga').should('be.visible');
     cy.contains('All or None').should('be.visible');

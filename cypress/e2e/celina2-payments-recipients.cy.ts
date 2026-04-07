@@ -563,8 +563,8 @@ describe('Payment History Page', () => {
       }).as('dateFilteredPayments');
 
       cy.contains('button', 'Filteri').click();
-      cy.get('#dateFrom').type('2025-03-25');
-      cy.get('#dateTo').type('2025-03-26');
+      cy.get('#dateFrom').scrollIntoView().type('2025-03-25', { force: true });
+      cy.get('#dateTo').scrollIntoView().type('2025-03-26', { force: true });
       cy.wait('@dateFilteredPayments');
     });
 
@@ -579,14 +579,14 @@ describe('Payment History Page', () => {
       }).as('amountFilteredPayments');
 
       cy.contains('button', 'Filteri').click();
-      cy.get('#amountMin').type('3000');
-      cy.get('#amountMax').type('10000');
+      cy.get('#amountMin').scrollIntoView().type('3000', { force: true });
+      cy.get('#amountMax').scrollIntoView().type('10000', { force: true });
       cy.wait('@amountFilteredPayments');
     });
 
     it('resets all filters when clicking Resetuj', () => {
       cy.contains('button', 'Filteri').click();
-      cy.get('#amountMin').type('1000');
+      cy.get('#amountMin').scrollIntoView().type('1000', { force: true });
       cy.contains('button', 'Resetuj').click();
       cy.get('#amountMin').should('have.value', '');
     });

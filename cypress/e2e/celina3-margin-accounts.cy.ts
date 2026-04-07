@@ -226,9 +226,10 @@ describe('Margin Accounts - Deposit', () => {
     cy.wait('@getMarginAccounts');
     cy.contains('button', 'Uplati').first().click({ force: true });
 
-    // Enter amount
-    cy.get('input[type="number"], input[inputmode="decimal"]').last().type('50000');
-    cy.contains('button', /Uplati|Isplati/).last().click({ force: true });
+    // Enter amount in dialog
+    cy.get('#margin-amount').should('be.visible').clear({ force: true }).type('50000', { force: true });
+    // Click the submit button inside the dialog (second Uplati button)
+    cy.get('[role="dialog"]').contains('button', /Uplati|Isplati/).click({ force: true });
     cy.wait('@deposit');
   });
 
@@ -237,8 +238,8 @@ describe('Margin Accounts - Deposit', () => {
     cy.wait('@getMarginAccounts');
     cy.contains('button', 'Uplati').first().click({ force: true });
 
-    cy.get('input[type="number"], input[inputmode="decimal"]').last().type('0');
-    cy.contains('button', /Uplati|Isplati/).last().click({ force: true });
+    cy.get('#margin-amount').should('be.visible').clear({ force: true }).type('0', { force: true });
+    cy.get('[role="dialog"]').contains('button', /Uplati|Isplati/).click({ force: true });
   });
 
   it('shows validation error for negative amount', () => {
@@ -246,8 +247,8 @@ describe('Margin Accounts - Deposit', () => {
     cy.wait('@getMarginAccounts');
     cy.contains('button', 'Uplati').first().click({ force: true });
 
-    cy.get('input[type="number"], input[inputmode="decimal"]').last().type('-100');
-    cy.contains('button', /Uplati|Isplati/).last().click({ force: true });
+    cy.get('#margin-amount').should('be.visible').clear({ force: true }).type('-100', { force: true });
+    cy.get('[role="dialog"]').contains('button', /Uplati|Isplati/).click({ force: true });
   });
 
   it('handles deposit API error', () => {
@@ -260,8 +261,8 @@ describe('Margin Accounts - Deposit', () => {
     cy.wait('@getMarginAccounts');
     cy.contains('button', 'Uplati').first().click({ force: true });
 
-    cy.get('input[type="number"], input[inputmode="decimal"]').last().type('50000');
-    cy.contains('button', /Uplati|Isplati/).last().click({ force: true });
+    cy.get('#margin-amount').should('be.visible').clear({ force: true }).type('50000', { force: true });
+    cy.get('[role="dialog"]').contains('button', /Uplati|Isplati/).click({ force: true });
     cy.wait('@depositError');
   });
 
@@ -275,8 +276,8 @@ describe('Margin Accounts - Deposit', () => {
     cy.wait('@getMarginAccounts');
     cy.contains('button', 'Uplati').first().click({ force: true });
 
-    cy.get('input[type="number"], input[inputmode="decimal"]').last().type('50000');
-    cy.contains('button', /Uplati|Isplati/).last().click({ force: true });
+    cy.get('#margin-amount').should('be.visible').clear({ force: true }).type('50000', { force: true });
+    cy.get('[role="dialog"]').contains('button', /Uplati|Isplati/).click({ force: true });
     cy.wait('@deposit');
     // Should reload margin accounts
     cy.wait('@getMarginAccounts');
@@ -288,7 +289,7 @@ describe('Margin Accounts - Deposit', () => {
     cy.contains('button', 'Uplati').first().click({ force: true });
 
     // Close the dialog
-    cy.get('button[aria-label="Close"], button:has(svg)').last().click({ force: true });
+    cy.get('[role="dialog"]').find('button[aria-label="Zatvori"]').click({ force: true });
   });
 });
 
@@ -328,8 +329,8 @@ describe('Margin Accounts - Withdraw', () => {
     cy.wait('@getMarginAccounts');
     cy.contains('button', 'Isplati').first().click({ force: true });
 
-    cy.get('input[type="number"], input[inputmode="decimal"]').last().type('25000');
-    cy.contains('button', /Uplati|Isplati/).last().click({ force: true });
+    cy.get('#margin-amount').should('be.visible').clear({ force: true }).type('25000', { force: true });
+    cy.get('[role="dialog"]').contains('button', /Uplati|Isplati/).click({ force: true });
     cy.wait('@withdraw');
   });
 
@@ -343,8 +344,8 @@ describe('Margin Accounts - Withdraw', () => {
     cy.wait('@getMarginAccounts');
     cy.contains('button', 'Isplati').first().click({ force: true });
 
-    cy.get('input[type="number"], input[inputmode="decimal"]').last().type('999999');
-    cy.contains('button', /Uplati|Isplati/).last().click({ force: true });
+    cy.get('#margin-amount').should('be.visible').clear({ force: true }).type('999999', { force: true });
+    cy.get('[role="dialog"]').contains('button', /Uplati|Isplati/).click({ force: true });
     cy.wait('@withdrawError');
   });
 
@@ -366,8 +367,8 @@ describe('Margin Accounts - Withdraw', () => {
     cy.wait('@getMarginAccounts');
     cy.contains('button', 'Isplati').first().click({ force: true });
 
-    cy.get('input[type="number"], input[inputmode="decimal"]').last().type('25000');
-    cy.contains('button', /Uplati|Isplati/).last().click({ force: true });
+    cy.get('#margin-amount').should('be.visible').clear({ force: true }).type('25000', { force: true });
+    cy.get('[role="dialog"]').contains('button', /Uplati|Isplati/).click({ force: true });
     cy.wait('@withdraw');
     cy.wait('@getMarginAccounts');
   });

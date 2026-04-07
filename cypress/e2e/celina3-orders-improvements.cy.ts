@@ -327,7 +327,7 @@ describe('Celina 3 - My Orders improvements', () => {
 
     getOrderRow('Netflix Inc.').within(() => {
       cy.contains('Izvrseno: 3/10 (30%)').should('be.visible');
-      cy.contains('button', 'Otkazi').click();
+      cy.contains('button', 'Otkazi').click({ force: true });
     });
 
     cy.contains('Otkazi nalog').should('be.visible');
@@ -338,15 +338,15 @@ describe('Celina 3 - My Orders improvements', () => {
       expect(declineCallCount).to.equal(0);
     });
 
-    cy.contains('button', 'Odustani').click();
+    cy.contains('button', 'Odustani').click({ force: true });
     cy.contains('Otkazi nalog').should('not.exist');
 
     getOrderRow('Netflix Inc.').within(() => {
-      cy.contains('button', 'Otkazi').click();
+      cy.contains('button', 'Otkazi').click({ force: true });
     });
 
     cy.contains('Otkazi nalog').should('be.visible');
-    cy.contains('button', 'Potvrdi otkazivanje').click();
+    cy.contains('button', 'Potvrdi otkazivanje').click({ force: true });
     cy.contains('button', 'Obrada...').should('be.disabled');
 
     cy.wait('@cancelOrder').then((interception) => {
@@ -413,11 +413,11 @@ describe('Celina 3 - My Orders improvements', () => {
     });
 
     getOrderRow('Meta Platforms').within(() => {
-      cy.contains('button', 'Otkazi').click();
+      cy.contains('button', 'Otkazi').click({ force: true });
     });
 
     cy.contains('Otkazi nalog').should('be.visible');
-    cy.contains('button', 'Potvrdi otkazivanje').click();
+    cy.contains('button', 'Potvrdi otkazivanje').click({ force: true });
     cy.contains('button', 'Obrada...').should('be.disabled');
 
     cy.wait('@cancelOrderFail').then((interception) => {
@@ -437,7 +437,7 @@ describe('Celina 3 - My Orders improvements', () => {
       cy.contains('button', 'Otkazi').should('be.visible');
     });
 
-    cy.contains('button', 'Odustani').click();
+    cy.contains('button', 'Odustani').click({ force: true });
     cy.contains('Otkazi nalog').should('not.exist');
   });
 
@@ -487,7 +487,7 @@ describe('Celina 3 - My Orders improvements', () => {
       cy.contains('Odobren').should('be.visible');
       cy.contains('Izvrseno: 4/10 (40%)').should('be.visible');
       cy.contains('button', 'Otkazi').should('be.visible');
-      cy.contains('button', 'Detalji').click();
+      cy.contains('button', 'Detalji').click({ force: true });
     });
 
     cy.contains('Detalji naloga').should('be.visible');

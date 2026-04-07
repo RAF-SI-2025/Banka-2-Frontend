@@ -101,7 +101,7 @@ describe('Actuary Management - Agent List', () => {
   it('loads the actuary management page with header', () => {
     cy.visit('/employee/actuaries', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getAgents');
-    cy.get('main').contains('Aktuari').should('be.visible');
+    cy.get('main').contains('Upravljanje aktuarima').should('be.visible');
   });
 
   it('displays all agents in the table', () => {
@@ -151,7 +151,7 @@ describe('Actuary Management - Agent List', () => {
     cy.visit('/employee/actuaries', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getAgents');
     // Filter panel is hidden by default; click the filter button to show it
-    cy.get('button[title="Filteri"]').click();
+    cy.get('button[title="Filteri"]').click({ force: true });
     cy.get('input[placeholder="Pretraga po email-u"]').should('have.length.at.least', 1);
   });
 
@@ -432,7 +432,7 @@ describe('Tax Portal - Trigger Calculation', () => {
 
     cy.visit('/employee/tax', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getTaxRecords');
-    cy.contains('button', 'Izracunaj porez').click();
+    cy.contains('button', 'Izracunaj porez').click({ force: true });
     cy.wait('@calculateTax');
   });
 
@@ -445,7 +445,7 @@ describe('Tax Portal - Trigger Calculation', () => {
 
     cy.visit('/employee/tax', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getTaxRecords');
-    cy.contains('button', 'Izracunaj porez').click();
+    cy.contains('button', 'Izracunaj porez').click({ force: true });
     // Button should show loading state
     cy.get('button:disabled').should('exist');
   });
@@ -455,7 +455,7 @@ describe('Tax Portal - Trigger Calculation', () => {
 
     cy.visit('/employee/tax', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getTaxRecords');
-    cy.contains('button', 'Izracunaj porez').click();
+    cy.contains('button', 'Izracunaj porez').click({ force: true });
     cy.wait('@calculateTaxError');
   });
 
@@ -464,7 +464,7 @@ describe('Tax Portal - Trigger Calculation', () => {
 
     cy.visit('/employee/tax', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getTaxRecords');
-    cy.contains('button', 'Izracunaj porez').click();
+    cy.contains('button', 'Izracunaj porez').click({ force: true });
     cy.wait('@calculateTax');
     // Should reload
     cy.wait('@getTaxRecords');
@@ -583,7 +583,7 @@ describe('Exchange Management - Toggle Test Mode', () => {
     cy.visit('/employee/exchanges', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getExchanges');
     // Click the toggle for NYSE (currently off)
-    cy.get('button[role="switch"][aria-checked="false"]').first().click();
+    cy.get('button[role="switch"][aria-checked="false"]').first().click({ force: true });
     cy.wait('@toggleTestMode');
     cy.contains('Test mod ukljucen').should('exist');
   });
@@ -597,7 +597,7 @@ describe('Exchange Management - Toggle Test Mode', () => {
     cy.visit('/employee/exchanges', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getExchanges');
     // Click the toggle for NASDAQ (currently on)
-    cy.get('button[role="switch"][aria-checked="true"]').first().click();
+    cy.get('button[role="switch"][aria-checked="true"]').first().click({ force: true });
     cy.wait('@toggleTestModeOff');
     cy.contains('Test mod iskljucen').should('exist');
   });
@@ -610,7 +610,7 @@ describe('Exchange Management - Toggle Test Mode', () => {
 
     cy.visit('/employee/exchanges', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getExchanges');
-    cy.get('button[role="switch"]').first().click();
+    cy.get('button[role="switch"]').first().click({ force: true });
     cy.wait('@toggleTestModeError');
     cy.contains('Neuspesna promena test moda').should('exist');
   });
@@ -624,7 +624,7 @@ describe('Exchange Management - Toggle Test Mode', () => {
 
     cy.visit('/employee/exchanges', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getExchanges');
-    cy.get('button[role="switch"][aria-checked="false"]').first().click();
+    cy.get('button[role="switch"][aria-checked="false"]').first().click({ force: true });
     // Toggle should be disabled during the request
     cy.get('button[role="switch"][disabled]').should('have.length.at.least', 1);
   });

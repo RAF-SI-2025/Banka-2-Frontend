@@ -319,17 +319,15 @@ describe('Accounts - Account List Page', () => {
     cy.get('button[title="Filteri"]').click();
 
     // Select CHECKING filter — click the SelectTrigger (combobox) button to open dropdown
-    cy.get('button[role="combobox"]').first().click();
-    cy.get('[role="option"]').contains('Tekuci').click();
-
-    // Wait for filter to apply
-    cy.wait(300);
+    cy.get('button[role="combobox"]').first().click({ force: true });
+    cy.get('[role="option"]').contains('Tekuci').click({ force: true });
 
     // Only CHECKING account should be visible in the account cards
+    // Use retry-able assertion — Cypress will keep checking until timeout
     cy.contains('h3', 'Glavni racun').should('be.visible');
     // The filtered-out account names should not appear in any h3 (account card title)
-    cy.contains('h3', 'Devizni EUR').should('not.exist');
-    cy.contains('h3', 'Poslovni racun').should('not.exist');
+    cy.get('h3').should('not.contain', 'Poslovni racun');
+    cy.get('h3').should('not.contain', 'Devizni EUR');
   });
 
   it('shows daily and monthly limit progress bars on account cards', () => {
