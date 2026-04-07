@@ -432,7 +432,9 @@ describe('Tax Portal - Trigger Calculation', () => {
 
     cy.visit('/employee/tax', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getTaxRecords');
-    cy.contains('button', 'Izracunaj porez').click({ force: true });
+    // TaxPortalPage calls window.confirm before triggering calculation
+    cy.on('window:confirm', () => true);
+    cy.contains('button', 'Izracunaj porez').should('not.be.disabled').click({ force: true });
     cy.wait('@calculateTax');
   });
 
@@ -445,9 +447,10 @@ describe('Tax Portal - Trigger Calculation', () => {
 
     cy.visit('/employee/tax', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getTaxRecords');
-    cy.contains('button', 'Izracunaj porez').click({ force: true });
-    // Button should show loading state
-    cy.get('button:disabled').should('exist');
+    cy.on('window:confirm', () => true);
+    cy.contains('button', 'Izracunaj porez').should('not.be.disabled').click({ force: true });
+    // Button should show loading state (text changes to "Obracun u toku..." and becomes disabled)
+    cy.contains('button', 'Obracun u toku...').should('exist');
   });
 
   it('handles calculation error', () => {
@@ -455,7 +458,8 @@ describe('Tax Portal - Trigger Calculation', () => {
 
     cy.visit('/employee/tax', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getTaxRecords');
-    cy.contains('button', 'Izracunaj porez').click({ force: true });
+    cy.on('window:confirm', () => true);
+    cy.contains('button', 'Izracunaj porez').should('not.be.disabled').click({ force: true });
     cy.wait('@calculateTaxError');
   });
 
@@ -464,7 +468,8 @@ describe('Tax Portal - Trigger Calculation', () => {
 
     cy.visit('/employee/tax', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getTaxRecords');
-    cy.contains('button', 'Izracunaj porez').click({ force: true });
+    cy.on('window:confirm', () => true);
+    cy.contains('button', 'Izracunaj porez').should('not.be.disabled').click({ force: true });
     cy.wait('@calculateTax');
     // Should reload
     cy.wait('@getTaxRecords');

@@ -123,12 +123,12 @@ describe('Portfolio page', () => {
   };
 
   function mockPortfolioEndpoints() {
-    cy.intercept('GET', '**/portfolio/summary', {
+    cy.intercept('GET', '**/api/portfolio/summary', {
       statusCode: 200,
       body: summary,
     }).as('getSummary');
 
-    cy.intercept('GET', '**/portfolio/my', {
+    cy.intercept('GET', '**/api/portfolio/my', {
       statusCode: 200,
       body: portfolioItems,
     }).as('getPortfolio');
@@ -147,6 +147,8 @@ describe('Portfolio page', () => {
     cy.wait('@getSummary');
     cy.wait('@getPortfolio');
     cy.contains('h1', 'Moj portfolio', { timeout: 10000 }).should('be.visible');
+    // Wait for the holdings table to render (ensure loading state is done)
+    cy.contains('Hartije u vlasnistvu', { timeout: 10000 }).should('be.visible');
   });
 
   it('loads portfolio page with holdings table', () => {
@@ -173,8 +175,8 @@ describe('Portfolio page', () => {
   });
 
   it('displays profit/loss coloring in holdings table', () => {
-    // Positive profit row (AAPL) should have green text
-    cy.contains('AAPL')
+    // Positive profit row (AAPL) should have green text — scope to table to avoid chart matches
+    cy.get('table').contains('td', 'AAPL')
       .parents('tr')
       .within(() => {
         cy.contains('+300,00').should('be.visible');
@@ -182,7 +184,7 @@ describe('Portfolio page', () => {
       });
 
     // Negative profit row (EUR/USD) should have red text
-    cy.contains('EUR/USD')
+    cy.get('table').contains('td', 'EUR/USD')
       .parents('tr')
       .within(() => {
         cy.contains('-30,00').should('be.visible');
@@ -191,7 +193,7 @@ describe('Portfolio page', () => {
   });
 
   it('navigates to sell order when Sell button is clicked', () => {
-    cy.contains('AAPL')
+    cy.get('table').contains('td', 'AAPL')
       .parents('tr')
       .within(() => {
         cy.contains('button', 'Prodaj').click({ force: true });
@@ -203,7 +205,7 @@ describe('Portfolio page', () => {
   });
 
   it('allows setting public quantity only for STOCK items', () => {
-    cy.intercept('PATCH', '**/portfolio/1/public', (req) => {
+    cy.intercept('PATCH', '**/api/portfolio/1/public', (req) => {
       expect(req.body).to.deep.equal({ quantity: 7 });
       req.reply({
         statusCode: 200,
@@ -211,8 +213,8 @@ describe('Portfolio page', () => {
       });
     }).as('setPublic');
 
-    // STOCK row should have the public quantity input
-    cy.contains('AAPL')
+    // STOCK row should have the public quantity input — scope to table to avoid chart matches
+    cy.get('table').contains('td', 'AAPL')
       .parents('tr')
       .within(() => {
         cy.get('input[type="number"]').clear({ force: true }).type('7', { force: true });
@@ -222,7 +224,7 @@ describe('Portfolio page', () => {
     cy.wait('@setPublic');
 
     // FOREX row should NOT have public quantity input
-    cy.contains('EUR/USD')
+    cy.get('table').contains('td', 'EUR/USD')
       .parents('tr')
       .within(() => {
         cy.get('input[type="number"]').should('not.exist');
@@ -230,7 +232,7 @@ describe('Portfolio page', () => {
       });
 
     // FUTURES row should NOT have public quantity input
-    cy.contains('CORN-JUL')
+    cy.get('table').contains('td', 'CORN-JUL')
       .parents('tr')
       .within(() => {
         cy.get('input[type="number"]').should('not.exist');
@@ -238,11 +240,11 @@ describe('Portfolio page', () => {
   });
 
   it('shows empty portfolio message when no items', () => {
-    cy.intercept('GET', '**/portfolio/summary', {
+    cy.intercept('GET', '**/api/portfolio/summary', {
       statusCode: 200,
       body: { totalValue: 0, totalProfit: 0, paidTaxThisYear: 0, unpaidTaxThisMonth: 0 },
     }).as('emptySummary');
-    cy.intercept('GET', '**/portfolio/my', {
+    cy.intercept('GET', '**/api/portfolio/my', {
       statusCode: 200,
       body: [],
     }).as('emptyPortfolio');
@@ -290,7 +292,7 @@ describe('Actuary management page', () => {
   ];
 
   function mockAgents(data = agents) {
-    cy.intercept('GET', '**/actuaries/agents*', {
+    cy.intercept('GET', '**/api/actuaries/agents*', {
       statusCode: 200,
       body: data,
     }).as('getAgents');
@@ -313,7 +315,7 @@ describe('Actuary management page', () => {
   });
 
   it('filters agents by email when filter panel is open', () => {
-    cy.intercept('GET', '**/actuaries/agents*', (req) => {
+    cy.intercept('GET', '**/api/actuaries/agents*', (req) => {
       const email = String(req.query.email ?? '');
       if (email.includes('pera')) {
         req.reply({ statusCode: 200, body: [agents[0]] });
@@ -333,7 +335,7 @@ describe('Actuary management page', () => {
   });
 
   it('filters agents by first name', () => {
-    cy.intercept('GET', '**/actuaries/agents*', (req) => {
+    cy.intercept('GET', '**/api/actuaries/agents*', (req) => {
       const firstName = String(req.query.firstName ?? '');
       if (firstName === 'Jovan') {
         req.reply({ statusCode: 200, body: [agents[1]] });
@@ -370,7 +372,7 @@ describe('Actuary management page', () => {
 
   it('saves limit changes via edit dialog', () => {
     mockAgents();
-    cy.intercept('PATCH', '**/actuaries/10/limit', (req) => {
+    cy.intercept('PATCH', '**/api/actuaries/10/limit', (req) => {
       expect(req.body.dailyLimit).to.equal(200000);
       req.reply({
         statusCode: 200,
@@ -394,7 +396,7 @@ describe('Actuary management page', () => {
 
   it('resets used limit after confirmation', () => {
     mockAgents();
-    cy.intercept('PATCH', '**/actuaries/10/reset-limit', {
+    cy.intercept('PATCH', '**/api/actuaries/10/reset-limit', {
       statusCode: 200,
       body: { ...agents[0], usedLimit: 0 },
     }).as('resetLimit');
@@ -479,7 +481,7 @@ describe('Tax portal page', () => {
       body: exchangeRates,
     }).as('getRates');
 
-    cy.intercept('GET', '**/tax*', {
+    cy.intercept('GET', '**/api/tax*', {
       statusCode: 200,
       body: records,
     }).as('getTax');
@@ -511,7 +513,7 @@ describe('Tax portal page', () => {
       body: exchangeRates,
     }).as('getRates');
 
-    cy.intercept('GET', '**/tax*', (req) => {
+    cy.intercept('GET', '**/api/tax*', (req) => {
       const ut = String(req.query.userType ?? '');
       if (ut === 'CLIENT') {
         req.reply({ statusCode: 200, body: [taxRecords[0]] });
@@ -537,7 +539,7 @@ describe('Tax portal page', () => {
       body: exchangeRates,
     }).as('getRates');
 
-    cy.intercept('GET', '**/tax*', (req) => {
+    cy.intercept('GET', '**/api/tax*', (req) => {
       const name = String(req.query.name ?? '');
       if (name.toLowerCase().includes('ana')) {
         req.reply({ statusCode: 200, body: [taxRecords[1]] });
@@ -557,7 +559,7 @@ describe('Tax portal page', () => {
 
   it('triggers tax calculation after confirmation', () => {
     mockTaxEndpoints([]);
-    cy.intercept('POST', '**/tax/calculate', {
+    cy.intercept('POST', '**/api/tax/calculate', {
       statusCode: 200,
       body: {},
     }).as('calculate');
@@ -567,7 +569,7 @@ describe('Tax portal page', () => {
     cy.wait('@getTax');
 
     cy.on('window:confirm', () => true);
-    cy.contains('button', 'Izracunaj porez').click({ force: true });
+    cy.contains('button', 'Izracunaj porez').should('not.be.disabled').click({ force: true });
     cy.wait('@calculate');
     cy.contains('Obracun poreza je uspesno pokrenut.').should('be.visible');
   });
@@ -631,7 +633,7 @@ describe('Exchanges page', () => {
   });
 
   it('loads exchanges page with exchange table', () => {
-    cy.intercept('GET', '**/exchanges', {
+    cy.intercept('GET', '**/api/exchanges', {
       statusCode: 200,
       body: exchangesList,
     }).as('getExchanges');
@@ -646,7 +648,7 @@ describe('Exchanges page', () => {
   });
 
   it('shows open/closed status badges', () => {
-    cy.intercept('GET', '**/exchanges', {
+    cy.intercept('GET', '**/api/exchanges', {
       statusCode: 200,
       body: exchangesList,
     }).as('getExchanges');
@@ -670,12 +672,12 @@ describe('Exchanges page', () => {
   });
 
   it('shows test mode toggle for admin and allows toggling', () => {
-    cy.intercept('GET', '**/exchanges', {
+    cy.intercept('GET', '**/api/exchanges', {
       statusCode: 200,
       body: exchangesList,
     }).as('getExchanges');
 
-    cy.intercept('PATCH', '**/exchanges/NYSE/test-mode', {
+    cy.intercept('PATCH', '**/api/exchanges/NYSE/test-mode', {
       statusCode: 200,
       body: {},
     }).as('toggleTestMode');
@@ -697,7 +699,7 @@ describe('Exchanges page', () => {
   });
 
   it('displays exchange details (MIC code, currency, working hours)', () => {
-    cy.intercept('GET', '**/exchanges', {
+    cy.intercept('GET', '**/api/exchanges', {
       statusCode: 200,
       body: exchangesList,
     }).as('getExchanges');
@@ -716,7 +718,7 @@ describe('Exchanges page', () => {
   });
 
   it('shows empty exchanges message when no data', () => {
-    cy.intercept('GET', '**/exchanges', {
+    cy.intercept('GET', '**/api/exchanges', {
       statusCode: 200,
       body: [],
     }).as('getExchanges');
@@ -763,7 +765,7 @@ describe('Margin accounts page', () => {
   });
 
   it('loads margin accounts page with account cards', () => {
-    cy.intercept('GET', '**/margin-accounts/my', {
+    cy.intercept('GET', '**/api/margin-accounts/my', {
       statusCode: 200,
       body: marginAccounts,
     }).as('getMarginAccounts');
@@ -777,7 +779,7 @@ describe('Margin accounts page', () => {
   });
 
   it('displays correct status badges (AKTIVAN / BLOKIRAN)', () => {
-    cy.intercept('GET', '**/margin-accounts/my', {
+    cy.intercept('GET', '**/api/margin-accounts/my', {
       statusCode: 200,
       body: marginAccounts,
     }).as('getMarginAccounts');
@@ -790,12 +792,12 @@ describe('Margin accounts page', () => {
   });
 
   it('opens deposit dialog and submits deposit', () => {
-    cy.intercept('GET', '**/margin-accounts/my', {
+    cy.intercept('GET', '**/api/margin-accounts/my', {
       statusCode: 200,
       body: marginAccounts,
     }).as('getMarginAccounts');
 
-    cy.intercept('POST', '**/margin-accounts/1/deposit', (req) => {
+    cy.intercept('POST', '**/api/margin-accounts/1/deposit', (req) => {
       expect(req.body.amount).to.equal(5000);
       req.reply({ statusCode: 200, body: {} });
     }).as('deposit');
@@ -813,12 +815,12 @@ describe('Margin accounts page', () => {
   });
 
   it('opens withdraw dialog and submits withdrawal', () => {
-    cy.intercept('GET', '**/margin-accounts/my', {
+    cy.intercept('GET', '**/api/margin-accounts/my', {
       statusCode: 200,
       body: [marginAccounts[0]], // only active account
     }).as('getMarginAccounts');
 
-    cy.intercept('POST', '**/margin-accounts/1/withdraw', (req) => {
+    cy.intercept('POST', '**/api/margin-accounts/1/withdraw', (req) => {
       expect(req.body.amount).to.equal(3000);
       req.reply({ statusCode: 200, body: {} });
     }).as('withdraw');
@@ -834,7 +836,7 @@ describe('Margin accounts page', () => {
   });
 
   it('shows blocked account banner and disables withdraw', () => {
-    cy.intercept('GET', '**/margin-accounts/my', {
+    cy.intercept('GET', '**/api/margin-accounts/my', {
       statusCode: 200,
       body: [marginAccounts[1]], // only blocked account
     }).as('getMarginAccounts');

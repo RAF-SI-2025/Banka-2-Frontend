@@ -254,7 +254,8 @@ describe('Transfer Page - Same Currency Transfer (no FX)', () => {
     // OTP modal opens
     cy.wait('@requestOtp');
     cy.get('#otp').type('123456', { force: true });
-    cy.contains('button', 'Potvrdi').scrollIntoView().click({ force: true });
+    // Click the submit button inside the OTP verification modal (not "Potvrdi transfer")
+    cy.get('[role="dialog"]').contains('button', 'Potvrdi').scrollIntoView().click({ force: true });
     cy.wait('@createTransfer');
     // Should show success toast or navigate away
     cy.url().should('include', '/accounts');

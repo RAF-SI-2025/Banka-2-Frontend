@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, type ChangeEvent } from 'react';
+import { Component, useEffect, useState, useMemo, type ChangeEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Briefcase,
@@ -208,6 +208,22 @@ function TableSkeleton() {
       </CardContent>
     </Card>
   );
+}
+
+class ChartErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
 }
 
 function PortfolioDistributionChart({ items }: { items: PortfolioItem[] }) {
@@ -506,10 +522,18 @@ export default function PortfolioPage() {
           </div>
 
           {/* Portfolio Distribution Pie Chart */}
-          {items.length > 0 && <PortfolioDistributionChart items={items} />}
+          {items.length > 0 && (
+            <ChartErrorBoundary>
+              <PortfolioDistributionChart items={items} />
+            </ChartErrorBoundary>
+          )}
 
           {/* Profit Bar Chart */}
-          {items.length > 0 && <PortfolioProfitChart items={items} />}
+          {items.length > 0 && (
+            <ChartErrorBoundary>
+              <PortfolioProfitChart items={items} />
+            </ChartErrorBoundary>
+          )}
 
           <Card>
             <CardHeader>

@@ -208,7 +208,7 @@ describe('Celina 3 - My Orders improvements', () => {
       }),
     ];
 
-    cy.intercept('GET', '**/orders/my*', (req) => {
+    cy.intercept('GET', '**/api/orders/my*', (req) => {
       const page = Number(req.query.page ?? 0);
       const size = Number(req.query.size ?? 10);
 
@@ -300,7 +300,7 @@ describe('Celina 3 - My Orders improvements', () => {
     let ordersRequestCount = 0;
     let declineCallCount = 0;
 
-    cy.intercept('GET', '**/orders/my*', (req) => {
+    cy.intercept('GET', '**/api/orders/my*', (req) => {
       ordersRequestCount += 1;
       const page = Number(req.query.page ?? 0);
       const size = Number(req.query.size ?? 10);
@@ -384,7 +384,7 @@ describe('Celina 3 - My Orders improvements', () => {
 
     let ordersRequestCount = 0;
 
-    cy.intercept('GET', '**/orders/my*', (req) => {
+    cy.intercept('GET', '**/api/orders/my*', (req) => {
       ordersRequestCount += 1;
       const page = Number(req.query.page ?? 0);
       const size = Number(req.query.size ?? 10);
@@ -469,7 +469,7 @@ describe('Celina 3 - My Orders improvements', () => {
     let currentOrders = [executingOrder];
     let ordersRequestCount = 0;
 
-    cy.intercept('GET', '**/orders/my*', (req) => {
+    cy.intercept('GET', '**/api/orders/my*', (req) => {
       ordersRequestCount += 1;
       const page = Number(req.query.page ?? 0);
       const size = Number(req.query.size ?? 10);

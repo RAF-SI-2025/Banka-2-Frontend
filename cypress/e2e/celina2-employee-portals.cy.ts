@@ -647,7 +647,7 @@ describe('Employee Portal - Account Cards Management', () => {
   });
 
   it('deactivates a card with confirmation', () => {
-    cy.intercept('PATCH', '**/api/cards/*/deactivate', {
+    cy.intercept('PATCH', '**/api/cards/101/deactivate', {
       statusCode: 200,
       body: {},
     }).as('deactivateCard');
@@ -657,9 +657,9 @@ describe('Employee Portal - Account Cards Management', () => {
     cy.visit('/employee/accounts/1/cards', { onBeforeLoad: (win) => setupAdminSession(win) });
     cy.wait('@getAccount');
     cy.wait('@getAccountCards');
-    // Find the first destructive variant button (deactivate)
-    // Use a broader selector that matches the shadcn destructive variant class
-    cy.get('button').filter('[class*="destructive"]').first().click({ force: true });
+    // Find a destructive variant button (deactivate icon button with ShieldX icon)
+    // The destructive button uses bg-destructive class from shadcn
+    cy.get('button.bg-destructive').first().click({ force: true });
     cy.wait('@deactivateCard');
   });
 
