@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
 /**
  * CELINA 1 - Mock E2E Tests (Comprehensive)
  * Covers: Authentication, Employee CRUD, Permissions, Error Pages, Landing Page
@@ -867,7 +868,7 @@ describe('Feature 6: Landing Page', () => {
     cy.contains('Bankarsko poslovanje').should('exist');
     cy.contains('Trgovina hartijama').should('exist');
     cy.contains('Sistem permisija').should('exist');
-    cy.contains('Vise valuta').should('exist');
+    cy.contains('Više valuta').should('exist');
   });
 });
 
