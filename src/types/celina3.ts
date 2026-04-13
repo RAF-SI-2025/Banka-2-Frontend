@@ -124,7 +124,8 @@ export interface CreateOrderRequest {
   stopValue?: number;
   allOrNone: boolean;
   margin: boolean;
-  accountId: number;
+  accountId?: number;
+  otpCode?: string;
 }
 
 // --- Aktuari ---

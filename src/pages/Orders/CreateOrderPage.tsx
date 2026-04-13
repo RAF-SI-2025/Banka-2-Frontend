@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import {
   CalendarClock,
   FilePlus2,
+  Info,
   Loader2,
   ShieldCheck,
   TrendingDown,
@@ -20,16 +21,19 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import VerificationModal from '@/components/shared/VerificationModal';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/lib/notify';
 import { cn } from '@/lib/utils';
 import { accountService } from '@/services/accountService';
+import { currencyService } from '@/services/currencyService';
 import exchangeManagementService from '@/services/exchangeManagementService';
 import listingService from '@/services/listingService';
+import marginService, { type MarginAccount } from '@/services/marginService';
 import orderService from '@/services/orderService';
 import { Permission } from '@/types';
 import type { Account } from '@/types/celina2';
-import { ListingType, OrderDirection, OrderType, type Listing } from '@/types/celina3';
+import { ListingType, OrderDirection, OrderType, type CreateOrderRequest, type Listing } from '@/types/celina3';
 import { asArray, formatAmount, getErrorMessage } from '@/utils/formatters';
 
 const selectClassName =
@@ -86,7 +90,14 @@ const createOrderSchema = z
     ),
     allOrNone: z.boolean(),
     margin: z.boolean(),
-    accountId: z.coerce.number().int().positive('Račun je obavezan'),
+    accountId: z.preprocess(
+      (value) => {
+        if (value === '' || value === null || value === undefined) return undefined;
+        const parsed = typeof value === 'number' ? value : Number(value);
+        return Number.isNaN(parsed) ? value : parsed;
+      },
+      z.number().int().positive().optional()
+    ),
   })
   .superRefine((data, ctx) => {
     if (
@@ -238,8 +249,9 @@ function buildCreateOrderPayload(
 export default function CreateOrderPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { hasPermission, isAdmin, user } = useAuth();
+  const { hasPermission, isAdmin, isSupervisor, isAgent, user } = useAuth();
   const isEmployeeRole = user?.role === 'ADMIN' || user?.role === 'EMPLOYEE';
+  const isEmployeeUi = isAdmin || isSupervisor || isAgent || isEmployeeRole;
 
   const requestedListingIdParam = searchParams.get('listingId');
   const requestedListingId = requestedListingIdParam ? Number(requestedListingIdParam) : Number.NaN;
@@ -253,14 +265,20 @@ export default function CreateOrderPage() {
   const [isLoadingListings, setIsLoadingListings] = useState(true);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [pendingOrder, setPendingOrder] = useState<CreateOrderFormValues | null>(null);
   const [exchangeApiOpen, setExchangeApiOpen] = useState<{ isOpen: boolean; name: string } | null>(null);
   const [exchangeApiLoading, setExchangeApiLoading] = useState(false);
   const [invalidListingRequested, setInvalidListingRequested] = useState(false);
+  const [showVerification, setShowVerification] = useState(false);
+  const [confirmedDto, setConfirmedDto] = useState<CreateOrderRequest | null>(null);
+  const [marginAccounts, setMarginAccounts] = useState<MarginAccount[]>([]);
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+  const [exchangeRateLoading, setExchangeRateLoading] = useState(false);
 
-  const canUseMargin = isAdmin || hasPermission(Permission.TRADE_STOCKS);
+  const activeMargin = marginAccounts.find((m) => m.status === 'ACTIVE') ?? null;
+  const canUseMargin = (isAdmin || hasPermission(Permission.TRADE_STOCKS)) && !!activeMargin;
 
   const {
     control,
@@ -429,6 +447,22 @@ export default function CreateOrderPage() {
     }
   }, [canUseMargin, setValue]);
 
+  // Fetch user's margin accounts (best-effort — ignore errors)
+  useEffect(() => {
+    let cancelled = false;
+    marginService
+      .getMyAccounts()
+      .then((accts) => {
+        if (!cancelled) setMarginAccounts(accts ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setMarginAccounts([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Fetch exchange open/closed status from API when listing changes
   useEffect(() => {
     const selectedListingObj = listings.find((l) => l.id === Number(listingId)) ?? null;
@@ -473,6 +507,52 @@ export default function CreateOrderPage() {
     () => accounts.find((account) => account.id === Number(accountId)) ?? null,
     [accounts, accountId]
   );
+
+  // Fetch FX rate when listing currency differs from account currency
+  const listingCurrencyForRate = useMemo(
+    () => getPricingCurrency(selectedListing),
+    [selectedListing]
+  );
+  const accountCurrencyForRate = selectedAccount?.currency ?? null;
+
+  useEffect(() => {
+    if (isEmployeeUi) {
+      setExchangeRate(null);
+      return;
+    }
+    if (!accountCurrencyForRate || !listingCurrencyForRate) {
+      setExchangeRate(null);
+      return;
+    }
+    if (listingCurrencyForRate === accountCurrencyForRate) {
+      setExchangeRate(1);
+      return;
+    }
+
+    let cancelled = false;
+    setExchangeRateLoading(true);
+    currencyService
+      .convert({
+        amount: 1,
+        fromCurrency: listingCurrencyForRate,
+        toCurrency: accountCurrencyForRate,
+      })
+      .then((result) => {
+        if (!cancelled) {
+          setExchangeRate(Number(result.exchangeRate) || null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setExchangeRate(null);
+      })
+      .finally(() => {
+        if (!cancelled) setExchangeRateLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isEmployeeUi, listingCurrencyForRate, accountCurrencyForRate]);
 
   const safeLimitValue =
     typeof limitValue === 'number' && Number.isFinite(limitValue) ? limitValue : undefined;
@@ -519,8 +599,14 @@ export default function CreateOrderPage() {
     selectedAccount?.currency && selectedAccount.currency === pricingCurrency
   );
 
+  // Approximate price converted to account currency (for dual-currency display)
+  const approximatePriceInAccount =
+    exchangeRate && Number.isFinite(exchangeRate) ? approximatePrice * exchangeRate : approximatePrice;
+
   const insufficientFunds =
-    canCompareBalance && totalAmount > Number(selectedAccount?.availableBalance ?? 0);
+    !isEmployeeUi &&
+    canCompareBalance &&
+    totalAmount > Number(selectedAccount?.availableBalance ?? 0);
 
   const confirmationListing = useMemo(
     () =>
@@ -571,6 +657,11 @@ export default function CreateOrderPage() {
       return;
     }
 
+    if (!isEmployeeUi && !nextOrder.accountId) {
+      toast.error('Račun je obavezan.');
+      return;
+    }
+
     if (insufficientFunds) {
       toast.error('Procena ukupnog troška prelazi raspoloživo stanje izabranog računa.');
       return;
@@ -580,28 +671,40 @@ export default function CreateOrderPage() {
     setIsConfirmOpen(true);
   };
 
-  const handleConfirmOrder = async () => {
+  // Step 1: user clicks "Potvrdi" in the confirmation dialog -> build DTO, open OTP modal
+  const handleConfirmOrder = () => {
     if (!pendingOrder) return;
 
-    setIsSubmitting(true);
+    const dto: CreateOrderRequest = {
+      listingId: pendingOrder.listingId,
+      orderType: pendingOrder.orderType,
+      quantity: pendingOrder.quantity,
+      contractSize: confirmationContractSize,
+      direction: pendingOrder.direction,
+      limitValue: pendingOrder.limitValue,
+      stopValue: pendingOrder.stopValue,
+      allOrNone: pendingOrder.allOrNone,
+      margin: pendingOrder.margin,
+      // Employees: omit accountId; backend uses bank trading account
+      ...(isEmployeeUi ? {} : { accountId: pendingOrder.accountId }),
+    };
+
+    setConfirmedDto(dto);
+    setIsConfirmOpen(false);
+    setShowVerification(true);
+  };
+
+  // Step 2: OTP verified -> actually POST /orders with otpCode
+  const handleOtpVerified = async (otpCode: string) => {
+    if (!confirmedDto) throw new Error('Nedostaju podaci naloga.');
 
     try {
-      await orderService.create({
-        listingId: pendingOrder.listingId,
-        orderType: pendingOrder.orderType,
-        quantity: pendingOrder.quantity,
-        contractSize: confirmationContractSize,
-        direction: pendingOrder.direction,
-        limitValue: pendingOrder.limitValue,
-        stopValue: pendingOrder.stopValue,
-        allOrNone: pendingOrder.allOrNone,
-        margin: pendingOrder.margin,
-        accountId: pendingOrder.accountId,
-      });
+      await orderService.create({ ...confirmedDto, otpCode });
 
       toast.success('Nalog je uspešno kreiran.');
 
-      setIsConfirmOpen(false);
+      setShowVerification(false);
+      setConfirmedDto(null);
       setPendingOrder(null);
 
       reset({
@@ -618,9 +721,8 @@ export default function CreateOrderPage() {
 
       navigate('/orders/my');
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Kreiranje naloga nije uspelo.'));
-    } finally {
-      setIsSubmitting(false);
+      // Re-throw so VerificationModal tracks attempts and displays message
+      throw error;
     }
   };
 
@@ -885,46 +987,63 @@ export default function CreateOrderPage() {
                       </div>
                     </label>
 
-                    {canUseMargin ? (
-                      <label className="flex items-start gap-3 rounded-md border border-input p-4 text-sm">
-                        <input type="checkbox" className="mt-1" {...register('margin')} />
-                        <div>
-                          <p className="font-medium">Margin</p>
-                          <p className="text-muted-foreground">
-                            {margin
-                              ? 'Margin je uključen za ovaj nalog.'
-                              : 'Margin je dostupan, ali trenutno nije uključen.'}
-                          </p>
-                        </div>
-                      </label>
-                    ) : (
-                      <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                        Margin opcija nije dostupna za vaš nalog.
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="accountId">Račun</Label>
-                    <select
-                      id="accountId"
-                      className={selectClassName}
-                      aria-invalid={Boolean(errors.accountId)}
-                      {...register('accountId')}
+                    <label
+                      className={cn(
+                        'flex items-start gap-3 rounded-md border border-input p-4 text-sm',
+                        !activeMargin && 'opacity-60 cursor-not-allowed'
+                      )}
                     >
-                      <option value="">Izaberite račun</option>
-                      {accounts.map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {formatAccountLabel(account)}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.accountId && (
-                      <p className="text-sm text-destructive">{errors.accountId.message}</p>
-                    )}
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        disabled={!activeMargin}
+                        {...register('margin')}
+                      />
+                      <div>
+                        <p className="font-medium">Margin order</p>
+                        <p className="text-muted-foreground">
+                          {!activeMargin
+                            ? 'Nemate aktivan margin račun.'
+                            : margin
+                            ? `Margin uključen (${activeMargin.currency}).`
+                            : 'Margin je dostupan, ali trenutno nije uključen.'}
+                        </p>
+                      </div>
+                    </label>
                   </div>
 
-                  {selectedAccount && (
+                  {isEmployeeUi ? (
+                    <Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/40">
+                      <Info className="h-4 w-4" />
+                      <AlertTitle>Trguje se sa bankinog računa</AlertTitle>
+                      <AlertDescription>
+                        Nalog će koristiti bankin trading račun u valuti hartije
+                        {selectedListing ? ` (${pricingCurrency})` : ''}. Provizija za zaposlene je 0.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label htmlFor="accountId">Račun</Label>
+                      <select
+                        id="accountId"
+                        className={selectClassName}
+                        aria-invalid={Boolean(errors.accountId)}
+                        {...register('accountId')}
+                      >
+                        <option value="">Izaberite račun</option>
+                        {accounts.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {formatAccountLabel(account)}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.accountId && (
+                        <p className="text-sm text-destructive">{errors.accountId.message}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {!isEmployeeUi && selectedAccount && (
                     <div className="rounded-md border bg-muted/40 p-4 text-sm">
                       <p className="font-medium">
                         Raspoloživo stanje: {formatAmount(selectedAccount.availableBalance)}{' '}
@@ -938,15 +1057,42 @@ export default function CreateOrderPage() {
                   {selectedListing && safeQuantity > 0 && (
                     <div className="rounded-md border bg-muted/30 p-4 space-y-2 text-sm">
                       <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Približna cena</span>
+                        <span className="text-muted-foreground">
+                          Približna cena ({pricingCurrency})
+                        </span>
                         <span className="font-mono font-medium">
                           {formatAmount(approximatePrice)} {pricingCurrency}
                         </span>
                       </div>
+                      {!isEmployeeUi &&
+                        selectedAccount &&
+                        selectedAccount.currency !== pricingCurrency &&
+                        exchangeRate &&
+                        exchangeRate !== 1 && (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground">Kurs</span>
+                              <span className="font-mono font-medium">
+                                1 {pricingCurrency} = {exchangeRate.toFixed(4)}{' '}
+                                {selectedAccount.currency}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground">
+                                Približna cena ({selectedAccount.currency})
+                              </span>
+                              <span className="font-mono font-medium">
+                                {formatAmount(approximatePriceInAccount)} {selectedAccount.currency}
+                              </span>
+                            </div>
+                          </>
+                        )}
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Provizija</span>
                         <span className="font-mono font-medium">
-                          {formatAmount(commission)} {pricingCurrency}
+                          {isEmployeeUi
+                            ? '0 (zaposleni)'
+                            : `${formatAmount(commission)} ${pricingCurrency}`}
                         </span>
                       </div>
                       <div className="flex items-center justify-between border-t pt-2">
@@ -1098,10 +1244,35 @@ export default function CreateOrderPage() {
                       {formatAmount(approximatePrice)} {pricingCurrency}
                     </span>
                   </div>
+                  {!isEmployeeUi &&
+                    selectedAccount &&
+                    selectedAccount.currency !== pricingCurrency &&
+                    exchangeRate &&
+                    exchangeRate !== 1 && (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Kurs</span>
+                          <span className="font-medium">
+                            1 {pricingCurrency} = {exchangeRate.toFixed(4)} {selectedAccount.currency}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">
+                            Približna cena ({selectedAccount.currency})
+                          </span>
+                          <span className="font-medium">
+                            {formatAmount(approximatePriceInAccount)} {selectedAccount.currency}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  {exchangeRateLoading && (
+                    <div className="text-xs text-muted-foreground">Učitavanje kursa...</div>
+                  )}
                   <div className="flex items-center justify-between" data-testid="commission-row">
                     <span className="text-muted-foreground">Provizija</span>
                     <span className="font-medium">
-                      {formatAmount(commission)} {pricingCurrency}
+                      {isEmployeeUi ? '0 (zaposleni)' : `${formatAmount(commission)} ${pricingCurrency}`}
                     </span>
                   </div>
                   <div className="rounded-md bg-muted/50 px-4 py-3" data-testid="total-row">
@@ -1245,7 +1416,11 @@ export default function CreateOrderPage() {
 
                 <div className="flex items-center justify-between py-1">
                   <span className="text-muted-foreground">Račun</span>
-                  <span className="font-medium">{confirmationAccount?.accountNumber.slice(-4) || '-'}</span>
+                  <span className="font-medium">
+                    {isEmployeeUi
+                      ? 'Bankin trading račun'
+                      : confirmationAccount?.accountNumber.slice(-4) || '-'}
+                  </span>
                 </div>
               </div>
 
@@ -1266,10 +1441,36 @@ export default function CreateOrderPage() {
                     {formatAmount(confirmationApproximatePrice)} {confirmationCurrency}
                   </span>
                 </div>
+                {!isEmployeeUi &&
+                  confirmationAccount &&
+                  confirmationAccount.currency !== confirmationCurrency &&
+                  exchangeRate &&
+                  exchangeRate !== 1 && (
+                    <>
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-muted-foreground">Kurs</span>
+                        <span className="font-medium">
+                          1 {confirmationCurrency} = {exchangeRate.toFixed(4)}{' '}
+                          {confirmationAccount.currency}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-muted-foreground">
+                          Približna cena ({confirmationAccount.currency})
+                        </span>
+                        <span className="font-medium">
+                          {formatAmount(confirmationApproximatePrice * exchangeRate)}{' '}
+                          {confirmationAccount.currency}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 <div className="flex items-center justify-between py-1">
                   <span className="text-muted-foreground">Provizija</span>
                   <span className="font-medium">
-                    {formatAmount(confirmationCommission)} {confirmationCurrency}
+                    {isEmployeeUi
+                      ? '0 (zaposleni)'
+                      : `${formatAmount(confirmationCommission)} ${confirmationCurrency}`}
                   </span>
                 </div>
                 <div className="mt-2 flex items-center justify-between border-t pt-3">
@@ -1308,6 +1509,15 @@ export default function CreateOrderPage() {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+
+      <VerificationModal
+        isOpen={showVerification}
+        onClose={() => {
+          setShowVerification(false);
+          setConfirmedDto(null);
+        }}
+        onVerified={handleOtpVerified}
+      />
     </>
   );
 }
