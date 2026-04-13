@@ -17,6 +17,7 @@ import type { PieLabelRenderProps } from 'recharts';
 
 import portfolioService from '@/services/portfolioService';
 import listingService from '@/services/listingService';
+import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/lib/notify';
 import type { PortfolioItem, PortfolioSummary } from '@/types/celina3';
 import { formatAmount, formatDateTime } from '@/utils/formatters';
@@ -272,6 +273,8 @@ function PortfolioDistributionChart({ items }: { items: PortfolioItem[] }) {
 
 export default function PortfolioPage() {
   const navigate = useNavigate();
+  const { isAdmin, isAgent, isSupervisor } = useAuth();
+  const isEmployee = isAdmin || isAgent || isSupervisor;
 
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [items, setItems] = useState<PortfolioItem[]>([]);
@@ -351,20 +354,10 @@ export default function PortfolioPage() {
     setSavingPublicId(item.id);
 
     try {
-      const updated = await portfolioService.setPublicQuantity(item.id, parsed);
-
-      setItems((prev) =>
-        prev.map((portfolioItem) =>
-          portfolioItem.id === item.id ? updated : portfolioItem
-        )
-      );
-
-      setPublicQuantities((prev) => ({
-        ...prev,
-        [item.id]: String(updated.publicQuantity ?? parsed),
-      }));
-
+      await portfolioService.setPublicQuantity(item.id, parsed);
       toast.success('Javna količina je uspešno sačuvana.');
+      // Refetch kompletnog portfolija da garantujemo persist i sync sa backend-om
+      await loadPortfolio(false);
     } catch {
       toast.error('Čuvanje javne količine nije uspelo.');
     } finally {
@@ -373,13 +366,23 @@ export default function PortfolioPage() {
   };
 
   const handleExerciseOption = async (item: PortfolioItem) => {
+    if (!window.confirm(`Da li ste sigurni da želite da iskoristite opciju "${item.listingTicker}"?`)) {
+      return;
+    }
     setExercisingId(item.id);
     try {
       await listingService.exerciseOption(item.id);
       toast.success(`Opcija "${item.listingTicker}" je uspešno iskorišćena.`);
       await loadPortfolio(false);
-    } catch {
-      toast.error('Iskorišćavanje opcije nije uspelo. Pokušajte ponovo.');
+    } catch (err: unknown) {
+      const error = err as { response?: { status?: number; data?: { error?: string; message?: string } } };
+      const status = error.response?.status;
+      if (status === 404) {
+        toast.error('Backend endpoint za izvršavanje opcije još nije dostupan.');
+      } else {
+        const msg = error.response?.data?.error || error.response?.data?.message;
+        toast.error(msg || 'Iskorišćavanje opcije nije uspelo. Pokušajte ponovo.');
+      }
     } finally {
       setExercisingId(null);
     }
@@ -552,6 +555,12 @@ export default function PortfolioPage() {
                     {items.map((item) => {
                       const isProfitPositive = item.profit >= 0;
                       const isStock = item.listingType === 'STOCK';
+                      const isOption = isOptionType(item.listingType);
+                      const isExpired = item.settlementDate
+                        ? new Date(item.settlementDate).getTime() < Date.now()
+                        : false;
+                      const canExercise =
+                        isOption && isEmployee && !isExpired && item.inTheMoney === true;
 
                       return (
                         <TableRow key={item.id}>
@@ -640,7 +649,7 @@ export default function PortfolioPage() {
                                   </Button>
                                 </div>
                               )}
-                              {isOptionType(item.listingType) && (
+                              {canExercise && (
                                 <Button
                                   size="sm"
                                   className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:from-indigo-600 hover:to-violet-700"

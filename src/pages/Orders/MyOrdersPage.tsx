@@ -727,7 +727,16 @@ export default function MyOrdersPage() {
                         label="After hours"
                         value={selectedOrder.afterHours ? 'Da' : 'Ne'}
                       />
-                      <InfoRow label="Odobrio" value={selectedOrder.approvedBy || '-'} />
+                      <InfoRow
+                        label="Odobrio"
+                        value={
+                          !selectedOrder.approvedBy
+                            ? '-'
+                            : selectedOrder.approvedBy === 'No need for approval'
+                              ? 'Automatsko odobrenje'
+                              : selectedOrder.approvedBy
+                        }
+                      />
                     </CardContent>
                   </Card>
                 </div>
