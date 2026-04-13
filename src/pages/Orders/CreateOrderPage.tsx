@@ -447,8 +447,12 @@ export default function CreateOrderPage() {
     }
   }, [canUseMargin, setValue]);
 
-  // Fetch user's margin accounts (best-effort — ignore errors)
+  // Fetch user's margin accounts (samo klijenti — zaposleni dobijaju 403)
   useEffect(() => {
+    if (isEmployeeRole) {
+      setMarginAccounts([]);
+      return;
+    }
     let cancelled = false;
     marginService
       .getMyAccounts()
@@ -461,7 +465,7 @@ export default function CreateOrderPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isEmployeeRole]);
 
   // Fetch exchange open/closed status from API when listing changes
   useEffect(() => {
