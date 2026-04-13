@@ -20,7 +20,7 @@ import {
 import type { Listing, ListingDailyPrice, OptionChain } from '@/types/celina3';
 import listingService from '@/services/listingService';
 import { toast } from '@/lib/notify';
-import { formatPrice } from '@/utils/formatters';
+import { formatPrice, formatVolumeCompact } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -50,13 +50,6 @@ const PERIODS = [
   { key: 'ALL', label: 'Sve', days: 3650 },
 ] as const;
 
-function formatVolumeCompact(vol: number | null | undefined): string {
-  if (vol == null) return '-';
-  if (vol >= 1_000_000_000) return `${(vol / 1_000_000_000).toFixed(2)}B`;
-  if (vol >= 1_000_000) return `${(vol / 1_000_000).toFixed(1)}M`;
-  if (vol >= 1_000) return `${(vol / 1_000).toFixed(1)}K`;
-  return vol.toLocaleString('sr-RS');
-}
 
 function generateFakeHistory(basePrice: number, days: number): ListingDailyPrice[] {
   const data: ListingDailyPrice[] = [];

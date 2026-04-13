@@ -190,7 +190,7 @@ export default function EmployeeListPage() {
 
       {/* Filter card */}
       {showFilters && (
-        <Card className="p-5 rounded-2xl" style={{ animation: 'fadeUp 0.3s ease-out' }}>
+        <Card className="p-5 rounded-2xl animate-fade-up">
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Filteri pretrage</h3>
           <div className="flex flex-wrap gap-3">
             <div className="relative">
@@ -412,12 +412,6 @@ export default function EmployeeListPage() {
         </Card>
       )}
 
-      <style>{`
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </div>
   );
 }

@@ -33,32 +33,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-import { asArray, formatAmount } from '@/utils/formatters';
+import { asArray, formatAmount, getErrorMessage } from '@/utils/formatters';
 
 const PAGE_SIZE = 10;
-
-function getErrorMessage(defaultMessage: string, error: unknown): string {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'response' in error &&
-    typeof (error as { response?: unknown }).response === 'object' &&
-    (error as { response?: unknown }).response !== null &&
-    'status' in ((error as { response?: { status?: unknown } }).response ?? {})
-  ) {
-    const status = (error as { response?: { status?: number } }).response?.status;
-
-    if (status === 403) {
-      return 'Nemate dozvolu za pristup ovoj funkcionalnosti.';
-    }
-
-    if (status === 404) {
-      return 'Trazeni resurs nije pronadjen.';
-    }
-  }
-
-  return defaultMessage;
-}
 
 function getInitials(firstName: string, lastName: string): string {
   return `${(firstName || '?')[0]}${(lastName || '?')[0]}`.toUpperCase();
@@ -171,7 +148,7 @@ export default function ClientsPortalPage() {
     } catch (error) {
       setClients([]);
       setTotalPages(1);
-      toast.error(getErrorMessage('Neuspesno ucitavanje klijenata.', error));
+      toast.error(getErrorMessage(error, 'Neuspesno ucitavanje klijenata.'));
     } finally {
       setListLoading(false);
     }
@@ -198,7 +175,7 @@ export default function ClientsPortalPage() {
       setClientAccounts(accounts);
     } catch (error) {
       resetDetailsState();
-      toast.error(getErrorMessage('Neuspesno ucitavanje klijenta iz rute.', error));
+      toast.error(getErrorMessage(error, 'Neuspesno ucitavanje klijenta iz rute.'));
     } finally {
       setDetailsLoading(false);
     }
@@ -240,7 +217,7 @@ export default function ClientsPortalPage() {
       setCreateForm({ ...emptyEditForm, password: '' });
       await loadClients();
     } catch (error) {
-      toast.error(getErrorMessage('Kreiranje klijenta nije uspelo.', error));
+      toast.error(getErrorMessage(error, 'Kreiranje klijenta nije uspelo.'));
     } finally {
       setCreating(false);
     }
@@ -288,7 +265,7 @@ export default function ClientsPortalPage() {
       const accounts = await loadClientAccounts(updatedClient.id);
       setClientAccounts(accounts);
     } catch (error) {
-      toast.error(getErrorMessage('Izmena klijenta nije uspela.', error));
+      toast.error(getErrorMessage(error, 'Izmena klijenta nije uspela.'));
     } finally {
       setSaving(false);
     }

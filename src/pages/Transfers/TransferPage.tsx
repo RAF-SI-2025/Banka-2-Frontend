@@ -16,24 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeftRight, Wallet, ArrowRight } from 'lucide-react';
 import VerificationModal from '@/components/shared/VerificationModal';
-import { asArray, formatAmount } from '@/utils/formatters';
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'response' in error &&
-    typeof (error as { response?: unknown }).response === 'object' &&
-    (error as { response?: unknown }).response !== null
-  ) {
-    const response = (error as { response?: { data?: { message?: string } } }).response;
-    if (response?.data?.message) {
-      return response.data.message;
-    }
-  }
-
-  return fallback;
-}
+import { asArray, formatAmount, getErrorMessage } from '@/utils/formatters';
 
 export default function TransferPage() {
   const navigate = useNavigate();

@@ -31,15 +31,10 @@ import listingService from '@/services/listingService';
 import taxService from '@/services/taxService';
 
 import type { Order, ActuaryInfo } from '@/types/celina3';
-import { formatAmount, formatDate } from '@/utils/formatters';
+import { formatAmount, formatDate, formatVolumeCompact } from '@/utils/formatters';
 
 /* ---------- helpers ---------- */
 
-function formatVolumeCompact(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
-  return value.toLocaleString('sr-RS');
-}
 
 function statusBadgeVariant(
   status: string

@@ -38,7 +38,8 @@ export const cardService = {
     return response.data;
   },
 
-  // FIXME: Ceka backend endpoint — placeholder URL
+  // TODO: Backend nema REST endpoint za authorized persons (samo JPA relacija na Company entitetu).
+  //       URL je placeholder — treba dodati endpoint na backendu kada bude potreban.
   getAuthorizedPersons: async (accountNumber: string): Promise<AuthorizedPerson[]> => {
     const response = await api.get<AuthorizedPerson[]>(`/accounts/${accountNumber}/authorized-persons`);
     return response.data;

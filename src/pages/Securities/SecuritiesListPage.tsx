@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/lib/notify';
 import {
@@ -15,11 +15,19 @@ import {
   Activity,
   ArrowUpRight,
   ArrowDownRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   SlidersHorizontal,
+  Orbit,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import type { Listing, PaginatedResponse } from '@/types/celina3';
+import type { Listing, PaginatedResponse, Exchange } from '@/types/celina3';
 import listingService from '@/services/listingService';
+import exchangeManagementService from '@/services/exchangeManagementService';
+
+// Lazy-load the 3D globe (Three.js ~500KB) - only pulled when user clicks the tab
+const GlobeView = lazy(() => import('../Exchanges/GlobeView'));
 import { formatPrice } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +57,22 @@ const TAB_ICONS: Record<ListingTab, string> = {
 };
 
 const PAGE_SIZE = 20;
+
+type SortField = 'price' | 'volume' | 'maintenanceMargin' | null;
+type SortDirection = 'asc' | 'desc';
+
+function getMaintenanceMargin(listing: Listing, activeTab: ListingTab): number {
+  if (listing.maintenanceMargin) return listing.maintenanceMargin;
+  const price = listing.price ?? 0;
+  if (activeTab === 'STOCK') return price * 0.5;
+  const contractSize = listing.contractSize ?? 1;
+  return contractSize * price * 0.1;
+}
+
+function getInitialMarginCost(listing: Listing, activeTab: ListingTab): number {
+  if (listing.initialMarginCost) return listing.initialMarginCost;
+  return getMaintenanceMargin(listing, activeTab) * 1.1;
+}
 
 function formatVolumeCompact(vol: number | null | undefined): string {
   if (vol == null) return '-';
@@ -114,6 +138,9 @@ export default function SecuritiesListPage() {
   const isClient = user?.role === 'CLIENT';
 
   const [activeTab, setActiveTab] = useState<ListingTab>('STOCK');
+  const [showGlobe, setShowGlobe] = useState(false);
+  const [exchanges, setExchanges] = useState<Exchange[]>([]);
+  const [exchangesLoading, setExchangesLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(0);
@@ -128,6 +155,16 @@ export default function SecuritiesListPage() {
   const [priceMax, setPriceMax] = useState('');
   const [settlementDateFrom, setSettlementDateFrom] = useState('');
   const [settlementDateTo, setSettlementDateTo] = useState('');
+  // Sort state
+  const [sortBy, setSortBy] = useState<SortField>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  // Range filters
+  const [askMin, setAskMin] = useState('');
+  const [askMax, setAskMax] = useState('');
+  const [bidMin, setBidMin] = useState('');
+  const [bidMax, setBidMax] = useState('');
+  const [volumeMin, setVolumeMin] = useState('');
+  const [volumeMax, setVolumeMax] = useState('');
   const [debouncedFilters, setDebouncedFilters] = useState({
     exchangePrefix: '',
     priceMin: '',
@@ -206,8 +243,59 @@ export default function SecuritiesListPage() {
     }
   };
 
+  // Lazy-fetch exchanges only when globe tab is first opened
+  useEffect(() => {
+    if (showGlobe && exchanges.length === 0 && !exchangesLoading) {
+      setExchangesLoading(true);
+      exchangeManagementService.getAll()
+        .then(data => setExchanges(Array.isArray(data) ? data : []))
+        .catch(() => toast.error('Neuspesno ucitavanje berzi.'))
+        .finally(() => setExchangesLoading(false));
+    }
+  }, [showGlobe, exchanges.length, exchangesLoading]);
+
   const tabs: ListingTab[] = isClient ? ['STOCK', 'FUTURES'] : ['STOCK', 'FUTURES', 'FOREX'];
-  const listings = useMemo(() => data?.content ?? [], [data]);
+
+  const handleSort = (field: SortField) => {
+    if (sortBy === field) {
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortDirection('desc');
+    }
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortBy !== field) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    return sortDirection === 'asc'
+      ? <ArrowUp className="h-3 w-3 ml-1 text-indigo-500" />
+      : <ArrowDown className="h-3 w-3 ml-1 text-indigo-500" />;
+  };
+
+  const listings = useMemo(() => {
+    let items = data?.content ?? [];
+
+    // Client-side range filters
+    if (askMin) items = items.filter(l => (l.ask ?? 0) >= Number(askMin));
+    if (askMax) items = items.filter(l => (l.ask ?? 0) <= Number(askMax));
+    if (bidMin) items = items.filter(l => (l.bid ?? 0) >= Number(bidMin));
+    if (bidMax) items = items.filter(l => (l.bid ?? 0) <= Number(bidMax));
+    if (volumeMin) items = items.filter(l => (l.volume ?? 0) >= Number(volumeMin));
+    if (volumeMax) items = items.filter(l => (l.volume ?? 0) <= Number(volumeMax));
+
+    // Sorting
+    if (sortBy) {
+      items = [...items].sort((a, b) => {
+        let valA = 0, valB = 0;
+        if (sortBy === 'price') { valA = a.price ?? 0; valB = b.price ?? 0; }
+        else if (sortBy === 'volume') { valA = a.volume ?? 0; valB = b.volume ?? 0; }
+        else if (sortBy === 'maintenanceMargin') { valA = getMaintenanceMargin(a, activeTab); valB = getMaintenanceMargin(b, activeTab); }
+        return sortDirection === 'asc' ? valA - valB : valB - valA;
+      });
+    }
+
+    return items;
+  }, [data, askMin, askMax, bidMin, bidMax, volumeMin, volumeMax, sortBy, sortDirection, activeTab]);
 
   // Detect if data looks simulated:
   // - all changePercent and priceChange are exactly 0
@@ -359,35 +447,81 @@ export default function SecuritiesListPage() {
           {tabs.map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => { setActiveTab(tab); setShowGlobe(false); }}
               className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                activeTab === tab
+                !showGlobe && activeTab === tab
                   ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/25'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
               }`}
             >
               <span className="flex items-center gap-2">
-                <span className={`font-mono text-[10px] tracking-wider ${activeTab === tab ? 'text-white/70' : 'text-muted-foreground/60'}`}>
+                <span className={`font-mono text-[10px] tracking-wider ${!showGlobe && activeTab === tab ? 'text-white/70' : 'text-muted-foreground/60'}`}>
                   {TAB_ICONS[tab]}
                 </span>
                 {TAB_LABELS[tab]}
               </span>
             </button>
           ))}
+          <button
+            onClick={() => setShowGlobe(true)}
+            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+              showGlobe
+                ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/25'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Orbit className={`h-3.5 w-3.5 ${showGlobe ? 'text-white/90' : 'text-muted-foreground/60'}`} />
+              3D Globus
+            </span>
+          </button>
         </div>
 
-        {/* Search */}
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Pretrazi po ticker-u ili nazivu..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 bg-muted/30 dark:bg-slate-800/40 border-border/50"
-          />
-        </div>
+        {/* Search - hidden when 3D globe is active */}
+        {!showGlobe && (
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Pretrazi po ticker-u ili nazivu..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 bg-muted/30 dark:bg-slate-800/40 border-border/50"
+            />
+          </div>
+        )}
       </div>
 
+      {/* 3D Globe view - replaces filters/table when active */}
+      {showGlobe && (
+        <Suspense fallback={
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="h-16 w-16 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin mb-4" />
+                <p className="font-semibold">Ucitavanje 3D globusa...</p>
+                <p className="text-sm text-muted-foreground mt-1">Priprema Three.js biblioteke</p>
+              </div>
+            </CardContent>
+          </Card>
+        }>
+          {exchangesLoading ? (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center justify-center py-24 text-center">
+                  <div className="h-16 w-16 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin mb-4" />
+                  <p className="font-semibold">Ucitavanje berzi...</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <GlobeView exchanges={exchanges} />
+          )}
+        </Suspense>
+      )}
+
+      {/* Everything below is hidden when 3D globe is active */}
+      {!showGlobe && (
+      <>
       {/* Advanced Filters */}
       {showFilters && (
         <Card className="border-border/50 shadow-sm p-4">
@@ -452,6 +586,10 @@ export default function SecuritiesListPage() {
               setPriceMax('');
               setSettlementDateFrom('');
               setSettlementDateTo('');
+              setAskMin(''); setAskMax('');
+              setBidMin(''); setBidMax('');
+              setVolumeMin(''); setVolumeMax('');
+              setSortBy(null);
             }}>
               Ocisti filtere
             </Button>
@@ -459,6 +597,77 @@ export default function SecuritiesListPage() {
           {priceRangeError && (
             <p className="mt-2 text-sm text-destructive">Minimalna cena ne moze biti veca od maksimalne.</p>
           )}
+          {/* Ask / Bid / Volume range filters */}
+          <div className="flex flex-wrap gap-3 items-end mt-3 pt-3 border-t border-border/30">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Min Ask</label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="0"
+                value={askMin}
+                onChange={(e) => setAskMin(e.target.value)}
+                className="w-[110px]"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Max Ask</label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="∞"
+                value={askMax}
+                onChange={(e) => setAskMax(e.target.value)}
+                className="w-[110px]"
+              />
+            </div>
+            <div className="w-px h-8 bg-border/50" />
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Min Bid</label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="0"
+                value={bidMin}
+                onChange={(e) => setBidMin(e.target.value)}
+                className="w-[110px]"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Max Bid</label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="∞"
+                value={bidMax}
+                onChange={(e) => setBidMax(e.target.value)}
+                className="w-[110px]"
+              />
+            </div>
+            <div className="w-px h-8 bg-border/50" />
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Min Volume</label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="0"
+                value={volumeMin}
+                onChange={(e) => setVolumeMin(e.target.value)}
+                className="w-[120px]"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Max Volume</label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="∞"
+                value={volumeMax}
+                onChange={(e) => setVolumeMax(e.target.value)}
+                className="w-[120px]"
+              />
+            </div>
+          </div>
         </Card>
       )}
 
@@ -516,12 +725,19 @@ export default function SecuritiesListPage() {
                   <TableRow className="bg-muted/30 dark:bg-slate-900/30 hover:bg-muted/30">
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 w-[130px]">Ticker</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Naziv</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 text-right">Cena</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 text-right cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort('price')}>
+                      <span className="inline-flex items-center justify-end">Cena{getSortIcon('price')}</span>
+                    </TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 text-right">Promena</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 text-center w-[80px]">Trend</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 text-right">Bid</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 text-right">Ask</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 text-right">Volume</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 text-right cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort('volume')}>
+                      <span className="inline-flex items-center justify-end">Volume{getSortIcon('volume')}</span>
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 text-right cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort('maintenanceMargin')}>
+                      <span className="inline-flex items-center justify-end" title="Initial Margin Cost">IMC{getSortIcon('maintenanceMargin')}</span>
+                    </TableHead>
                     {activeTab === 'FUTURES' && <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Istek</TableHead>}
                     {activeTab === 'FOREX' && <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Par</TableHead>}
                   </TableRow>
@@ -596,6 +812,12 @@ export default function SecuritiesListPage() {
                         <TableCell className="text-right py-3">
                           <VolumeBar volume={listing.volume ?? 0} maxVolume={maxVolume} />
                         </TableCell>
+                        {/* IMC */}
+                        <TableCell className="text-right py-3">
+                          <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                            {formatPrice(getInitialMarginCost(listing, activeTab))}
+                          </span>
+                        </TableCell>
                         {activeTab === 'FUTURES' && (
                           <TableCell className="py-3">
                             <span className="text-xs font-mono text-muted-foreground">
@@ -652,6 +874,8 @@ export default function SecuritiesListPage() {
           )}
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   );
 }

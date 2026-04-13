@@ -59,3 +59,33 @@ export function formatVolume(value: number | null | undefined): string {
   if (value === null || value === undefined) return '-';
   return value.toLocaleString('sr-RS');
 }
+
+/** Format a volume in compact form (K/M/B suffixes). */
+export function formatVolumeCompact(v: number | null | undefined): string {
+  if (v === null || v === undefined) return '-';
+  if (v >= 1_000_000_000) return (v / 1_000_000_000).toFixed(1) + 'B';
+  if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + 'M';
+  if (v >= 1_000) return (v / 1_000).toFixed(1) + 'K';
+  return String(v);
+}
+
+/** Extract a user-friendly error message from an unknown error. */
+export function getErrorMessage(error: unknown, fallback?: string): string {
+  // Try to extract message from axios-style response
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'response' in error &&
+    typeof (error as { response?: unknown }).response === 'object' &&
+    (error as { response?: unknown }).response !== null
+  ) {
+    const response = (error as { response?: { data?: { message?: string } } }).response;
+    if (response?.data?.message) {
+      return response.data.message;
+    }
+  }
+
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return fallback ?? 'Doslo je do greske. Pokusajte ponovo.';
+}

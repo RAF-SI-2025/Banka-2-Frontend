@@ -111,7 +111,7 @@ describe('exchangeManagementService', () => {
 
       await exchangeManagementService.setTestMode('NYSE', true);
 
-      expect(mockedApi.patch).toHaveBeenCalledWith('/exchanges/NYSE/test-mode', { testMode: true });
+      expect(mockedApi.patch).toHaveBeenCalledWith('/exchanges/NYSE/test-mode', { enabled: true });
     });
 
     it('should disable test mode', async () => {
@@ -119,7 +119,7 @@ describe('exchangeManagementService', () => {
 
       await exchangeManagementService.setTestMode('NYSE', false);
 
-      expect(mockedApi.patch).toHaveBeenCalledWith('/exchanges/NYSE/test-mode', { testMode: false });
+      expect(mockedApi.patch).toHaveBeenCalledWith('/exchanges/NYSE/test-mode', { enabled: false });
     });
 
     it('should propagate errors', async () => {

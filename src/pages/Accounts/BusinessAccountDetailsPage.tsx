@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { formatDate, formatBalance, formatAccountNumber } from '@/utils/formatters';
+import VerificationModal from '@/components/shared/VerificationModal';
 import {
   Table,
   TableBody,
@@ -71,6 +72,7 @@ export default function BusinessAccountDetailsPage() {
   const [monthlyLimit, setMonthlyLimit] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
   const [isSavingLimits, setIsSavingLimits] = useState(false);
+  const [showVerification, setShowVerification] = useState(false);
 
   useEffect(() => {
     const accountId = Number(id);
@@ -148,7 +150,7 @@ export default function BusinessAccountDetailsPage() {
     }
   };
 
-  const saveLimits = async () => {
+  const saveLimits = () => {
     if (!account) return;
     const parsedDaily = Number(dailyLimit);
     const parsedMonthly = Number(monthlyLimit);
@@ -156,17 +158,25 @@ export default function BusinessAccountDetailsPage() {
       toast.error('Limiti moraju biti nenegativni brojevi.');
       return;
     }
+    // Validation passed — open OTP verification modal
+    setShowVerification(true);
+  };
+
+  const handleLimitVerified = async (otpCode: string) => {
+    if (!account) return;
+    const parsedDaily = Number(dailyLimit);
+    const parsedMonthly = Number(monthlyLimit);
 
     setIsSavingLimits(true);
     try {
       await accountService.changeLimit(account.id, {
         dailyLimit: parsedDaily,
         monthlyLimit: parsedMonthly,
+        otpCode,
       });
       setAccount({ ...account, dailyLimit: parsedDaily, monthlyLimit: parsedMonthly });
       toast.success('Limiti su uspesno sacuvani.');
-    } catch {
-      toast.error('Promena limita nije uspela.');
+      setShowVerification(false);
     } finally {
       setIsSavingLimits(false);
     }
@@ -464,6 +474,13 @@ export default function BusinessAccountDetailsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* OTP Verification Modal for limit changes */}
+      <VerificationModal
+        isOpen={showVerification}
+        onClose={() => setShowVerification(false)}
+        onVerified={handleLimitVerified}
+      />
     </div>
   );
 }

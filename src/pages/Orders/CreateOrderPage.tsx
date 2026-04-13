@@ -30,7 +30,7 @@ import orderService from '@/services/orderService';
 import { Permission } from '@/types';
 import type { Account } from '@/types/celina2';
 import { ListingType, OrderDirection, OrderType, type Listing } from '@/types/celina3';
-import { asArray, formatAmount } from '@/utils/formatters';
+import { asArray, formatAmount, getErrorMessage } from '@/utils/formatters';
 
 const selectClassName =
   'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
@@ -114,23 +114,6 @@ const createOrderSchema = z
 
 type CreateOrderFormInput = z.input<typeof createOrderSchema>;
 type CreateOrderFormValues = z.output<typeof createOrderSchema>;
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'response' in error &&
-    typeof (error as { response?: unknown }).response === 'object' &&
-    (error as { response?: unknown }).response !== null
-  ) {
-    const response = (error as { response?: { data?: { message?: string } } }).response;
-    if (response?.data?.message) {
-      return response.data.message;
-    }
-  }
-
-  return fallback;
-}
 
 function formatListingLabel(listing: Listing) {
   return `${listing.ticker} | ${listing.name} | ${listing.exchangeAcronym} | ${LISTING_TYPE_LABELS[listing.listingType]}`;

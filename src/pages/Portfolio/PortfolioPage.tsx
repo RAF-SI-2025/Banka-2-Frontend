@@ -127,10 +127,9 @@ function PortfolioProfitChart({ items }: { items: PortfolioItem[] }) {
               dataKey="profit"
               radius={[4, 4, 0, 0]}
               animationDuration={800}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              shape={(props: any) => {
-                const { x, y, width, height, payload } = props;
-                const fill = payload.profit >= 0 ? '#10b981' : '#ef4444';
+              shape={(props: { x?: number; y?: number; width?: number; height?: number; payload?: { profit: number } }) => {
+                const { x = 0, y = 0, width = 0, height = 0, payload } = props;
+                const fill = (payload?.profit ?? 0) >= 0 ? '#10b981' : '#ef4444';
                 return (
                   <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} ry={4} />
                 );

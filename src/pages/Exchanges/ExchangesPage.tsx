@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Globe, Building2 } from 'lucide-react';
+import { useState, useEffect, Suspense, lazy } from 'react';
+import { Globe, Building2, Table as TableIcon, Orbit } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -16,6 +17,9 @@ import {
 import exchangeManagementService from '@/services/exchangeManagementService';
 import type { Exchange } from '@/types/celina3';
 
+// Lazy-load the 3D globe so Three.js (~500KB) is only pulled when user clicks the tab
+const GlobeView = lazy(() => import('./GlobeView'));
+
 export default function ExchangesPage() {
   const { isAdmin, isSupervisor } = useAuth();
   const canManage = isAdmin || isSupervisor;
@@ -23,6 +27,7 @@ export default function ExchangesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [togglingAcronym, setTogglingAcronym] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'table' | 'globe'>('table');
 
   useEffect(() => {
     const load = async () => {
@@ -105,21 +110,64 @@ export default function ExchangesPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
-          <Globe className="h-5 w-5" />
+      {/* Header with tab switcher */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+            <Globe className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">Berze</h1>
+            <p className="text-sm text-muted-foreground">
+              Pregled svetskih berzi i radnog vremena
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold">Berze</h1>
-          <p className="text-sm text-muted-foreground">
-            Pregled svetskih berzi i radnog vremena
-          </p>
+
+        {/* Tab switcher */}
+        <div className="inline-flex items-center gap-1 rounded-xl border border-border bg-muted/50 p-1">
+          <Button
+            variant={activeTab === 'table' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveTab('table')}
+            className={activeTab === 'table' ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md hover:shadow-lg' : ''}
+          >
+            <TableIcon className="h-4 w-4 mr-2" />
+            Tabela
+          </Button>
+          <Button
+            variant={activeTab === 'globe' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveTab('globe')}
+            className={activeTab === 'globe' ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md hover:shadow-lg' : ''}
+          >
+            <Orbit className="h-4 w-4 mr-2" />
+            3D Globus
+          </Button>
         </div>
       </div>
 
-      {/* Table */}
-      {error || exchanges.length === 0 ? (
+      {/* 3D Globe tab */}
+      {activeTab === 'globe' && exchanges.length > 0 && (
+        <Suspense fallback={
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="relative mb-4">
+                  <div className="h-16 w-16 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+                </div>
+                <p className="font-semibold">Ucitavanje 3D globusa...</p>
+                <p className="text-sm text-muted-foreground mt-1">Priprema Three.js biblioteke</p>
+              </div>
+            </CardContent>
+          </Card>
+        }>
+          <GlobeView exchanges={exchanges} />
+        </Suspense>
+      )}
+
+      {/* Table tab */}
+      {activeTab === 'table' && (error || exchanges.length === 0 ? (
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -211,7 +259,7 @@ export default function ExchangesPage() {
             </Table>
           </CardContent>
         </Card>
-      )}
+      ))}
     </div>
   );
 }

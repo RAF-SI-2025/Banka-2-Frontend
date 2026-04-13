@@ -19,23 +19,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/lib/notify';
 import marginService from '@/services/marginService';
 import type { MarginAccount, MarginTransaction } from '@/services/marginService';
-import { formatAmount } from '@/utils/formatters';
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'response' in error &&
-    typeof (error as { response?: unknown }).response === 'object' &&
-    (error as { response?: unknown }).response !== null
-  ) {
-    const response = (error as { response?: { data?: { message?: string } } }).response;
-    if (response?.data?.message) {
-      return response.data.message;
-    }
-  }
-  return fallback;
-}
+import { formatAmount, getErrorMessage } from '@/utils/formatters';
 
 type ModalType = 'deposit' | 'withdraw';
 
