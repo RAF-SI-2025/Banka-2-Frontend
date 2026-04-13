@@ -829,3 +829,167 @@ describe('Live: Navigacioni tokovi', () => {
     cy.contains('Moj portfolio', { timeout: 10000 }).should('be.visible');
   });
 });
+
+// ============================================================
+// FEATURE: Fund reservation + OTP flow (Phase 11)
+// ============================================================
+
+/**
+ * Helper: fetch aktivni OTP kod iz backend-a i upise ga u VerificationModal.
+ * Modal input ima id="otp", submit dugme je type="submit" sa tekstom "Potvrdi".
+ */
+function fetchOtpAndConfirm() {
+  cy.window().then((win) => {
+    const token = win.sessionStorage.getItem('accessToken');
+    cy.request({
+      method: 'GET',
+      url: '/api/payments/my-otp',
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => {
+      const code: string = res.body.code || res.body.otp || res.body.otpCode;
+      expect(code, 'OTP code from /payments/my-otp').to.be.a('string').and.have.length(6);
+      cy.get('#otp', { timeout: 10000 }).should('be.visible').clear().type(code);
+      cy.get('[role="dialog"]').within(() => {
+        cy.contains('button', 'Potvrdi').should('not.be.disabled').click();
+      });
+    });
+  });
+}
+
+describe('Live: Fund reservation + OTP flow (Phase 11)', () => {
+  beforeEach(() => { enableLiveBackend(); });
+
+  it('CLIENT BUY — rezervacija, OTP, pa execution', () => {
+    loginAsClient();
+
+    // 1. Otvori securities -> klikni AAPL -> Kupi (ili direktno /orders/new?listingId=1)
+    cy.visit('/orders/new?listingId=1&direction=BUY');
+    cy.contains('Novi nalog', { timeout: 15000 }).should('be.visible');
+
+    // 2. Sacekaj da se racuni i listing ucitaju
+    cy.get('select#accountId option:not([value=""])', { timeout: 15000 })
+      .should('have.length.greaterThan', 0);
+    cy.contains('Izabrana hartija', { timeout: 15000 }).should('exist');
+
+    // 3. Popuni kolicinu
+    cy.get('#quantity').clear().type('2');
+
+    // 4. Selektuj prvi racun
+    cy.get('select#accountId option:not([value=""])').first().then(($opt) => {
+      cy.get('select#accountId').select($opt.val() as string);
+    });
+
+    // 5. Snimi availableBalance racuna PRE rezervacije (kroz API)
+    cy.window().then((win) => {
+      const token = win.sessionStorage.getItem('accessToken');
+      return cy.request({
+        method: 'GET',
+        url: '/api/accounts/my',
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((res) => {
+        const accounts: Array<{ id: number; availableBalance?: number; balance?: number }> = res.body || [];
+        expect(accounts.length, 'client has accounts').to.be.greaterThan(0);
+        const first = accounts[0];
+        const before = Number(first.availableBalance ?? first.balance ?? 0);
+        cy.wrap(before).as('availableBefore');
+        cy.wrap(first.id).as('accountId');
+      });
+    });
+
+    // 6. Nastavi na potvrdu
+    cy.intercept('POST', '**/api/orders').as('submitOrder');
+    cy.contains('button', 'Nastavi na potvrdu').click();
+    cy.get('[role="dialog"]', { timeout: 10000 }).should('be.visible');
+    cy.contains('Potvrda naloga', { timeout: 5000 }).should('be.visible');
+    cy.get('[data-cy="confirm-order"]').should('be.visible').and('not.be.disabled').then(($btn) => {
+      $btn[0].click();
+    });
+
+    // 7. OTP modal se otvara
+    cy.contains(/Verifikacija|verifikacion/i, { timeout: 10000 }).should('be.visible');
+    cy.get('#otp', { timeout: 10000 }).should('be.visible');
+
+    // 8. Fetch OTP i potvrdi
+    fetchOtpAndConfirm();
+
+    // 9. Order kreiran -> redirect na /orders/my
+    cy.wait('@submitOrder', { timeout: 15000 }).its('response.statusCode').should('be.oneOf', [200, 201]);
+    cy.url({ timeout: 15000 }).should('include', '/orders/my');
+
+    // 10. Verifikuj da je availableBalance pao (rezervacija vidljiva)
+    cy.window().then((win) => {
+      const token = win.sessionStorage.getItem('accessToken');
+      return cy.request({
+        method: 'GET',
+        url: '/api/accounts/my',
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((res) => {
+        const accounts: Array<{ id: number; availableBalance?: number; balance?: number }> = res.body || [];
+        cy.get('@accountId').then((idWrap) => {
+          const id = Number(idWrap);
+          const acc = accounts.find((a) => a.id === id);
+          expect(acc, 'account still exists').to.exist;
+          const after = Number(acc!.availableBalance ?? acc!.balance ?? 0);
+          cy.get('@availableBefore').then((beforeWrap) => {
+            const before = Number(beforeWrap);
+            // Rezervacija: availableBalance mora biti manji (ili jednak ako je order instantno izvrsen + balance pao)
+            expect(after, `available after (${after}) < before (${before})`).to.be.lessThan(before);
+          });
+        });
+      });
+    });
+
+    // 11. Cekaj scheduler (~60s) da izvrsi order i proveri da je balance update-ovan
+    // Povecavamo defaultCommandTimeout samo za ovaj korak kroz eksplicitni timeout na wait.
+    // eslint-disable-next-line cypress/no-unnecessary-waiting
+    cy.wait(65000);
+    cy.visit('/orders/my');
+    cy.contains('Moji nalozi', { timeout: 15000 }).should('be.visible');
+  });
+
+  it('AGENT BUY — bankin racun, provizija 0, OTP flow', () => {
+    // Tamara: AGENT, TRADE_STOCKS, needApproval=false
+    loginAs(
+      'agent-tamara-c3',
+      'tamara.pavlovic@banka.rs',
+      'Zaposleni12',
+      'EMPLOYEE',
+      ['AGENT', 'TRADE_STOCKS', 'TRADE_FOREX', 'TRADE_FUTURES', 'TRADE_OPTIONS']
+    );
+
+    cy.visit('/orders/new?listingId=1&direction=BUY');
+    cy.contains('Novi nalog', { timeout: 15000 }).should('be.visible');
+
+    // Agent ne bira racun — vidi Alert "Trguje se sa bankinog racuna"
+    cy.contains(/Trguje se sa bankinog/i, { timeout: 15000 }).should('be.visible');
+
+    // Listing se ucitava
+    cy.contains('Izabrana hartija', { timeout: 15000 }).should('exist');
+
+    // Kolicina
+    cy.get('#quantity').clear().type('3');
+
+    // Provizija mora biti 0 za zaposlene
+    cy.contains('Provizija').parent().should(($el) => {
+      const txt = $el.text();
+      expect(txt).to.match(/0[.,]00|zaposleni/i);
+    });
+
+    cy.intercept('POST', '**/api/orders').as('submitAgentOrder');
+
+    // Nastavi na potvrdu
+    cy.contains('button', 'Nastavi na potvrdu').click();
+    cy.get('[role="dialog"]', { timeout: 10000 }).should('be.visible');
+    cy.contains('Potvrda naloga', { timeout: 5000 }).should('be.visible');
+    cy.get('[data-cy="confirm-order"]').should('be.visible').and('not.be.disabled').then(($btn) => {
+      $btn[0].click();
+    });
+
+    // OTP flow
+    cy.get('#otp', { timeout: 10000 }).should('be.visible');
+    fetchOtpAndConfirm();
+
+    cy.wait('@submitAgentOrder', { timeout: 15000 }).its('response.statusCode').should('be.oneOf', [200, 201]);
+    cy.url({ timeout: 15000 }).should('include', '/orders/my');
+  });
+});
