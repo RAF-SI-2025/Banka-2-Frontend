@@ -139,6 +139,7 @@ export default function ClientSidebar() {
           { label: 'Orderi', path: '/employee/orders', icon: <ShoppingCart className="h-4 w-4" /> },
           { label: 'Aktuari', path: '/employee/actuaries', icon: <TrendingUp className="h-4 w-4" /> },
           { label: 'Porez', path: '/employee/tax', icon: <Calculator className="h-4 w-4" /> },
+          { label: 'Kreiraj fond', path: '/funds/create', icon: <Landmark className="h-4 w-4" /> },
           // TODO — CELINA 4 PROFIT BANKE (zaduzen: sssmarta)
           //   { label: 'Profit Banke', path: '/employee/profit-bank', icon: <Landmark className="h-4 w-4" /> },
         );
