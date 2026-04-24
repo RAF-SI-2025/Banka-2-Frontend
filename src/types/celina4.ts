@@ -127,6 +127,7 @@ export interface OtcInterbankListing {
 }
 
 export type OtcInterbankOfferStatus = 'ACTIVE' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
+export type OtcInterbankContractStatus = 'ACTIVE' | 'EXERCISED' | 'EXPIRED';
 
 export interface OtcInterbankOffer {
   offerId: string; // UUID, isti kod obe banke
@@ -175,9 +176,62 @@ export interface CounterOtcInterbankOfferRequest {
   settlementDate: string;
 }
 
-// Kontrakt iz inter-bank SAGA je identican struktur-i intra-bank OtcContract,
-// dodaje se samo `buyerBankCode` / `sellerBankCode`. Za sada reuse OtcContract
-// iz celina3.ts + dva dodatna polja kada se doda.
+/**
+ * Privremeni FE tip za inter-bank OTC contract dok BE ne objavi eksplicitan
+ * DTO. Polja su izvedena iz intra-bank contract oblika + inter-bank offer
+ * identifikatora (`contractId`/user IDs kao string).
+ */
+export interface OtcInterbankContract {
+  id: string;
+  listingId: number;
+  listingTicker: string;
+  listingName: string;
+  listingCurrency: string;
+  buyerUserId: string;
+  buyerBankCode: string;
+  buyerName: string;
+  sellerUserId: string;
+  sellerBankCode: string;
+  sellerName: string;
+  quantity: number;
+  strikePrice: number;
+  premium: number;
+  currentPrice: number;
+  settlementDate: string;
+  status: OtcInterbankContractStatus;
+  createdAt: string;
+  exercisedAt?: string | null;
+}
+
+export type InterbankTransactionType = 'PAYMENT' | 'OTC';
+
+export interface InterbankTransaction {
+  id: number;
+  transactionId: string;
+  type: InterbankTransactionType;
+  status: InterbankPaymentStatus;
+  senderBankCode: string;
+  receiverBankCode: string;
+  amount?: number | null;
+  currency?: string | null;
+  convertedAmount?: number | null;
+  convertedCurrency?: string | null;
+  exchangeRate?: number | null;
+  commissionAmount?: number | null;
+  senderAccountNumber?: string | null;
+  receiverAccountNumber?: string | null;
+  reservedAmount?: number | null;
+  listingTicker?: string | null;
+  quantity?: number | null;
+  strikePrice?: number | null;
+  createdAt: string;
+  preparedAt?: string | null;
+  committedAt?: string | null;
+  abortedAt?: string | null;
+  lastRetryAt?: string | null;
+  retryCount: number;
+  failureReason?: string | null;
+}
 
 
 // ── INTER-BANK PLACANJE (Zaduzen: antonije3) ──────────────────────────────
