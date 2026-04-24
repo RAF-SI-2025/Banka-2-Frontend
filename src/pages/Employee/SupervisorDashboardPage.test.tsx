@@ -15,6 +15,27 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
+// Dashboard se puni tek kad je korisnik supervizor/admin; mock-ujemo AuthContext.
+vi.mock('@/context/AuthContext', () => ({
+  useAuth: () => ({
+    user: {
+      id: 1,
+      email: 'supervisor@banka.rs',
+      firstName: 'Test',
+      lastName: 'Super',
+      role: 'ADMIN',
+      permissions: ['ADMIN', 'SUPERVISOR'],
+    },
+    isAdmin: true,
+    isSupervisor: true,
+    isAgent: false,
+    hasPermission: () => true,
+    logout: vi.fn(),
+    login: vi.fn(),
+  }),
+  AuthProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 const mockOrders: Order[] = [
   {
     id: 1,

@@ -69,17 +69,26 @@ export function formatVolumeCompact(v: number | null | undefined): string {
   return String(v);
 }
 
-/** Extract a user-friendly error message from an unknown error. */
+/**
+ * Extract a user-friendly error message from an unknown error.
+ *
+ * Redosled:
+ *  1. axios-style `response.data.error` (backend exception handler-i)
+ *  2. axios-style `response.data.message` (Spring validation i default handleri)
+ *  3. `Error.message`
+ *  4. string error
+ *  5. fallback (ili generic poruka)
+ */
 export function getErrorMessage(error: unknown, fallback?: string): string {
-  // Try to extract message from axios-style response
   if (
     typeof error === 'object' &&
     error !== null &&
-    'response' in error &&
-    typeof (error as { response?: unknown }).response === 'object' &&
-    (error as { response?: unknown }).response !== null
+    'response' in error
   ) {
-    const response = (error as { response?: { data?: { message?: string } } }).response;
+    const response = (error as { response?: { data?: { error?: string; message?: string } } }).response;
+    if (response?.data?.error) {
+      return response.data.error;
+    }
     if (response?.data?.message) {
       return response.data.message;
     }

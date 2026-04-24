@@ -146,7 +146,7 @@ describe('SecuritiesListPage', () => {
     await user.type(searchInput, 'AAPL');
 
     await waitFor(() => {
-      expect(mockGetAll).toHaveBeenCalledWith('STOCK', 'AAPL', 0, 20);
+      expect(mockGetAll).toHaveBeenCalledWith('STOCK', 'AAPL', 0, 20, undefined);
     });
   });
 
@@ -161,7 +161,7 @@ describe('SecuritiesListPage', () => {
     await user.click(screen.getByText('Futures'));
 
     await waitFor(() => {
-      expect(mockGetAll).toHaveBeenCalledWith('FUTURES', '', 0, 20);
+      expect(mockGetAll).toHaveBeenCalledWith('FUTURES', '', 0, 20, undefined);
     });
   });
 

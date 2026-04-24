@@ -103,6 +103,23 @@ vi.mock('../../services/exchangeManagementService', () => ({
   },
 }));
 
+// Margin checkbox je onemogucen dok klijent nema aktivan margin account —
+// test za toggle ocekuje postojeci aktivni account.
+vi.mock('../../services/marginService', () => ({
+  default: {
+    getMyAccounts: vi.fn().mockResolvedValue([
+      {
+        id: 1,
+        status: 'ACTIVE',
+        currency: 'USD',
+        balance: 1000,
+        reservedAmount: 0,
+        availableBalance: 1000,
+      },
+    ]),
+  },
+}));
+
 describe('CreateOrderPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();

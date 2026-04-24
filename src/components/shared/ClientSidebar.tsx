@@ -25,6 +25,8 @@ import {
   Calculator,
   Globe,
   Landmark,
+  Handshake,
+  ScrollText,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -97,6 +99,8 @@ export default function ClientSidebar() {
       { label: 'Berza', path: '/securities', icon: <TrendingUp className="h-4 w-4" /> },
       { label: 'Portfolio', path: '/portfolio', icon: <Briefcase className="h-4 w-4" /> },
       { label: 'Moji orderi', path: '/orders/my', icon: <ShoppingCart className="h-4 w-4" /> },
+      { label: 'OTC trgovina', path: '/otc', icon: <Handshake className="h-4 w-4" /> },
+      { label: 'OTC ponude i ugovori', path: '/otc/offers', icon: <ScrollText className="h-4 w-4" /> },
     ],
     []
   );

@@ -74,16 +74,18 @@ vi.mock('./components/layout/MainLayout', async () => {
   };
 });
 
-// Mock ProtectedRoute - controlled via mockIsAuthenticated / mockIsAdmin
+// Mock ProtectedRoute - controlled via mockIsAuthenticated / mockIsAdmin / mockIsEmployee
 let mockIsAuthenticated = false;
 let mockIsAdmin = false;
+let mockIsEmployee = false;
 
 vi.mock('./components/layout/ProtectedRoute', async () => {
   const { Navigate, Outlet } = await import('react-router-dom');
   return {
-    default: ({ adminOnly }: { adminOnly?: boolean }) => {
+    default: ({ adminOnly, employeeOnly }: { adminOnly?: boolean; employeeOnly?: boolean }) => {
       if (!mockIsAuthenticated) return <Navigate to="/login" replace />;
       if (adminOnly && !mockIsAdmin) return <Navigate to="/403" replace />;
+      if (employeeOnly && !mockIsAdmin && !mockIsEmployee) return <Navigate to="/403" replace />;
       return <Outlet />;
     },
   };
@@ -101,6 +103,7 @@ describe('App routing', () => {
   beforeEach(() => {
     mockIsAuthenticated = false;
     mockIsAdmin = false;
+    mockIsEmployee = false;
   });
 
   // ---------- Public routes ----------

@@ -145,8 +145,9 @@ function getPricePerUnit(
   orderType: OrderType,
   direction: OrderDirection,
   limitValue?: number,
-  _stopValue?: number
 ): number {
+  // NB: STOP koristi market cenu (ask/bid), STOP_LIMIT koristi limitValue —
+  // stopValue nikada nije execution price, pa se ovde ne prosledjuje.
   if (!listing) return 0;
 
   const ask = Number(listing.ask ?? 0) || Number(listing.price ?? 0);
@@ -193,6 +194,13 @@ function getCommission(orderType: OrderType, approximatePrice: number, isEmploye
 
   return Math.min(approximatePrice * rate, cap);
 }
+
+/**
+ * FX marza koju banka naplacuje klijentima kad trguju hartijom u valuti
+ * razlicitoj od valute izabranog racuna. Mora odgovarati backend konstanti
+ * {@code CurrencyConversionService.FX_MARGIN}.
+ */
+const FX_MARGIN = 0.01;
 
 function getDefaultCurrencyForListing(listing: Listing | null): string {
   if (!listing) return 'USD';
@@ -265,8 +273,8 @@ export default function CreateOrderPage() {
   const [isLoadingListings, setIsLoadingListings] = useState(true);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [isSubmitting] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingOrder, setPendingOrder] = useState<CreateOrderFormValues | null>(null);
   const [exchangeApiOpen, setExchangeApiOpen] = useState<{ isOpen: boolean; name: string } | null>(null);
   const [exchangeApiLoading, setExchangeApiLoading] = useState(false);
@@ -311,7 +319,6 @@ export default function CreateOrderPage() {
   const quantity = useWatch({ control, name: 'quantity' });
   const orderType = useWatch({ control, name: 'orderType' });
   const limitValue = useWatch({ control, name: 'limitValue' });
-  const stopValue = useWatch({ control, name: 'stopValue' });
   const allOrNone = useWatch({ control, name: 'allOrNone' });
   const margin = useWatch({ control, name: 'margin' });
   const accountId = useWatch({ control, name: 'accountId' });
@@ -561,9 +568,6 @@ export default function CreateOrderPage() {
   const safeLimitValue =
     typeof limitValue === 'number' && Number.isFinite(limitValue) ? limitValue : undefined;
 
-  const safeStopValue =
-    typeof stopValue === 'number' && Number.isFinite(stopValue) ? stopValue : undefined;
-
   const safeQuantity =
     typeof quantity === 'number' && Number.isFinite(quantity) ? Math.max(quantity, 0) : 0;
 
@@ -574,13 +578,20 @@ export default function CreateOrderPage() {
     orderType,
     direction,
     safeLimitValue,
-    safeStopValue
   );
 
   const approximatePrice = contractSize * pricePerUnit * safeQuantity;
   const commission = getCommission(orderType, approximatePrice, isEmployeeRole);
-  const totalAmount = approximatePrice + commission;
   const pricingCurrency = getPricingCurrency(selectedListing);
+
+  // Menjacnica komisija — primenjuje se samo za klijente kad je valuta racuna
+  // razlicita od valute hartije. U valuti racuna, proporcionalno (approxPrice + orderComm).
+  const needsFxConversion = !isEmployeeUi && !!selectedAccount && selectedAccount.currency !== pricingCurrency;
+  const fxCommissionInAccount =
+    needsFxConversion && exchangeRate && Number.isFinite(exchangeRate)
+      ? (approximatePrice + commission) * exchangeRate * FX_MARGIN
+      : 0;
+  const totalAmount = approximatePrice + commission;
 
   // Settlement date warnings for FUTURES
   const settlementInfo = useMemo(() => {
@@ -635,7 +646,6 @@ export default function CreateOrderPage() {
         pendingOrder.orderType,
         pendingOrder.direction,
         pendingOrder.limitValue,
-        pendingOrder.stopValue
       )
     : 0;
 
@@ -647,8 +657,15 @@ export default function CreateOrderPage() {
     ? getCommission(pendingOrder.orderType, confirmationApproximatePrice, isEmployeeRole)
     : 0;
 
-  const confirmationTotal = confirmationApproximatePrice + confirmationCommission;
   const confirmationCurrency = getPricingCurrency(confirmationListing);
+  const confirmationNeedsFx =
+    !isEmployeeUi && !!confirmationAccount && confirmationAccount.currency !== confirmationCurrency;
+  const confirmationFxCommission =
+    confirmationNeedsFx && exchangeRate && Number.isFinite(exchangeRate)
+      ? (confirmationApproximatePrice + confirmationCommission) * exchangeRate * FX_MARGIN
+      : 0;
+
+  const confirmationTotal = confirmationApproximatePrice + confirmationCommission;
 
   const isLoading = isLoadingListings || isLoadingAccounts;
   const isEmpty = !isLoading && (listings.length === 0 || accounts.length === 0);
@@ -701,8 +718,13 @@ export default function CreateOrderPage() {
   const handleOtpVerified = async (otpCode: string) => {
     if (!confirmedDto) throw new Error('Nedostaju podaci naloga.');
 
-    // Let VerificationModal handle thrown errors to track attempts and display message
-    await orderService.create({ ...confirmedDto, otpCode });
+    setIsSubmitting(true);
+    try {
+      // Let VerificationModal handle thrown errors to track attempts and display message
+      await orderService.create({ ...confirmedDto, otpCode });
+    } finally {
+      setIsSubmitting(false);
+    }
 
     toast.success('Nalog je uspešno kreiran.');
 
@@ -1094,12 +1116,29 @@ export default function CreateOrderPage() {
                             : `${formatAmount(commission)} ${pricingCurrency}`}
                         </span>
                       </div>
+                      {needsFxConversion && fxCommissionInAccount > 0 && (
+                        <div className="flex items-center justify-between text-amber-600 dark:text-amber-400">
+                          <span>Provizija menjacnice (1%)</span>
+                          <span className="font-mono font-medium">
+                            {formatAmount(fxCommissionInAccount)} {selectedAccount?.currency}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between border-t pt-2">
                         <span className="font-medium">Ukupno sa provizijom</span>
                         <span className="font-mono font-semibold">
                           {formatAmount(totalAmount)} {pricingCurrency}
                         </span>
                       </div>
+                      {needsFxConversion && fxCommissionInAccount > 0 && (
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>Ukupno sa menjacnicom</span>
+                          <span className="font-mono">
+                            {formatAmount(approximatePriceInAccount + commission * (exchangeRate ?? 1) + fxCommissionInAccount)}{' '}
+                            {selectedAccount?.currency}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1472,12 +1511,33 @@ export default function CreateOrderPage() {
                       : `${formatAmount(confirmationCommission)} ${confirmationCurrency}`}
                   </span>
                 </div>
+                {confirmationNeedsFx && confirmationFxCommission > 0 && (
+                  <div className="flex items-center justify-between py-1 text-amber-600 dark:text-amber-400">
+                    <span>Provizija menjacnice (1%)</span>
+                    <span className="font-medium">
+                      {formatAmount(confirmationFxCommission)} {confirmationAccount?.currency}
+                    </span>
+                  </div>
+                )}
                 <div className="mt-2 flex items-center justify-between border-t pt-3">
                   <span className="font-medium">Ukupno</span>
                   <span className="text-base font-semibold">
                     {formatAmount(confirmationTotal)} {confirmationCurrency}
                   </span>
                 </div>
+                {confirmationNeedsFx && confirmationFxCommission > 0 && exchangeRate && (
+                  <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+                    <span>Ukupno u valuti racuna</span>
+                    <span className="font-mono">
+                      {formatAmount(
+                        confirmationApproximatePrice * exchangeRate +
+                          confirmationCommission * exchangeRate +
+                          confirmationFxCommission,
+                      )}{' '}
+                      {confirmationAccount?.currency}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2">

@@ -96,18 +96,19 @@ describe('TransferHistoryPage', () => {
   it('renders cross-currency transfer with converted amount', async () => {
     renderPage();
 
+    // Iznosi su formatirani kroz `formatAmount` (sr-RS: "500,00", ne "500.00")
     await waitFor(() => {
-      expect(screen.getByText(/500\.00 EUR/)).toBeInTheDocument();
+      expect(screen.getByText(/500,00 EUR/)).toBeInTheDocument();
     });
-    // Converted amount shown
-    expect(screen.getByText(/58750\.00 RSD/)).toBeInTheDocument();
+    // Converted amount prikazan pored originalnog iznosa
+    expect(screen.getByText(/58\.750,00 RSD/)).toBeInTheDocument();
   });
 
   it('renders exchange rate for cross-currency transfer', async () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('117.5000')).toBeInTheDocument();
+      expect(screen.getByText('117,5000')).toBeInTheDocument();
     });
   });
 
@@ -115,7 +116,7 @@ describe('TransferHistoryPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('25.00')).toBeInTheDocument();
+      expect(screen.getByText('25,00')).toBeInTheDocument();
     });
   });
 

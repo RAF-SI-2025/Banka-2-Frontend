@@ -27,6 +27,19 @@ vi.mock('@/services/transactionService', () => ({
   },
 }));
 
+// Izmena limita zahteva OTP potvrdu pre poziva na backend; simulira se
+// automatska verifikacija cim se modal otvori (potpis onVerified(code)).
+vi.mock('@/components/shared/VerificationModal', () => ({
+  default: ({ isOpen, onVerified }: { isOpen: boolean; onVerified: (code: string) => void | Promise<void> }) => {
+    if (isOpen) {
+      queueMicrotask(() => {
+        void onVerified('123456');
+      });
+    }
+    return null;
+  },
+}));
+
 import { accountService } from '@/services/accountService';
 import { transactionService } from '@/services/transactionService';
 
@@ -245,10 +258,11 @@ describe('BusinessAccountDetailsPage', () => {
     await user.click(screen.getByRole('button', { name: /Sacuvaj limite/i }));
 
     await waitFor(() => {
-      expect(mockAccountService.changeLimit).toHaveBeenCalledWith(10, {
+      expect(mockAccountService.changeLimit).toHaveBeenCalledWith(10, expect.objectContaining({
         dailyLimit: 2000000,
         monthlyLimit: 20000000,
-      });
+        otpCode: expect.any(String),
+      }));
     });
   });
 });

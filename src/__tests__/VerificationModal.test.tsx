@@ -170,7 +170,7 @@ describe('VerificationModal', () => {
     await user.click(submitBtn);
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Maksimalan broj pokušaja. Transakcija otkazana.');
+      expect(toast.error).toHaveBeenCalledWith('Maksimalan broj pokusaja. Transakcija otkazana.');
     });
 
     // The modal calls onClose via setTimeout(1500)

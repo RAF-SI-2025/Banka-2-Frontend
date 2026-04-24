@@ -52,6 +52,10 @@ import ExchangesPage from './pages/Exchanges/ExchangesPage';
 import MarginAccountsPage from './pages/Margin/MarginAccountsPage';
 import SupervisorDashboardPage from './pages/Employee/SupervisorDashboardPage';
 
+// Celina 4 - OTC trgovina (intra-bank)
+import OtcTrgovinaPage from './pages/Otc/OtcTrgovinaPage';
+import OtcOffersAndContractsPage from './pages/Otc/OtcOffersAndContractsPage';
+
 export default function App() {
   return (
     <Routes>
@@ -120,6 +124,10 @@ export default function App() {
           <Route path="/orders/new" element={<CreateOrderPage />} />
           <Route path="/orders/my" element={<MyOrdersPage />} />
           <Route path="/portfolio" element={<PortfolioPage />} />
+
+          {/* OTC trgovina (Celina 4 intra-bank) */}
+          <Route path="/otc" element={<OtcTrgovinaPage />} />
+          <Route path="/otc/offers" element={<OtcOffersAndContractsPage />} />
         </Route>
       </Route>
 

@@ -297,17 +297,13 @@ export default function SecuritiesListPage() {
     return items;
   }, [data, askMin, askMax, bidMin, bidMax, volumeMin, volumeMax, sortBy, sortDirection, activeTab]);
 
-  // Detect if data looks simulated:
-  // - all changePercent and priceChange are exactly 0
-  // - or all volume is 0
-  // - or all prices are suspiciously round numbers (no decimals)
-  const isDataSimulated = useMemo(() => {
-    if (listings.length === 0) return false;
-    const allZeroChange = listings.every(l => (l.changePercent ?? 0) === 0 && (l.priceChange ?? 0) === 0);
-    const allZeroVolume = listings.every(l => (l.volume ?? 0) === 0);
-    const allZeroPrice = listings.every(l => (l.price ?? 0) === 0);
-    return allZeroChange || allZeroVolume || allZeroPrice;
-  }, [listings]);
+  // Badge je SIMULIRANI kad bilo koji listing dolazi sa berze u test modu.
+  // Backend tada ne gadja Alpha Vantage / fixer.io, pa prikaz mora jasno
+  // signalizirati da cene nisu trzisne.
+  const isDataSimulated = useMemo(
+    () => listings.some(l => l.isTestMode === true),
+    [listings]
+  );
   const totalPages = data?.totalPages ?? 0;
 
   const overview = useMemo(() => {
@@ -352,16 +348,18 @@ export default function SecuritiesListPage() {
             <SlidersHorizontal className="h-4 w-4" />
             Filteri
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Osvezi cene
-          </Button>
+          {!isClient && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              Osvezi cene
+            </Button>
+          )}
         </div>
       </div>
 

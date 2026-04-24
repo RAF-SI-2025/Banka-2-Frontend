@@ -25,6 +25,7 @@ const mockSummary: PortfolioSummary = {
 const mockItems: PortfolioItem[] = [
   {
     id: 1,
+    listingId: 1,
     listingTicker: 'AAPL',
     listingName: 'Apple Inc.',
     listingType: 'STOCK',
@@ -38,6 +39,7 @@ const mockItems: PortfolioItem[] = [
   },
   {
     id: 2,
+    listingId: 2,
     listingTicker: 'ES=F',
     listingName: 'E-mini S&P 500',
     listingType: 'FUTURES',

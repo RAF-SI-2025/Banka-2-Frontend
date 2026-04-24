@@ -99,26 +99,39 @@ export default function VerificationModal({ isOpen, onClose, onVerified }: Verif
     setServerError('');
 
     try {
-      // DEV: bypass — uvek šaljemo stvarni aktivni OTP (iz bekenda) umesto korisničkog unosa.
-      // Ako ga nemamo, probamo da ga dohvatimo ovde; u krajnjem slučaju šaljemo šta je uneto.
-      let codeToSend = devOtp;
-      if (!codeToSend) {
-        try {
-          const active = await transactionService.getActiveOtp();
-          if (active.active && active.code) codeToSend = active.code;
-        } catch { /* ignore — fallback ispod */ }
-      }
-      await onVerified(codeToSend ?? data.code);
+      // Propagiramo korisnicki unos u parent (NewPaymentPage/CreateOrderPage/TransferPage),
+      // koji radi stvarni POST /payments /orders /transfers sa otpCode-om.
+      // Backend (OtpService.verify) pravi stvarnu proveru — pogresan kod vrati 403 i
+      // uvecava attempts; exception handler niz stack propagira poruku.
+      await onVerified(data.code);
       // If we get here, payment succeeded - parent will navigate away
     } catch (err: unknown) {
-      // Payment failed (wrong OTP, insufficient funds, etc)
-      const error = err as { response?: { data?: { message?: string } } };
-      const msg = error.response?.data?.message || 'Verifikacija nije uspela. Pokušajte ponovo.';
+      // Payment failed — pogresan OTP, blokiran, istekao, nedovoljno sredstava...
+      // Backend poruke dolaze kroz `error`, `message` ili body stringa (zavisno od
+      // endpoint-a). Pokrivamo sve.
+      const error = err as {
+        response?: {
+          status?: number;
+          data?: { error?: string; message?: string; verified?: boolean; blocked?: boolean };
+        };
+      };
+      const data403 = error.response?.data;
+      const msg =
+        data403?.error ??
+        data403?.message ??
+        (error.response?.status === 403
+          ? 'Verifikacioni kod nije tacan.'
+          : 'Verifikacija nije uspela. Pokusajte ponovo.');
       setServerError(msg);
-      setAttemptsLeft(prev => {
-        const next = prev - 1;
+
+      // Backend je vec markirao OTP kao iskoriscen kada si premasila maxAttempts —
+      // pogledaj polje `blocked` iz direktnog /payments/verify poziva ako postoji,
+      // inace pratimo attempts lokalno (po default-u max 3 kao sto OtpService vraca).
+      const blocked = data403?.blocked === true;
+      setAttemptsLeft((prev) => {
+        const next = blocked ? 0 : prev - 1;
         if (next <= 0) {
-          toast.error('Maksimalan broj pokušaja. Transakcija otkazana.');
+          toast.error('Maksimalan broj pokusaja. Transakcija otkazana.');
           setTimeout(() => onClose(), 1500);
         }
         return next;

@@ -62,17 +62,16 @@ jobs:
     name: Cypress E2E Tests (Live)
     runs-on: ubuntu-latest
     services:
-      mysql:
-        image: mysql:8.0
+      postgres:
+        image: postgres:16-alpine
         env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: banka2
-          MYSQL_USER: banka2user
-          MYSQL_PASSWORD: banka2pass
+          POSTGRES_DB: banka2
+          POSTGRES_USER: banka2user
+          POSTGRES_PASSWORD: banka2pass
         ports:
-          - 3306:3306
+          - 5432:5432
         options: >-
-          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-cmd="pg_isready -U banka2user -d banka2"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
@@ -88,6 +87,9 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -112,11 +114,13 @@ jobs:
         if: env.SKIP_LIVE != 'true'
         run: |
           docker run -d --name backend --network host \
-            -e SPRING_DATASOURCE_URL="jdbc:mysql://127.0.0.1:3306/banka2?useUnicode=true&characterEncoding=UTF-8" \
+            -e SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:5432/banka2" \
             -e SPRING_DATASOURCE_USERNAME="banka2user" \
             -e SPRING_DATASOURCE_PASSWORD="banka2pass" \
+            -e SPRING_DATASOURCE_DRIVER_CLASS_NAME="org.postgresql.Driver" \
             -e SPRING_JPA_HIBERNATE_DDL_AUTO="update" \
-            -e SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT="org.hibernate.dialect.MySQLDialect" \
+            -e SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT="org.hibernate.dialect.PostgreSQLDialect" \
+            -e SPRING_JPA_PROPERTIES_HIBERNATE_TYPE_PREFERRED_BOOLEAN_JDBC_TYPE="INTEGER" \
             ghcr.io/raf-si-2025/banka2-backend:latest
 
       - name: Wait for backend to be ready
@@ -138,9 +142,11 @@ jobs:
 
       - name: Seed database
         if: env.SKIP_LIVE != 'true'
+        env:
+          PGPASSWORD: banka2pass
         run: |
           git clone --depth 1 https://github.com/RAF-SI-2025/Banka-2-Backend.git /tmp/backend
-          mysql -h 127.0.0.1 -u banka2user -pbanka2pass banka2 < /tmp/backend/seed.sql
+          psql -h 127.0.0.1 -U banka2user -d banka2 -v ON_ERROR_STOP=1 -f /tmp/backend/seed.sql
           echo "Database seeded successfully!"
 
       - name: Build frontend

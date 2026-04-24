@@ -14,10 +14,21 @@ const mockSetTheme = vi.fn();
 let mockUser: Record<string, unknown> | null = null;
 
 vi.mock('../context/AuthContext', () => ({
-  useAuth: () => ({
-    user: mockUser,
-    logout: mockLogout,
-  }),
+  useAuth: () => {
+    const role = (mockUser?.role as string | undefined) ?? null;
+    const perms = (mockUser?.permissions as string[] | undefined) ?? [];
+    const isAdmin = role === 'ADMIN' || perms.includes('ADMIN');
+    const isSupervisor = isAdmin || perms.includes('SUPERVISOR');
+    const isAgent = perms.includes('AGENT');
+    return {
+      user: mockUser,
+      logout: mockLogout,
+      isAdmin,
+      isSupervisor,
+      isAgent,
+      hasPermission: (p: string) => perms.includes(p),
+    };
+  },
 }));
 
 vi.mock('../context/ThemeContext', () => ({
@@ -190,8 +201,9 @@ describe('ClientSidebar', () => {
 
     it('shows Zaposleni role label', () => {
       renderSidebar();
-      // 'Zaposleni' appears as both the role label and nav link
-      expect(screen.getAllByText('Zaposleni').length).toBeGreaterThanOrEqual(2);
+      // Za EMPLOYEE rolu "Zaposleni" je samo role label — "Zaposleni" nav link
+      // (ka /admin/employees) se prikazuje samo adminu.
+      expect(screen.getByText('Zaposleni')).toBeTruthy();
     });
   });
 

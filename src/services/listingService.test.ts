@@ -145,7 +145,12 @@ describe('listingService', () => {
 
       await listingService.refresh();
 
-      expect(mockedApi.post).toHaveBeenCalledWith('/listings/refresh');
+      // Servis salje null body i poseban timeout (do 5min) za refresh
+      expect(mockedApi.post).toHaveBeenCalledWith(
+        '/listings/refresh',
+        null,
+        expect.objectContaining({ timeout: expect.any(Number) }),
+      );
     });
 
     it('should propagate errors', async () => {

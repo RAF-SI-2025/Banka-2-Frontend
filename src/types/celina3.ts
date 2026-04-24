@@ -72,6 +72,9 @@ export interface Listing {
   contractSize?: number;
   contractUnit?: string;
   settlementDate?: string;
+  // True kad je berza u test modu — backend tada simulira cene umesto da
+  // gadja Alpha Vantage / fixer.io, a FE pokazuje "SIMULIRANI PODACI" badge.
+  isTestMode?: boolean;
 }
 
 export interface ListingDailyPrice {
@@ -112,6 +115,10 @@ export interface Order {
   createdAt: string;
   lastModification: string;
   listingSettlementDate?: string;
+  /** Provizija menjacnice u valuti racuna (0 ili null ako nije bila primenjena). */
+  fxCommission?: number;
+  /** Srednji kurs listing->account currency u trenutku rezervacije. */
+  exchangeRate?: number;
 }
 
 export interface CreateOrderRequest {
@@ -227,3 +234,96 @@ export interface OptionChain {
 
 // Re-export PaginatedResponse from index to avoid duplication
 export type { PaginatedResponse } from './index';
+
+// ============================================================
+// Celina 4 - OTC trgovina (intra-bank)
+// ============================================================
+
+export const OtcOfferStatus = {
+  ACTIVE: 'ACTIVE',
+  ACCEPTED: 'ACCEPTED',
+  DECLINED: 'DECLINED',
+} as const;
+export type OtcOfferStatus = (typeof OtcOfferStatus)[keyof typeof OtcOfferStatus];
+
+export const OtcContractStatus = {
+  ACTIVE: 'ACTIVE',
+  EXERCISED: 'EXERCISED',
+  EXPIRED: 'EXPIRED',
+} as const;
+export type OtcContractStatus = (typeof OtcContractStatus)[keyof typeof OtcContractStatus];
+
+/** Akcija koju neko javno nudi na OTC tržištu unutar iste banke. */
+export interface OtcListing {
+  portfolioId: number;
+  listingId: number;
+  listingTicker: string;
+  listingName: string;
+  exchangeAcronym: string;
+  listingCurrency: string;
+  currentPrice: number;
+  publicQuantity: number;
+  availablePublicQuantity: number;
+  sellerId: number;
+  sellerRole: string;
+  sellerName: string;
+}
+
+export interface OtcOffer {
+  id: number;
+  listingId: number;
+  listingTicker: string;
+  listingName: string;
+  listingCurrency: string;
+  buyerId: number;
+  buyerName: string;
+  sellerId: number;
+  sellerName: string;
+  quantity: number;
+  pricePerStock: number;
+  premium: number;
+  settlementDate: string;
+  lastModifiedById: number;
+  lastModifiedByName: string;
+  waitingOnUserId: number;
+  myTurn: boolean;
+  status: OtcOfferStatus;
+  createdAt: string;
+  lastModifiedAt: string;
+}
+
+export interface OtcContract {
+  id: number;
+  listingId: number;
+  listingTicker: string;
+  listingName: string;
+  listingCurrency: string;
+  buyerId: number;
+  buyerName: string;
+  sellerId: number;
+  sellerName: string;
+  quantity: number;
+  strikePrice: number;
+  premium: number;
+  currentPrice: number;
+  settlementDate: string;
+  status: OtcContractStatus;
+  createdAt: string;
+  exercisedAt?: string;
+}
+
+export interface CreateOtcOfferRequest {
+  listingId: number;
+  sellerId: number;
+  quantity: number;
+  pricePerStock: number;
+  premium: number;
+  settlementDate: string;
+}
+
+export interface CounterOtcOfferRequest {
+  quantity: number;
+  pricePerStock: number;
+  premium: number;
+  settlementDate: string;
+}

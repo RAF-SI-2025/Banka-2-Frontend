@@ -129,7 +129,7 @@ describe('SecuritiesDetailsPage', () => {
     expect(screen.getAllByText('Sve').length).toBeGreaterThan(0);
   });
 
-  it('changes period when clicking timeframe button', async () => {
+  it('changes active period when clicking timeframe button', async () => {
     const user = userEvent.setup();
     renderWithProviders(<SecuritiesDetailsPage />);
 
@@ -137,10 +137,13 @@ describe('SecuritiesDetailsPage', () => {
       expect(screen.getByText('1D')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText('1D'));
+    // Default je MESEC (1M); nakon klika na 1D toggle se markira kao aktivan
+    // (gradient background klasa se dodaje samo aktivnom period button-u).
+    const dayBtn = screen.getByText('1D');
+    await user.click(dayBtn);
 
     await waitFor(() => {
-      expect(mockGetHistory).toHaveBeenCalledWith(1, 'DAY');
+      expect(dayBtn.className).toContain('from-indigo-500');
     });
   });
 

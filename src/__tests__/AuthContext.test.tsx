@@ -20,8 +20,18 @@ vi.mock('../utils/jwt', () => ({
   decodeJwt: vi.fn(),
 }));
 
+// Mock employeeService — login-flow fetchuje permisije iz backenda;
+// default response vraca praznu stranicu, a pojedinacni testovi mogu da
+// override-uju pretpostavljeno ponasanje.
+vi.mock('../services/employeeService', () => ({
+  employeeService: {
+    getAll: vi.fn().mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 10 }),
+  },
+}));
+
 import { authService } from '../services/authService';
 import { decodeJwt } from '../utils/jwt';
+import { employeeService } from '../services/employeeService';
 
 // ---------------------------------------------------------------------------
 // Helper: renders a consumer that exposes context values via data-testid
@@ -154,7 +164,7 @@ describe('AuthContext', () => {
     expect(sessionStorage.getItem('user')).toBeTruthy();
   });
 
-  it('login sets EMPLOYEE as admin-like user', async () => {
+  it('login for EMPLOYEE role with SUPERVISOR permission from backend sets supervisor flag', async () => {
     vi.mocked(authService.login).mockResolvedValue({
       accessToken: 'tok',
       refreshToken: 'ref',
@@ -167,6 +177,21 @@ describe('AuthContext', () => {
       exp: 1999999999,
       iat: 1700432000,
     });
+    // Backend vraca EMPLOYEE sa SUPERVISOR permisijom — nije admin,
+    // ali jeste supervizor prema hijerarhiji iz spec-a (runda 11.04.2026).
+    vi.mocked(employeeService.getAll).mockResolvedValue({
+      content: [{
+        id: 42,
+        firstName: 'Ana',
+        lastName: 'Jovic',
+        email: 'ana.jovic@banka.rs',
+        permissions: [Permission.SUPERVISOR],
+      } as unknown as Parameters<typeof vi.fn>[0]],
+      totalElements: 1,
+      totalPages: 1,
+      number: 0,
+      size: 10,
+    } as unknown as Awaited<ReturnType<typeof employeeService.getAll>>);
 
     render(
       <AuthProvider>
@@ -179,9 +204,12 @@ describe('AuthContext', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('isAdmin').textContent).toBe('true');
+      expect(screen.getByTestId('authenticated').textContent).toBe('true');
     });
-    expect(screen.getByTestId('hasAdmin').textContent).toBe('true');
+    // EMPLOYEE role + SUPERVISOR perm: isAdmin ostaje false (AuthContext.tsx
+    // je namerno razdvojio admin od supervizora nakon runde 11.04.2026).
+    expect(screen.getByTestId('isAdmin').textContent).toBe('false');
+    expect(screen.getByTestId('hasAdmin').textContent).toBe('false');
   });
 
   it('login for CLIENT role does not grant admin', async () => {

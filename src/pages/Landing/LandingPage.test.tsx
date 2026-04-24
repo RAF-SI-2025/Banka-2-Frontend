@@ -2,19 +2,15 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import LandingPage from './LandingPage';
 
-// ---------------------------------------------------------------------------
-// Mock react-router-dom
-// ---------------------------------------------------------------------------
+// ─── Mocks ────────────────────────────────────────────────────────────────
+
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
-// ---------------------------------------------------------------------------
-// Mock ThemeContext
-// ---------------------------------------------------------------------------
 const mockSetTheme = vi.fn();
-let currentTheme = 'light';
+let currentTheme: 'light' | 'dark' | 'system' = 'light';
 
 vi.mock('@/context/ThemeContext', () => ({
   useTheme: () => ({
@@ -23,24 +19,18 @@ vi.mock('@/context/ThemeContext', () => ({
   }),
 }));
 
-// ---------------------------------------------------------------------------
-// Mock fetch for backend status check
-// ---------------------------------------------------------------------------
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// ---------------------------------------------------------------------------
-// Setup
-// ---------------------------------------------------------------------------
+// ─── Setup ────────────────────────────────────────────────────────────────
+
 beforeEach(() => {
   vi.clearAllMocks();
   currentTheme = 'light';
   mockFetch.mockResolvedValue({ ok: true });
 
-  // Mock IntersectionObserver to trigger visibility
   const mockIntersectionObserver = vi.fn().mockImplementation((callback) => ({
     observe: vi.fn().mockImplementation((el: Element) => {
-      // Immediately trigger as visible
       callback([{ isIntersecting: true, target: el }]);
     }),
     unobserve: vi.fn(),
@@ -52,41 +42,43 @@ beforeEach(() => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+// ─── Tests ────────────────────────────────────────────────────────────────
+// Napomena: hero naslov je podeljen preko <br/> i <span>-ova, zato
+// koristimo pod-elementne upite (getByText matcher funkcija ili
+// getAllByText sa cinonim prisustvom dela stringa).
+
 describe('LandingPage', () => {
-  it('renders the hero heading', () => {
+  it('renders the hero heading fragments', () => {
     render(<LandingPage />);
-    expect(screen.getByText('Moderno bankarstvo')).toBeInTheDocument();
+    // "Moderno", "bankarstvo", "na dohvat ruke" su u razdvojenim elementima
+    expect(screen.getByText('Moderno')).toBeInTheDocument();
+    expect(screen.getByText('bankarstvo')).toBeInTheDocument();
     expect(screen.getByText('na dohvat ruke')).toBeInTheDocument();
   });
 
   it('renders the hero subtitle', () => {
     render(<LandingPage />);
     expect(
-      screen.getByText(/Platforma za upravljanje bankarskim poslovanjem/)
+      screen.getByText(/Kompletna platforma za upravljanje racunima/i),
     ).toBeInTheDocument();
   });
 
   it('renders CTA buttons', () => {
     render(<LandingPage />);
-    // Multiple "Prijavi se" buttons exist (navbar + hero + CTA section)
     const loginButtons = screen.getAllByText(/Prijavi se/);
     expect(loginButtons.length).toBeGreaterThanOrEqual(2);
   });
 
   it('navigates to /login when hero CTA is clicked', () => {
     render(<LandingPage />);
-    // The first "Prijavi se" is the navbar button
     const loginButtons = screen.getAllByText(/Prijavi se/);
     fireEvent.click(loginButtons[0]);
     expect(mockNavigate).toHaveBeenCalledWith('/login');
   });
 
-  it('renders "Saznaj više" button', () => {
+  it('renders "Saznaj vise" button', () => {
     render(<LandingPage />);
-    expect(screen.getByText('Saznaj više')).toBeInTheDocument();
+    expect(screen.getByText(/Saznaj vise/)).toBeInTheDocument();
   });
 
   it('renders all 6 feature cards', () => {
@@ -102,101 +94,104 @@ describe('LandingPage', () => {
   it('renders feature descriptions', () => {
     render(<LandingPage />);
     expect(
-      screen.getByText(/Kreiranje, pregled i upravljanje nalozima zaposlenih/)
+      screen.getByText(/Kompletni CRUD nad nalozima/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/JWT autentifikacija sa access\/refresh tokenima/)
+      screen.getByText(/JWT access\/refresh tokeni, OTP verifikacija/),
     ).toBeInTheDocument();
   });
 
-  it('renders the features section heading', () => {
+  it('renders the 4-step section copy', () => {
     render(<LandingPage />);
-    expect(screen.getByText('Mogućnosti')).toBeInTheDocument();
-    expect(screen.getByText('Sve što vam je potrebno')).toBeInTheDocument();
+    // Stranica ima 4 koraka umesto eksplicitnog "Mogucnosti" headinga
+    expect(screen.getByText('Registracija')).toBeInTheDocument();
+    expect(screen.getByText('Otvaranje racuna')).toBeInTheDocument();
+    expect(screen.getByText('Transakcije')).toBeInTheDocument();
+    expect(screen.getByText('Berza')).toBeInTheDocument();
+    expect(screen.getByText('4 koraka do cilja')).toBeInTheDocument();
   });
 
-  it('renders the CTA section', () => {
+  it('renders the CTA section copy', () => {
     render(<LandingPage />);
-    expect(screen.getByText('Spremni da počnete?')).toBeInTheDocument();
-    expect(screen.getByText('Prijavi se na portal')).toBeInTheDocument();
+    expect(screen.getByText('Spremni da')).toBeInTheDocument();
+    expect(screen.getByText('pocnete?')).toBeInTheDocument();
+    // "Prijavi se na portal" se nalazi i u hero-u i u CTA sekciji
+    expect(screen.getAllByText('Prijavi se na portal').length).toBeGreaterThanOrEqual(1);
   });
 
   it('navigates to /login from CTA section button', () => {
     render(<LandingPage />);
-    const portalButton = screen.getByText('Prijavi se na portal');
-    fireEvent.click(portalButton);
+    const portalButtons = screen.getAllByText('Prijavi se na portal');
+    // Zadnji je u CTA sekciji
+    fireEvent.click(portalButtons[portalButtons.length - 1]);
     expect(mockNavigate).toHaveBeenCalledWith('/login');
   });
 
   it('renders the logo in navbar, CTA, and footer', () => {
-    render(<LandingPage />);
-    const logos = screen.getAllByAltText(/BANKA 2025|Banka 2025/i);
-    expect(logos.length).toBe(3); // navbar, CTA, footer
-    logos.forEach((logo) => {
-      expect(logo).toHaveAttribute('src', '/logo.svg');
-    });
+    const { container } = render(<LandingPage />);
+    // logo.svg se koristi na 3 mesta (navbar, CTA, footer). Slika je
+    // dekorativna (alt=""), pa biramo po src atributu.
+    const logos = container.querySelectorAll('img[src="/logo.svg"]');
+    expect(logos.length).toBe(3);
   });
 
-  it('renders the branding text', () => {
+  it('renders the "BANKA 2025" branding text', () => {
     render(<LandingPage />);
-    // Navbar and footer both have branding
-    const brandings = screen.getAllByText(/BANKA 2025/);
-    expect(brandings.length).toBeGreaterThanOrEqual(2);
+    // Brendiranje je u navbaru i footeru, "BANKA" + "2025" su razdvojeni
+    // spanovima zbog gradient text efekta.
+    const brands = screen.getAllByText('BANKA', { exact: false });
+    expect(brands.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('renders the currency ticker with all currencies', () => {
+  it('renders the currency ticker with all currency pairs', () => {
     render(<LandingPage />);
-    // Currencies are repeated 4x in the ticker, use getAllByText
-    expect(screen.getAllByText('RSD').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('EUR').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('USD').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('CHF').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('GBP').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('JPY').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('CAD').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('AUD').length).toBeGreaterThanOrEqual(1);
+    // Ticker je zapisan u `<currency>/<currency>` formatu (npr. EUR/RSD)
+    // i duplikovan 4 puta radi seamless scroll animacije.
+    expect(screen.getAllByText(/EUR\/RSD/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/USD\/RSD/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/GBP\/RSD/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/CHF\/RSD/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/JPY\/RSD/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/CAD\/RSD/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/AUD\/RSD/).length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders currency symbols', () => {
+  it('renders stock tickers in the ticker strip', () => {
     render(<LandingPage />);
-    expect(screen.getAllByText('€').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('$').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('£').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('¥').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/AAPL/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/MSFT/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/TSLA/).length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders the theme toggle button', () => {
     render(<LandingPage />);
-    const themeButton = screen.getByTitle(/Tema:/);
+    const themeButton = screen.getByTitle('Tema');
     expect(themeButton).toBeInTheDocument();
+    expect(themeButton).toHaveAttribute('aria-label', 'Promeni temu');
   });
 
-  it('cycles theme on toggle click: light -> dark -> system -> light', () => {
+  it('cycles theme on toggle click: light -> dark', () => {
     currentTheme = 'light';
     render(<LandingPage />);
-    const themeButton = screen.getByTitle('Tema: Svetla');
-    fireEvent.click(themeButton);
+    fireEvent.click(screen.getByTitle('Tema'));
     expect(mockSetTheme).toHaveBeenCalledWith('dark');
   });
 
   it('cycles theme from dark to system', () => {
     currentTheme = 'dark';
     render(<LandingPage />);
-    const themeButton = screen.getByTitle('Tema: Tamna');
-    fireEvent.click(themeButton);
+    fireEvent.click(screen.getByTitle('Tema'));
     expect(mockSetTheme).toHaveBeenCalledWith('system');
   });
 
   it('cycles theme from system to light', () => {
     currentTheme = 'system';
     render(<LandingPage />);
-    const themeButton = screen.getByTitle('Tema: Sistemska');
-    fireEvent.click(themeButton);
+    fireEvent.click(screen.getByTitle('Tema'));
     expect(mockSetTheme).toHaveBeenCalledWith('light');
   });
 
   it('displays backend status checking initially', () => {
-    // Make fetch hang so status stays "checking"
     mockFetch.mockReturnValue(new Promise(() => {}));
     render(<LandingPage />);
     expect(screen.getByText('Provera servera...')).toBeInTheDocument();
@@ -205,13 +200,12 @@ describe('LandingPage', () => {
   it('renders the footer with university info', () => {
     render(<LandingPage />);
     expect(
-      screen.getByText(/Softversko inženjerstvo — Računarski fakultet/)
+      screen.getByText(/Softversko inzenjerstvo .* Racunarski fakultet/),
     ).toBeInTheDocument();
   });
 
   it('renders the scroll indicator', () => {
     const { container } = render(<LandingPage />);
-    // The scroll indicator is a small rounded-full div with animate-float
     const scrollIndicator = container.querySelector('.animate-float');
     expect(scrollIndicator).not.toBeNull();
   });
