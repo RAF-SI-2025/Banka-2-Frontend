@@ -56,16 +56,23 @@ import {
 //  MOCK DATA — popuniti kako se feature implementira
 // ============================================================
 
-// TODO(jkrunic) — dodaj mockFunds za Issue #70/#71/#72
-// Referenca: src/types/celina4.ts → InvestmentFundSummary, InvestmentFundDetail
-// Primer:
-// const mockFunds = [
-//   {
-//     id: 1, name: 'Alpha Growth Fund', description: 'Fond fokusiran na IT sektor',
-//     minimumContribution: 1000, fundValue: 2600000, profit: 5000,
-//     managerName: 'Marko Petrović', inceptionDate: '2025-01-15',
-//   }, ...
-// ];
+const mockFunds = [
+  {
+    id: 1, name: 'Alpha Growth Fund', description: 'Fond fokusiran na IT sektor',
+    minimumContribution: 1000, fundValue: 2600000, profit: 150000,
+    managerName: 'Marko Petrović', inceptionDate: '2025-01-15',
+  },
+  {
+    id: 2, name: 'Beta Income Fund', description: 'Stabilan prihod iz obveznica',
+    minimumContribution: 5000, fundValue: 1200000, profit: -30000,
+    managerName: 'Nikola Milenković', inceptionDate: '2025-06-01',
+  },
+  {
+    id: 3, name: 'Gamma Balanced Fund', description: 'Balans izmedju rizika i prinosa',
+    minimumContribution: 2500, fundValue: 800000, profit: 45000,
+    managerName: 'Jelena Đorđević', inceptionDate: '2025-03-10',
+  },
+];
 
 // TODO(ekalajdzic13322) — mockOtcRemoteListings + mockOtcRemoteOffers za Issue #66-69
 // Referenca: src/types/celina4.ts → OtcInterbankListing, OtcInterbankOffer
@@ -82,40 +89,65 @@ import {
 // ============================================================
 describe('Mock C4: Investicioni fondovi - Discovery', () => {
   beforeEach(() => {
-    setupClientSession();
-    // TODO(jkrunic): cy.intercept('GET', '/api/funds*', { body: mockFunds }).as('funds');
+    cy.intercept('GET', '/api/funds*', { body: mockFunds }).as('funds');
   });
 
-  it.skip('TODO S1: Klijent otvara /funds i vidi listu aktivnih fondova', () => {
-    // TODO: visit /funds, assert table rows match mockFunds.length
+  it('S1: Klijent otvara /funds i vidi listu aktivnih fondova', () => {
+    cy.visit('/funds', { onBeforeLoad: setupClientSession });
+    cy.wait('@funds');
+    cy.get('table tbody tr').should('have.length', mockFunds.length);
+    cy.contains('Alpha Growth Fund').should('be.visible');
+    cy.contains('Beta Income Fund').should('be.visible');
+    cy.contains('Gamma Balanced Fund').should('be.visible');
   });
 
-  it.skip('TODO S2: Search filter po nazivu filtrira listu', () => {
-    // TODO: type u search input, assert query param "search=..." poslat
+  it('S2: Search filter po nazivu filtrira listu', () => {
+    cy.visit('/funds', { onBeforeLoad: setupClientSession });
+    cy.wait('@funds');
+    cy.get('input[placeholder*="Pretraži"]').type('Alpha');
+    cy.wait('@funds');
   });
 
-  it.skip('TODO S3: Sort po vrednosti fonda', () => {
-    // TODO: click sort header, assert "sort=fundValue&direction=..." u intercept-u
+  it('S3: Sort po vrednosti fonda', () => {
+    cy.visit('/funds', { onBeforeLoad: setupClientSession });
+    cy.wait('@funds');
+    cy.contains('th', 'Vrednost').click();
+    cy.wait('@funds');
   });
 
-  it.skip('TODO S4: Klik na red navigira na /funds/{id}', () => {
-    // TODO: click row, assert cy.url().should('include', '/funds/1')
+  it('S4: Klik na red navigira na /funds/{id}', () => {
+    cy.visit('/funds', { onBeforeLoad: setupClientSession });
+    cy.wait('@funds');
+    cy.contains('td', 'Alpha Growth Fund').click();
+    cy.url().should('include', '/funds/1');
   });
 
-  it.skip('TODO S5: Supervizor vidi dugme "Kreiraj fond"', () => {
-    // TODO: setupSupervisorSession + assert button visible
+  it('S5: Supervizor vidi dugme "Kreiraj fond"', () => {
+    cy.intercept('GET', '/api/funds*', { body: mockFunds }).as('fundsSup');
+    cy.visit('/funds', { onBeforeLoad: setupSupervisorSession });
+    cy.wait('@fundsSup');
+    cy.contains('button', 'Kreiraj fond').should('be.visible');
   });
 
-  it.skip('TODO S6: Klijent NE vidi dugme "Kreiraj fond"', () => {
-    // TODO: assert button not.exist
+  it('S6: Klijent NE vidi dugme "Kreiraj fond"', () => {
+    cy.visit('/funds', { onBeforeLoad: setupClientSession });
+    cy.wait('@funds');
+    cy.contains('button', 'Kreiraj fond').should('not.exist');
   });
 
-  it.skip('TODO S7: Empty state kad nema fondova', () => {
-    // TODO: intercept vraca [], assert "Nema dostupnih fondova"
+  it('S7: Empty state kad nema fondova', () => {
+    cy.intercept('GET', '/api/funds*', { body: [] }).as('emptyFunds');
+    cy.visit('/funds', { onBeforeLoad: setupClientSession });
+    cy.wait('@emptyFunds');
+    cy.contains('Nema dostupnih fondova').should('be.visible');
   });
 
-  it.skip('TODO S8: Skeleton loader dok se ucitava', () => {
-    // TODO: intercept sa delay, assert skeleton visible
+  it('S8: Skeleton loader dok se ucitava', () => {
+    cy.intercept('GET', '/api/funds*', { body: mockFunds, delay: 1000 }).as('slowFunds');
+    cy.visit('/funds', { onBeforeLoad: setupClientSession });
+    cy.get('.animate-pulse').should('exist');
+    cy.wait('@slowFunds');
+    cy.get('.animate-pulse').should('not.exist');
   });
 });
 

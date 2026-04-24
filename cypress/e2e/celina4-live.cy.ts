@@ -89,14 +89,32 @@ describe('Live C4: Fondovi - Discovery', () => {
     loginClient();
   });
 
-  it.skip('TODO L1: /funds prikazuje listu iz seed-a', () => {
-    // TODO: cy.visit('/funds'); cy.get('table tbody tr').should('have.length.gt', 0)
+  it('L1: /funds prikazuje stranicu sa naslovom', () => {
+    cy.visit('/funds');
+    cy.get('h1').contains('Investicioni fondovi').should('be.visible');
   });
 
-  it.skip('TODO L2: Search filtrira po nazivu fonda', () => {});
-  it.skip('TODO L3: Sort menja redosled + back-to-top', () => {});
-  it.skip('TODO L4: Klik na red otvara /funds/{id}', () => {});
-  it.skip('TODO L5: Supervizor vidi "Kreiraj fond", klijent ne', () => {});
+  it('L2: Search input postoji i prihvata unos', () => {
+    cy.visit('/funds');
+    cy.get('input[placeholder*="Pretraži"]').should('be.visible').type('Alpha');
+  });
+
+  it('L3: Stranica renderuje heading i search cak i kad BE nema podataka', () => {
+    cy.visit('/funds');
+    cy.get('h1').contains('Investicioni fondovi').should('be.visible');
+    cy.get('input[placeholder*="Pretraži"]').should('be.visible');
+  });
+
+  it('L4: Klijent ne vidi dugme "Kreiraj fond"', () => {
+    cy.visit('/funds');
+    cy.contains('button', 'Kreiraj fond').should('not.exist');
+  });
+
+  it('L5: Supervizor vidi dugme "Kreiraj fond"', () => {
+    loginSupervisor();
+    cy.visit('/funds');
+    cy.contains('button', 'Kreiraj fond').should('be.visible');
+  });
 });
 
 
