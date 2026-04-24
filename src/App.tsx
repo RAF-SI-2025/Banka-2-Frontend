@@ -59,6 +59,7 @@ import OtcOffersAndContractsPage from './pages/Otc/OtcOffersAndContractsPage';
 // Celina 4 - Investicioni fondovi
 import FundsDiscoveryPage from './pages/Funds/FundsDiscoveryPage';
 import FundDetailsPage from './pages/Funds/FundDetailsPage';
+import CreateFundPage from './pages/Funds/CreateFundPage';
 
 export default function App() {
   return (
@@ -135,12 +136,11 @@ export default function App() {
 
           {/* Investicioni fondovi (Celina 4) */}
           <Route path="/funds" element={<FundsDiscoveryPage />} />
+          <Route path="/funds/create" element={<CreateFundPage />} />
           <Route path="/funds/:id" element={<FundDetailsPage />} />
 
           {/*
-            TODO — CELINA 4 PREOSTALE RUTE (podela):
-              Zaduzen: antonije3 (create fund — supervisor only)
-                <Route path="/funds/create" element={<CreateFundPage />} />
+            TODO — CELINA 4 PREOSTALA RUTA:
               Zaduzen: sssmarta (profit banke — supervisor only)
                 <Route path="/employee/profit-bank" element={<ProfitBankPage />} />
           */}

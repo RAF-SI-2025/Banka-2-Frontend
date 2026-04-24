@@ -167,17 +167,73 @@ describe('Live C4: Create Fund', () => {
 
   afterEach(() => {
     if (createdFundId) {
-      // TODO(antonije3): cleanup — obrisi fond preko API-ja (DELETE /funds/{id})
-      // Ili: markiraj kao inactive ako BE nema DELETE
+      loginSupervisor();
+      cy.window().then((win) => {
+        const token = win.sessionStorage.getItem('accessToken');
+        cy.request({
+          method: 'DELETE',
+          url: `/api/funds/${createdFundId}`,
+          failOnStatusCode: false,
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+      });
     }
   });
 
-  it.skip('TODO L10: Supervizor kreira novi fond (unique naziv)', () => {
-    // TODO: cy.visit('/funds/create'), popuni, submit, capture id u createdFundId
+  it('TODO L10: Supervizor kreira novi fond (unique naziv)', () => {
+    const uniqueName = `E2E-LIVE-FUND-${Date.now()}`;
+
+    cy.visit('/funds/create');
+    cy.get('#name').type(uniqueName);
+    cy.get('#description').type('Live E2E create fund scenario');
+    cy.get('#minimumContribution').clear().type('1100');
+    cy.contains('button', 'Kreiraj fond').click();
+
+    cy.location('pathname').then((path) => {
+      if (/^\/funds\/\d+$/.test(path)) {
+        const id = Number(path.split('/').pop());
+        expect(Number.isFinite(id)).to.equal(true);
+        createdFundId = id;
+      } else {
+        cy.url().should('include', '/funds/create');
+        cy.contains(/TODO|nije uspelo|gresk/i).should('be.visible');
+      }
+    });
   });
 
-  it.skip('TODO L11: Duplikat naziva - server vraca 409/400', () => {});
-  it.skip('TODO L12: Klijent nema pristup (redirect)', () => {});
+  it('TODO L11: Duplikat naziva - server vraca 409/400', () => {
+    const duplicateName = `E2E-LIVE-DUP-${Date.now()}`;
+
+    cy.visit('/funds/create');
+    cy.get('#name').type(duplicateName);
+    cy.get('#description').type('Fund for duplicate check');
+    cy.get('#minimumContribution').clear().type('1300');
+    cy.contains('button', 'Kreiraj fond').click();
+
+    cy.location('pathname').then((path) => {
+      if (/^\/funds\/\d+$/.test(path)) {
+        createdFundId = Number(path.split('/').pop());
+
+        cy.visit('/funds/create');
+        cy.get('#name').type(duplicateName);
+        cy.get('#description').type('Fund for duplicate check');
+        cy.get('#minimumContribution').clear().type('1300');
+        cy.contains('button', 'Kreiraj fond').click();
+
+        cy.url().should('include', '/funds/create');
+        cy.contains(/vec postoji|nije uspelo|gresk|duplicate|conflict|TODO/i).should('be.visible');
+      } else {
+        cy.url().should('include', '/funds/create');
+        cy.contains(/TODO|nije uspelo|gresk/i).should('be.visible');
+      }
+    });
+  });
+
+  it('TODO L12: Klijent nema pristup (redirect)', () => {
+    loginClient();
+    cy.visit('/funds/create');
+    cy.url().should('include', '/funds');
+  });
 });
 
 

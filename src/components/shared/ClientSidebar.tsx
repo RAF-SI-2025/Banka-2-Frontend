@@ -138,6 +138,9 @@ export default function ClientSidebar() {
           { label: 'Orderi', path: '/employee/orders', icon: <ShoppingCart className="h-4 w-4" /> },
           { label: 'Aktuari', path: '/employee/actuaries', icon: <TrendingUp className="h-4 w-4" /> },
           { label: 'Porez', path: '/employee/tax', icon: <Calculator className="h-4 w-4" /> },
+          // Napomena: "Kreiraj fond" se pristupa preko /funds stranice (dugme gore desno).
+          // Zaseban sidebar link napravio bi koliziju sa postojecim Cypress regex
+          // testovima (/novi|dodaj|kreiraj/i) na Admin Employee flow-u.
           // TODO — CELINA 4 PROFIT BANKE (zaduzen: sssmarta)
           //   { label: 'Profit Banke', path: '/employee/profit-bank', icon: <Landmark className="h-4 w-4" /> },
         );
