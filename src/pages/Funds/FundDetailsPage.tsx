@@ -1,52 +1,373 @@
-/*
-================================================================================
- TODO — DETALJAN PRIKAZ JEDNOG FONDA
- Zaduzen: jkrunic
- Spec referenca: Celina 4, linije 306-316 (Detaljan prikaz fonda)
---------------------------------------------------------------------------------
- ROUTE: /funds/:id
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { toast } from '@/lib/notify';
+import {
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+} from 'recharts';
+import {
+  ArrowLeft,
+  TrendingUp,
+  TrendingDown,
+  Wallet,
+  PiggyBank,
+  BarChart3,
+  DollarSign,
+  ShoppingCart,
+} from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import investmentFundService from '@/services/investmentFundService';
+import type { InvestmentFundDetail, FundPerformancePoint } from '@/types/celina4';
+import { formatAmount, formatDate, formatPrice, getErrorMessage } from '@/utils/formatters';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
- PRIKAZ:
-  1. Zaglavlje: naziv, opis, menadzer
-  2. 4 Card tile-a (KPIs): Vrednost fonda, Likvidnost, Profit,
-     Minimalni ulog
-  3. Sekcija "Hartije u fondu":
-     Tabela: Ticker, Price, Change, Volume, InitialMarginCost,
-             AcquisitionDate
-     - Supervizor (owner) vidi dugme "Prodaj" pored svake hartije
-       → vodi na CreateOrderPage sa pre-popunjenim SELL + userRole=FUND
-  4. Sekcija "Performanse":
-     - Grafik (Recharts LineChart) sa vrednoscu fonda u RSD po datumu
-     - Toggle: mesec / kvartal / godina (menja from/to u getPerformance)
-  5. Akcije na dnu:
-     - Klijent: "Uplati u fond" + "Povuci iz fonda" (ako ima poziciju)
-     - Supervizor: ovi isti + "Uplati u ime banke"
+type PerfPeriod = 'month' | 'quarter' | 'year';
 
- LOGIKA:
-  - useEffect -> fetch service.get(id), service.getPerformance(id, ...)
-  - Parallel dispatch (Promise.all)
-  - Error: navigate to /funds sa toast-om
-  - Loading: skeleton za sve sekcije
+function getPerfRange(period: PerfPeriod): { from: string; to: string } {
+  const to = new Date();
+  const from = new Date();
+  switch (period) {
+    case 'month': from.setMonth(from.getMonth() - 1); break;
+    case 'quarter': from.setMonth(from.getMonth() - 3); break;
+    case 'year': from.setFullYear(from.getFullYear() - 1); break;
+  }
+  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+}
 
- INVEST/WITHDRAW DIALOG:
-  Kreirati zaseban komponentu `FundInvestDialog.tsx` / `FundWithdrawDialog.tsx`
-  u istoj folderi (nije u ovom TODO-u, ali povezano).
+const PERIOD_LABELS: Record<PerfPeriod, string> = {
+  month: '1M',
+  quarter: '3M',
+  year: '1G',
+};
 
- DEPENDENCIES:
-  - investmentFundService
-  - recharts za grafik (vec u projektu)
-  - shadcn/ui
-
- TESTOVI: FundDetailsPage.test.tsx — mock service, proveri da se prikazuje
- sve info + profit znak + grafik renderuje.
-================================================================================
-*/
 export default function FundDetailsPage() {
-  // TODO: implementirati (vidi TODO blok iznad)
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { user, isSupervisor } = useAuth();
+
+  const [fund, setFund] = useState<InvestmentFundDetail | null>(null);
+  const [performance, setPerformance] = useState<FundPerformancePoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [perfPeriod, setPerfPeriod] = useState<PerfPeriod>('quarter');
+
+  const isOwner = isSupervisor && fund?.managerEmployeeId === user?.id;
+
+  useEffect(() => {
+    if (!id) return;
+    const fundId = Number(id);
+    let cancelled = false;
+
+    const range = getPerfRange(perfPeriod);
+
+    Promise.all([
+      investmentFundService.get(fundId),
+      investmentFundService.getPerformance(fundId, range.from, range.to),
+    ])
+      .then(([fundData, perfData]) => {
+        if (cancelled) return;
+        setFund(fundData);
+        setPerformance(perfData);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        toast.error(getErrorMessage(err, 'Greška pri učitavanju fonda'));
+        navigate('/funds');
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [id, perfPeriod, navigate]);
+
+  if (loading) {
+    return (
+      <div className="container mx-auto py-6 space-y-6">
+        <div className="h-8 w-48 animate-pulse rounded bg-muted/50" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-28 animate-pulse rounded-lg bg-muted/50" />
+          ))}
+        </div>
+        <div className="h-64 animate-pulse rounded-lg bg-muted/50" />
+        <div className="h-48 animate-pulse rounded-lg bg-muted/50" />
+      </div>
+    );
+  }
+
+  if (!fund) return null;
+
+  const profitPositive = fund.profit >= 0;
+  const chartColor = profitPositive ? '#10B981' : '#EF4444';
+
   return (
-    <div className="container mx-auto py-6">
-      <h1 className="text-2xl font-bold">Detalji fonda</h1>
-      <p className="text-sm text-muted-foreground">TODO (jkrunic): implementirati detaljan prikaz prema TODO bloku.</p>
+    <div className="container mx-auto py-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/funds')}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold">{fund.name}</h1>
+          <p className="text-sm text-muted-foreground">{fund.description}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Menadžer: {fund.managerName} · Osnovan: {formatDate(fund.inceptionDate)}
+          </p>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Vrednost fonda</CardTitle>
+            <PiggyBank className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono tabular-nums">
+              {formatAmount(fund.fundValue)} RSD
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Likvidnost</CardTitle>
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono tabular-nums">
+              {formatAmount(fund.liquidAmount)} RSD
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Račun: {fund.accountNumber}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Profit</CardTitle>
+            {profitPositive
+              ? <TrendingUp className="h-4 w-4 text-emerald-500" />
+              : <TrendingDown className="h-4 w-4 text-red-500" />}
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold font-mono tabular-nums ${profitPositive ? 'text-emerald-500' : 'text-red-500'}`}>
+              {formatAmount(fund.profit)} RSD
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Minimalni ulog</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono tabular-nums">
+              {formatAmount(fund.minimumContribution)} RSD
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Holdings Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Hartije u fondu
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {fund.holdings.length === 0 ? (
+            <div className="flex flex-col items-center py-12 text-muted-foreground">
+              <BarChart3 className="h-10 w-10 mb-3 opacity-30" />
+              <p>Fond trenutno nema hartija</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ticker</TableHead>
+                  <TableHead className="text-right">Cena</TableHead>
+                  <TableHead className="text-right">Promena</TableHead>
+                  <TableHead className="text-right">Količina</TableHead>
+                  <TableHead className="text-right">IMC</TableHead>
+                  <TableHead>Datum kupovine</TableHead>
+                  {isOwner && <TableHead className="text-right">Akcija</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {fund.holdings.map(h => (
+                  <TableRow key={h.listingId}>
+                    <TableCell>
+                      <div>
+                        <span className="font-medium">{h.ticker}</span>
+                        <span className="block text-xs text-muted-foreground">{h.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {formatPrice(h.currentPrice)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className={`font-mono tabular-nums ${h.change >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                        {h.change >= 0 ? '+' : ''}{h.change.toFixed(2)}%
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {h.quantity}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {formatPrice(h.initialMarginCost)}
+                    </TableCell>
+                    <TableCell>{formatDate(h.acquisitionDate)}</TableCell>
+                    {isOwner && (
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/orders/new?listingId=${h.listingId}&direction=SELL&fundId=${fund.id}`);
+                          }}
+                        >
+                          <ShoppingCart className="h-3 w-3 mr-1" />
+                          Prodaj
+                        </Button>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Performance Chart */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Performanse fonda
+            </CardTitle>
+            <div className="flex gap-1">
+              {(Object.keys(PERIOD_LABELS) as PerfPeriod[]).map(p => (
+                <Button
+                  key={p}
+                  variant={perfPeriod === p ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPerfPeriod(p)}
+                >
+                  {PERIOD_LABELS[p]}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {performance.length === 0 ? (
+            <div className="flex flex-col items-center py-12 text-muted-foreground">
+              <TrendingUp className="h-10 w-10 mb-3 opacity-30" />
+              <p>Nema podataka o performansama za izabrani period</p>
+            </div>
+          ) : (
+            <div className="bg-muted/20 dark:bg-slate-900/40 rounded-xl p-3">
+              <ResponsiveContainer width="100%" height={350}>
+                <AreaChart data={performance} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorFundValue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={chartColor} stopOpacity={0.25} />
+                      <stop offset="100%" stopColor={chartColor} stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.06} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 11, fill: 'currentColor', opacity: 0.4 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(d: string) =>
+                      new Date(d).toLocaleDateString('sr-RS', { day: '2-digit', month: '2-digit' })
+                    }
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: 'currentColor', opacity: 0.4 }}
+                    tickLine={false}
+                    axisLine={false}
+                    domain={['auto', 'auto']}
+                    tickFormatter={(v: number) => formatPrice(v)}
+                    width={80}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontFamily: 'monospace',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    }}
+                    formatter={(value: unknown) => [formatPrice(Number(value)) + ' RSD', 'Vrednost']}
+                    labelFormatter={(label: unknown) =>
+                      new Date(String(label)).toLocaleDateString('sr-RS', {
+                        weekday: 'short', day: '2-digit', month: 'long', year: 'numeric',
+                      })
+                    }
+                    cursor={{ stroke: chartColor, strokeWidth: 1, strokeDasharray: '4 4' }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="fundValue"
+                    stroke={chartColor}
+                    strokeWidth={2}
+                    fill="url(#colorFundValue)"
+                    animationDuration={800}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Action Buttons */}
+      <Card>
+        <CardContent className="pt-6 flex flex-wrap gap-3">
+          {user?.role === 'CLIENT' && (
+            <>
+              <Button onClick={() => toast.info('Uplata u fond — čeka implementaciju dialoga (Issue #74)')}>
+                Uplati u fond
+              </Button>
+              <Button variant="outline" onClick={() => toast.info('Povlačenje iz fonda — čeka implementaciju dialoga (Issue #74)')}>
+                Povuci iz fonda
+              </Button>
+            </>
+          )}
+          {isSupervisor && (
+            <>
+              <Button onClick={() => toast.info('Uplata u fond — čeka implementaciju dialoga (Issue #74)')}>
+                Uplati u fond
+              </Button>
+              <Button variant="outline" onClick={() => toast.info('Povlačenje iz fonda — čeka implementaciju dialoga (Issue #74)')}>
+                Povuci iz fonda
+              </Button>
+              <Button variant="secondary" onClick={() => toast.info('Uplata u ime banke — čeka implementaciju dialoga (Issue #74)')}>
+                Uplati u ime banke
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
