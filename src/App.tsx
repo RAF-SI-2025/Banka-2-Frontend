@@ -56,6 +56,10 @@ import SupervisorDashboardPage from './pages/Employee/SupervisorDashboardPage';
 import OtcTrgovinaPage from './pages/Otc/OtcTrgovinaPage';
 import OtcOffersAndContractsPage from './pages/Otc/OtcOffersAndContractsPage';
 
+// Celina 4 - Investicioni fondovi
+import FundsDiscoveryPage from './pages/Funds/FundsDiscoveryPage';
+import FundDetailsPage from './pages/Funds/FundDetailsPage';
+
 export default function App() {
   return (
     <Routes>
@@ -129,21 +133,16 @@ export default function App() {
           <Route path="/otc" element={<OtcTrgovinaPage />} />
           <Route path="/otc/offers" element={<OtcOffersAndContractsPage />} />
 
+          {/* Investicioni fondovi (Celina 4) */}
+          <Route path="/funds" element={<FundsDiscoveryPage />} />
+          <Route path="/funds/:id" element={<FundDetailsPage />} />
+
           {/*
-            TODO — CELINA 4 NOVE RUTE (podela):
-              Zaduzen: jkrunic (funds discovery + details)
-                <Route path="/funds" element={<FundsDiscoveryPage />} />
-                <Route path="/funds/:id" element={<FundDetailsPage />} />
+            TODO — CELINA 4 PREOSTALE RUTE (podela):
               Zaduzen: antonije3 (create fund — supervisor only)
                 <Route path="/funds/create" element={<CreateFundPage />} />
-              Zaduzen: sssmarta (profit banke — supervisor only; zavisi od ProtectedRoute employeeOnly + server guard)
-                — ubaci u <ProtectedRoute employeeOnly> blok gore:
+              Zaduzen: sssmarta (profit banke — supervisor only)
                 <Route path="/employee/profit-bank" element={<ProfitBankPage />} />
-              Import-i:
-                import FundsDiscoveryPage from '@/pages/Funds/FundsDiscoveryPage';
-                import FundDetailsPage from '@/pages/Funds/FundDetailsPage';
-                import CreateFundPage from '@/pages/Funds/CreateFundPage';
-                import ProfitBankPage from '@/pages/ProfitBank/ProfitBankPage';
           */}
         </Route>
       </Route>

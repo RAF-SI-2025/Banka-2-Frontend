@@ -27,6 +27,7 @@ import {
   Landmark,
   Handshake,
   ScrollText,
+  PiggyBank,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -101,9 +102,7 @@ export default function ClientSidebar() {
       { label: 'Moji orderi', path: '/orders/my', icon: <ShoppingCart className="h-4 w-4" /> },
       { label: 'OTC trgovina', path: '/otc', icon: <Handshake className="h-4 w-4" /> },
       { label: 'OTC ponude i ugovori', path: '/otc/offers', icon: <ScrollText className="h-4 w-4" /> },
-      // TODO — CELINA 4 TRADING LINKS (zaduzen: jkrunic)
-      //   { label: 'Investicioni fondovi', path: '/funds', icon: <PiggyBank className="h-4 w-4" /> },
-      //   Dodati import: import { PiggyBank } from 'lucide-react';
+      { label: 'Investicioni fondovi', path: '/funds', icon: <PiggyBank className="h-4 w-4" /> },
     ],
     []
   );
