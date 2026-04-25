@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { formatAmount, formatDateTime, asArray, getErrorMessage } from '@/utils/formatters';
+import OtcInterBankContractsTab from './OtcInterBankContractsTab';
 
 const CONTRACT_STATUS_LABEL: Record<string, string> = {
   ACTIVE: 'Aktivan',
@@ -86,7 +87,7 @@ function computeOfferDeviation(
   };
 }
 
-type Tab = 'offers' | 'contracts';
+type Tab = 'offers' | 'contracts' | 'contracts-remote';
 
 export default function OtcOffersAndContractsPage() {
   const { isAdmin, isAgent, isSupervisor } = useAuth();
@@ -271,14 +272,21 @@ export default function OtcOffersAndContractsPage() {
         </div>
       </div>
 
-      <div className="flex gap-1 bg-muted/60 dark:bg-slate-800/60 p-1 rounded-xl border border-border/50 w-fit">
+      <div
+        className="flex gap-1 bg-muted/60 dark:bg-slate-800/60 p-1 rounded-xl border border-border/50 w-fit"
+        role="tablist"
+        aria-label="OTC ponude i ugovori tabovi"
+      >
         <button
+          type="button"
           onClick={() => setTab('offers')}
           className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
             tab === 'offers'
               ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/25'
               : 'text-muted-foreground hover:text-foreground'
           }`}
+          role="tab"
+          aria-selected={tab === 'offers'}
         >
           Aktivne ponude
           {activeOffers.length > 0 && (
@@ -288,14 +296,30 @@ export default function OtcOffersAndContractsPage() {
           )}
         </button>
         <button
+          type="button"
           onClick={() => setTab('contracts')}
           className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
             tab === 'contracts'
               ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/25'
               : 'text-muted-foreground hover:text-foreground'
           }`}
+          role="tab"
+          aria-selected={tab === 'contracts'}
         >
           Sklopljeni ugovori
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('contracts-remote')}
+          className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+            tab === 'contracts-remote'
+              ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/25'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+          role="tab"
+          aria-selected={tab === 'contracts-remote'}
+        >
+          Sklopljeni ugovori (inter-bank)
         </button>
       </div>
 
@@ -608,6 +632,8 @@ export default function OtcOffersAndContractsPage() {
           </CardContent>
         </Card>
       )}
+
+      {tab === 'contracts-remote' && <OtcInterBankContractsTab />}
 
       {accounts.length === 0 && (
         <Alert variant="warning">

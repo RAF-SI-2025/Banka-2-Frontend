@@ -98,8 +98,106 @@ const mockPerformance = [
   { date: '2026-01-01', fundValue: 2600000, profit: 150000 },
 ];
 
-// TODO(ekalajdzic13322) — mockOtcRemoteListings + mockOtcRemoteOffers za Issue #66-69
-// Referenca: src/types/celina4.ts → OtcInterbankListing, OtcInterbankOffer
+const mockOtcRemoteContracts = [
+  {
+    id: 'remote-contract-active',
+    listingId: 101,
+    listingTicker: 'AAPL',
+    listingName: 'Apple Inc.',
+    listingCurrency: 'USD',
+    buyerUserId: 'stefan.jovanovic',
+    buyerBankCode: 'BANKA1',
+    buyerName: 'Stefan Jovanovic',
+    sellerUserId: 'remote-seller-1',
+    sellerBankCode: 'BANKA2',
+    sellerName: 'Remote Seller',
+    quantity: 8,
+    strikePrice: 100,
+    premium: 25,
+    currentPrice: 126,
+    settlementDate: '2026-05-10',
+    status: 'ACTIVE',
+    createdAt: '2026-04-20T10:00:00Z',
+  },
+  {
+    id: 'remote-contract-exercised',
+    listingId: 102,
+    listingTicker: 'TSLA',
+    listingName: 'Tesla Inc.',
+    listingCurrency: 'USD',
+    buyerUserId: 'stefan.jovanovic',
+    buyerBankCode: 'BANKA1',
+    buyerName: 'Stefan Jovanovic',
+    sellerUserId: 'remote-seller-2',
+    sellerBankCode: 'BANKA3',
+    sellerName: 'Partner Seller',
+    quantity: 4,
+    strikePrice: 180,
+    premium: 18,
+    currentPrice: 195,
+    settlementDate: '2026-05-03',
+    status: 'EXERCISED',
+    createdAt: '2026-04-18T10:00:00Z',
+    exercisedAt: '2026-04-24T12:00:00Z',
+  },
+  {
+    id: 'remote-contract-expired',
+    listingId: 103,
+    listingTicker: 'NVDA',
+    listingName: 'NVIDIA Corp.',
+    listingCurrency: 'USD',
+    buyerUserId: 'stefan.jovanovic',
+    buyerBankCode: 'BANKA1',
+    buyerName: 'Stefan Jovanovic',
+    sellerUserId: 'remote-seller-3',
+    sellerBankCode: 'BANKA4',
+    sellerName: 'Remote Supervisor',
+    quantity: 2,
+    strikePrice: 90,
+    premium: 9,
+    currentPrice: 88,
+    settlementDate: '2026-04-10',
+    status: 'EXPIRED',
+    createdAt: '2026-04-01T10:00:00Z',
+  },
+];
+
+const mockOtcAccounts = [
+  {
+    id: 1,
+    accountNumber: '222000000000000001',
+    ownerName: 'Stefan Jovanovic',
+    accountType: 'CHECKING',
+    currency: 'USD',
+    balance: 5000,
+    availableBalance: 5000,
+    reservedBalance: 0,
+    dailyLimit: 100000,
+    monthlyLimit: 500000,
+    dailySpending: 0,
+    monthlySpending: 0,
+    maintenanceFee: 0,
+    status: 'ACTIVE',
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 2,
+    accountNumber: '222000000000000002',
+    ownerName: 'Stefan Jovanovic',
+    accountType: 'CHECKING',
+    currency: 'USD',
+    balance: 9000,
+    availableBalance: 9000,
+    reservedBalance: 0,
+    dailyLimit: 100000,
+    monthlyLimit: 500000,
+    dailySpending: 0,
+    monthlySpending: 0,
+    maintenanceFee: 0,
+    status: 'ACTIVE',
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+];
 
 // TODO(antonije3) — mockFundPositions + mockInterbankPayments za Issue #74/#76
 // Referenca: ClientFundPosition, InterbankPayment
@@ -386,11 +484,265 @@ describe('Mock C4: OTC Inter-bank Offers', () => {
 //  FEATURE 9: OTC Inter-bank Contracts + SAGA (Issue #69 / ekalajdzic13322)
 // ============================================================
 describe('Mock C4: OTC Inter-bank Contracts', () => {
-  it.skip('TODO S46: Tab prikazuje inter-bank ugovore sa filtr po statusu', () => {});
-  it.skip('TODO S47: "Iskoristi" dugme otvara dialog sa potvrdom + progres', () => {});
-  it.skip('TODO S48: SAGA progres modal prikazuje 5 faza', () => {});
-  it.skip('TODO S49: Polling status dok ne COMMITTED ili ABORTED', () => {});
-  it.skip('TODO S50: ABORTED status prikazuje failureReason', () => {});
+  beforeEach(() => {
+    cy.intercept('GET', '/api/otc/offers/active', { statusCode: 200, body: [] }).as('localOtcOffers');
+    cy.intercept('GET', '/api/otc/contracts*', { statusCode: 200, body: [] }).as('localOtcContracts');
+    cy.intercept('GET', '/api/accounts/my', { statusCode: 200, body: mockOtcAccounts }).as('myAccounts');
+    cy.intercept('GET', '/api/interbank/otc/contracts/my*', (req) => {
+      const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+      const body = !status || status === 'ALL'
+        ? mockOtcRemoteContracts
+        : mockOtcRemoteContracts.filter((contract) => contract.status === status);
+      req.reply({ statusCode: 200, body });
+    }).as('remoteContracts');
+  });
+
+  const openRemoteContractsTab = () => {
+    cy.clock(new Date('2026-04-25T09:00:00Z').getTime());
+    cy.visit('/otc/offers', { onBeforeLoad: setupClientSession });
+    cy.wait('@localOtcOffers');
+    cy.wait('@localOtcContracts');
+    cy.wait('@myAccounts');
+    cy.contains('button', 'Sklopljeni ugovori (inter-bank)').click();
+    cy.wait('@remoteContracts');
+    cy.wait('@myAccounts');
+  };
+
+  it('S46: Tab prikazuje inter-bank ugovore sa filtr po statusu', () => {
+    openRemoteContractsTab();
+
+    cy.contains('AAPL').should('be.visible');
+    cy.contains('TSLA').should('be.visible');
+    cy.contains('NVDA').should('be.visible');
+
+    cy.contains('[role="tab"]', 'Iskoriscen').click();
+    cy.wait('@remoteContracts').its('request.query.status').should('eq', 'EXERCISED');
+    cy.contains('TSLA').should('be.visible');
+    cy.contains('AAPL').should('not.exist');
+
+    cy.contains('[role="tab"]', 'Svi').click();
+    cy.wait('@remoteContracts');
+    cy.contains('AAPL').should('be.visible');
+  });
+
+  it('S47: "Iskoristi" dugme otvara dialog sa potvrdom + progres', () => {
+    cy.intercept('POST', '/api/interbank/otc/contracts/*/exercise*', {
+      statusCode: 200,
+      body: {
+        id: 501,
+        transactionId: 'otc-saga-fallback',
+        type: 'OTC',
+        status: 'INITIATED',
+        senderBankCode: 'BANKA1',
+        receiverBankCode: 'BANKA2',
+        amount: 800,
+        currency: 'USD',
+        createdAt: '2026-04-25T10:00:00Z',
+        retryCount: 0,
+      },
+    }).as('exerciseContract');
+
+    openRemoteContractsTab();
+
+    cy.contains('tr', 'AAPL').within(() => {
+      cy.contains('button', 'Iskoristi').click();
+    });
+
+    cy.contains('Iskoristi inter-bank opciju').should('be.visible');
+    cy.contains('Strike × kolicina').should('be.visible');
+    cy.get('#interbank-exercise-account').select('2');
+    cy.contains('button', 'Potvrdi exercise').click();
+
+    cy.wait('@exerciseContract').then((interception) => {
+      expect(interception.request.query.buyerAccountId).to.equal('2');
+    });
+    cy.contains('SAGA exercise u toku').should('be.visible');
+    cy.contains('Izvrsavanje u toku').should('be.visible');
+  });
+
+  it('S48: SAGA progres modal prikazuje 5 faza', () => {
+    cy.intercept('POST', '/api/interbank/otc/contracts/*/exercise*', {
+      statusCode: 200,
+      body: {
+        id: 502,
+        transactionId: 'otc-saga-phases',
+        type: 'OTC',
+        status: 'INITIATED',
+        currentPhase: 'RESERVE_FUNDS',
+        senderBankCode: 'BANKA1',
+        receiverBankCode: 'BANKA2',
+        amount: 800,
+        currency: 'USD',
+        createdAt: '2026-04-25T10:00:00Z',
+        retryCount: 0,
+      },
+    }).as('exerciseWithPhases');
+
+    openRemoteContractsTab();
+
+    cy.contains('tr', 'AAPL').within(() => {
+      cy.contains('button', 'Iskoristi').click();
+    });
+    cy.contains('button', 'Potvrdi exercise').click();
+
+    cy.wait('@exerciseWithPhases');
+    cy.contains('Rezervacija sredstava').should('be.visible');
+    cy.contains('Rezervacija hartija').should('be.visible');
+    cy.contains('Transfer').should('be.visible');
+    cy.contains('Prenos vlasnistva').should('be.visible');
+    cy.contains('Finalizacija').should('be.visible');
+  });
+
+  it('S49: Polling status dok ne COMMITTED ili ABORTED', () => {
+    let callCount = 0;
+
+    cy.intercept('POST', '/api/interbank/otc/contracts/*/exercise*', {
+      statusCode: 200,
+      body: {
+        id: 503,
+        transactionId: 'otc-saga-commit',
+        type: 'OTC',
+        status: 'INITIATED',
+        currentPhase: 'RESERVE_FUNDS',
+        senderBankCode: 'BANKA1',
+        receiverBankCode: 'BANKA2',
+        amount: 800,
+        currency: 'USD',
+        createdAt: '2026-04-25T10:00:00Z',
+        retryCount: 0,
+      },
+    }).as('exerciseWithPolling');
+    cy.intercept('GET', '/api/interbank/payments/otc-saga-commit', (req) => {
+      callCount += 1;
+
+      if (callCount === 1) {
+        req.reply({
+          statusCode: 200,
+          body: {
+            id: 503,
+            transactionId: 'otc-saga-commit',
+            type: 'OTC',
+            status: 'PREPARING',
+            currentPhase: 'RESERVE_SECURITIES',
+            senderBankCode: 'BANKA1',
+            receiverBankCode: 'BANKA2',
+            amount: 800,
+            currency: 'USD',
+            createdAt: '2026-04-25T10:00:00Z',
+            retryCount: 0,
+          },
+        });
+        return;
+      }
+
+      if (callCount === 2) {
+        req.reply({
+          statusCode: 200,
+          body: {
+            id: 503,
+            transactionId: 'otc-saga-commit',
+            type: 'OTC',
+            status: 'COMMITTING',
+            currentPhase: 'OWNERSHIP_TRANSFER',
+            senderBankCode: 'BANKA1',
+            receiverBankCode: 'BANKA2',
+            amount: 800,
+            currency: 'USD',
+            createdAt: '2026-04-25T10:00:00Z',
+            retryCount: 0,
+          },
+        });
+        return;
+      }
+
+      req.reply({
+        statusCode: 200,
+        body: {
+          id: 503,
+          transactionId: 'otc-saga-commit',
+          type: 'OTC',
+          status: 'COMMITTED',
+          currentPhase: 'FINALIZING',
+          senderBankCode: 'BANKA1',
+          receiverBankCode: 'BANKA2',
+          amount: 800,
+          currency: 'USD',
+          createdAt: '2026-04-25T10:00:00Z',
+          committedAt: '2026-04-25T10:00:09Z',
+          retryCount: 0,
+        },
+      });
+    }).as('sagaStatus');
+
+    openRemoteContractsTab();
+
+    cy.contains('tr', 'AAPL').within(() => {
+      cy.contains('button', 'Iskoristi').click();
+    });
+    cy.get('#interbank-exercise-account').select('1');
+    cy.contains('button', 'Potvrdi exercise').click();
+
+    cy.wait('@exerciseWithPolling');
+    cy.tick(3000);
+    cy.wait('@sagaStatus');
+    cy.tick(3000);
+    cy.wait('@sagaStatus');
+    cy.tick(3000);
+    cy.wait('@sagaStatus');
+
+    cy.contains('COMMITTED').should('be.visible');
+    cy.contains('Inter-bank exercise je uspesno finalizovan.').should('be.visible');
+  });
+
+  it('S50: ABORTED status prikazuje failureReason', () => {
+    cy.intercept('POST', '/api/interbank/otc/contracts/*/exercise*', {
+      statusCode: 200,
+      body: {
+        id: 504,
+        transactionId: 'otc-saga-aborted',
+        type: 'OTC',
+        status: 'INITIATED',
+        currentPhase: 'TRANSFER',
+        senderBankCode: 'BANKA1',
+        receiverBankCode: 'BANKA2',
+        amount: 800,
+        currency: 'USD',
+        createdAt: '2026-04-25T10:00:00Z',
+        retryCount: 0,
+      },
+    }).as('exerciseAborted');
+    cy.intercept('GET', '/api/interbank/payments/otc-saga-aborted', {
+      statusCode: 200,
+      body: {
+        id: 504,
+        transactionId: 'otc-saga-aborted',
+        type: 'OTC',
+        status: 'ABORTED',
+        currentPhase: 'TRANSFER',
+        senderBankCode: 'BANKA1',
+        receiverBankCode: 'BANKA2',
+        amount: 800,
+        currency: 'USD',
+        createdAt: '2026-04-25T10:00:00Z',
+        abortedAt: '2026-04-25T10:00:03Z',
+        retryCount: 0,
+        failureReason: 'Partner banka odbila prenos hartija.',
+      },
+    }).as('abortedStatus');
+
+    openRemoteContractsTab();
+
+    cy.contains('tr', 'AAPL').within(() => {
+      cy.contains('button', 'Iskoristi').click();
+    });
+    cy.contains('button', 'Potvrdi exercise').click();
+
+    cy.wait('@exerciseAborted');
+    cy.tick(3000);
+    cy.wait('@abortedStatus');
+
+    cy.contains('Partner banka odbila prenos hartija.').should('be.visible');
+  });
 });
 
 

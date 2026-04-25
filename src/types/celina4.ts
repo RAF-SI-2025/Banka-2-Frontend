@@ -210,6 +210,7 @@ export interface InterbankTransaction {
   transactionId: string;
   type: InterbankTransactionType;
   status: InterbankPaymentStatus;
+  currentPhase?: string | null;
   senderBankCode: string;
   receiverBankCode: string;
   amount?: number | null;
