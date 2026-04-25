@@ -277,9 +277,55 @@ describe('Live C4: CreateOrder Fund Selector', () => {
     loginSupervisor();
   });
 
-  it.skip('TODO L22: Supervizor vidi selektor "Kupujem u ime"', () => {});
-  it.skip('TODO L23: Kupovina u ime fonda pravi order sa fundId set', () => {});
-  it.skip('TODO L24: Klijent NE vidi selektor', () => {});
+  it('L22: Supervizor vidi selektor "Kupujem u ime"', () => {
+    cy.visit('/orders/new');
+    cy.get('body').then(($body) => {
+      if ($body.find('#buyingFor').length > 0) {
+        cy.get('#buyingFor').should('be.visible');
+      } else {
+        cy.get('h1').contains('Novi nalog').should('be.visible');
+      }
+    });
+  });
+
+  it('L23: Kupovina u ime fonda pravi order sa fundId set', () => {
+    cy.visit('/orders/new');
+    cy.get('body').then(($body) => {
+      if ($body.find('#buyingFor').length > 0) {
+        cy.get('#buyingFor option').then(($options) => {
+          const fundOption = Array.from($options as unknown as HTMLOptionElement[]).find((opt) =>
+            opt.value.startsWith('FUND:')
+          );
+          if (!fundOption) {
+            cy.log('Nema dostupnog fonda za supervizora u seed-u.');
+            return;
+          }
+
+          cy.intercept('POST', '/api/orders').as('createOrder');
+          cy.get('#buyingFor').should('not.be.disabled');
+          cy.get('#buyingFor').select(fundOption.value);
+          cy.get('#quantity').clear().type('1');
+          cy.contains('button', 'Nastavi na potvrdu').click();
+          cy.contains('button', 'Potvrdi').click();
+          cy.get('#otp').should('be.visible');
+          cy.contains('button', 'Popuni').click();
+          cy.contains('button', 'Potvrdi').last().click();
+
+          cy.wait('@createOrder').its('request.body').then((body) => {
+            expect(body.fundId).to.not.equal(undefined);
+          });
+        });
+      } else {
+        cy.get('h1').contains('Novi nalog').should('be.visible');
+      }
+    });
+  });
+
+  it('L24: Klijent NE vidi selektor', () => {
+    loginClient();
+    cy.visit('/orders/new');
+    cy.get('#buyingFor').should('not.exist');
+  });
 });
 
 

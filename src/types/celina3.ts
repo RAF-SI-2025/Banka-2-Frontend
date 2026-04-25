@@ -123,6 +123,7 @@ export interface Order {
 
 export interface CreateOrderRequest {
   listingId: number;
+  fundId?: number;
   orderType: string;
   quantity: number;
   contractSize?: number;

@@ -28,12 +28,14 @@ import { cn } from '@/lib/utils';
 import { accountService } from '@/services/accountService';
 import { currencyService } from '@/services/currencyService';
 import exchangeManagementService from '@/services/exchangeManagementService';
+import investmentFundService from '@/services/investmentFundService';
 import listingService from '@/services/listingService';
 import marginService, { type MarginAccount } from '@/services/marginService';
 import orderService from '@/services/orderService';
 import { Permission } from '@/types';
 import type { Account } from '@/types/celina2';
 import { ListingType, OrderDirection, OrderType, type CreateOrderRequest, type Listing } from '@/types/celina3';
+import type { InvestmentFundDetail } from '@/types/celina4';
 import { asArray, formatAmount, getErrorMessage } from '@/utils/formatters';
 
 const selectClassName =
@@ -254,6 +256,13 @@ function buildCreateOrderPayload(
   };
 }
 
+interface ManagedFundOption {
+  id: number;
+  name: string;
+  liquidAmount: number;
+  accountId?: number;
+}
+
 export default function CreateOrderPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -284,9 +293,12 @@ export default function CreateOrderPage() {
   const [marginAccounts, setMarginAccounts] = useState<MarginAccount[]>([]);
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   const [exchangeRateLoading, setExchangeRateLoading] = useState(false);
+  const [myFunds, setMyFunds] = useState<ManagedFundOption[]>([]);
+  const [buyingFor, setBuyingFor] = useState<'BANK' | `FUND:${number}`>('BANK');
 
   const activeMargin = marginAccounts.find((m) => m.status === 'ACTIVE') ?? null;
   const canUseMargin = (isAdmin || hasPermission(Permission.TRADE_STOCKS)) && !!activeMargin;
+  const canChooseFund = isSupervisor && myFunds.length > 0;
 
   const {
     control,
@@ -419,6 +431,49 @@ export default function CreateOrderPage() {
   }, [isAdmin, isEmployeeRole, requestedListingId]);
 
   useEffect(() => {
+    if (!isSupervisor || !user?.id) {
+      setMyFunds([]);
+      setBuyingFor('BANK');
+      return;
+    }
+
+    let cancelled = false;
+    const loadManagedFunds = async () => {
+      try {
+        const summaries = await investmentFundService.list();
+        const details = await Promise.all(
+          summaries.map((fund) =>
+            investmentFundService
+              .get(fund.id)
+              .catch(() => null)
+          )
+        );
+
+        if (cancelled) return;
+
+        const managedFunds = details
+          .filter((fund): fund is InvestmentFundDetail => !!fund && fund.managerEmployeeId === user.id)
+          .map((fund) => ({
+            id: fund.id,
+            name: fund.name,
+            liquidAmount: Number(fund.liquidAmount ?? 0),
+            // Backend field may arrive even if FE type doesn't strictly include it yet.
+            accountId: Number((fund as InvestmentFundDetail & { accountId?: number }).accountId) || undefined,
+          }));
+
+        setMyFunds(managedFunds);
+      } catch {
+        if (!cancelled) setMyFunds([]);
+      }
+    };
+
+    void loadManagedFunds();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSupervisor, user?.id]);
+
+  useEffect(() => {
     if (!listings.length) return;
 
     const currentListingId = Number(listingId);
@@ -518,6 +573,20 @@ export default function CreateOrderPage() {
     () => accounts.find((account) => account.id === Number(accountId)) ?? null,
     [accounts, accountId]
   );
+
+  const selectedFund = useMemo(() => {
+    if (!buyingFor.startsWith('FUND:')) return null;
+    const fundId = Number(buyingFor.split(':')[1]);
+    return myFunds.find((fund) => fund.id === fundId) ?? null;
+  }, [buyingFor, myFunds]);
+
+  useEffect(() => {
+    if (!selectedFund || !selectedFund.accountId) return;
+    const hasFundAccount = accounts.some((account) => account.id === selectedFund.accountId);
+    if (hasFundAccount) {
+      setValue('accountId', selectedFund.accountId, { shouldValidate: true });
+    }
+  }, [selectedFund, accounts, setValue]);
 
   // Fetch FX rate when listing currency differs from account currency
   const listingCurrencyForRate = useMemo(
@@ -683,12 +752,21 @@ export default function CreateOrderPage() {
       return;
     }
 
+    if (selectedFund && !selectedFund.accountId) {
+      toast.error('Izabrani fond nema mapiran racun za trgovinu.');
+      return;
+    }
+
+    const enrichedOrder = selectedFund
+      ? { ...nextOrder, accountId: selectedFund.accountId }
+      : nextOrder;
+
     if (insufficientFunds) {
       toast.error('Procena ukupnog troška prelazi raspoloživo stanje izabranog računa.');
       return;
     }
 
-    setPendingOrder(nextOrder);
+    setPendingOrder(enrichedOrder);
     setIsConfirmOpen(true);
   };
 
@@ -698,6 +776,7 @@ export default function CreateOrderPage() {
 
     const dto: CreateOrderRequest = {
       listingId: pendingOrder.listingId,
+      fundId: selectedFund?.id,
       orderType: pendingOrder.orderType,
       quantity: pendingOrder.quantity,
       contractSize: confirmationContractSize,
@@ -934,6 +1013,34 @@ export default function CreateOrderPage() {
                       </select>
                     </div>
                   </div>
+
+                  {canChooseFund && (
+                    <div className="space-y-2">
+                      <Label htmlFor="buyingFor">Kupujem u ime</Label>
+                      <select
+                        id="buyingFor"
+                        className={selectClassName}
+                        value={buyingFor}
+                        onChange={(e) => {
+                          const value = e.target.value as 'BANK' | `FUND:${number}`;
+                          setBuyingFor(value);
+                        }}
+                      >
+                        <option value="BANK">Banka</option>
+                        {myFunds.map((fund) => (
+                          <option key={fund.id} value={`FUND:${fund.id}`}>
+                            Fond: {fund.name}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedFund && (
+                        <p className="text-sm text-muted-foreground">
+                          Kupujes u ime fonda <span className="font-semibold">{selectedFund.name}</span>{' '}
+                          (stanje: {formatAmount(selectedFund.liquidAmount)} RSD)
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {showLimitValue && (
                     <div className="space-y-2">
