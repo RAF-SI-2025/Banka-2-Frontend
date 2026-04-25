@@ -69,6 +69,52 @@ import {
 
 // TODO(ekalajdzic13322) — mockOtcRemoteListings + mockOtcRemoteOffers za Issue #66-69
 // Referenca: src/types/celina4.ts → OtcInterbankListing, OtcInterbankOffer
+const mockOtcRemoteListings = [
+  {
+    bankCode: 'BANKA2',
+    sellerPublicId: 'remote-user-1',
+    sellerName: 'Remote Seller',
+    listingTicker: 'AAPL',
+    listingName: 'Apple Inc.',
+    listingCurrency: 'USD',
+    currentPrice: 198.25,
+    availableQuantity: 40,
+  },
+  {
+    bankCode: 'BANKA3',
+    sellerPublicId: 'remote-user-2',
+    sellerName: 'Partner Seller',
+    listingTicker: 'MSFT',
+    listingName: 'Microsoft Corporation',
+    listingCurrency: 'USD',
+    currentPrice: 421.15,
+    availableQuantity: 25,
+  },
+];
+
+const mockOtcRemoteOffer = {
+  offerId: 'cb4f6c3d-d4b9-4cb4-a09d-c6950df0a101',
+  listingTicker: 'AAPL',
+  listingName: 'Apple Inc.',
+  listingCurrency: 'USD',
+  currentPrice: 198.25,
+  buyerBankCode: 'BANKA1',
+  buyerUserId: 'client-1',
+  buyerName: 'Stefan Jovanovic',
+  sellerBankCode: 'BANKA2',
+  sellerUserId: 'remote-user-1',
+  sellerName: 'Remote Seller',
+  quantity: 3,
+  pricePerStock: 198.25,
+  premium: 11.5,
+  settlementDate: '2026-05-01',
+  waitingOnBankCode: 'BANKA2',
+  waitingOnUserId: 'remote-user-1',
+  myTurn: false,
+  status: 'ACTIVE',
+  lastModifiedAt: '2026-04-24T12:00:00Z',
+  lastModifiedByName: 'Stefan Jovanovic',
+};
 
 // TODO(antonije3) — mockFundPositions + mockInterbankPayments za Issue #74/#76
 // Referenca: ClientFundPosition, InterbankPayment
@@ -211,14 +257,74 @@ describe('Mock C4: CreateOrder Fund Selector', () => {
 // ============================================================
 describe('Mock C4: OTC Inter-bank Discovery', () => {
   beforeEach(() => {
-    setupClientSession();
-    // TODO(ekalajdzic13322): intercept GET /api/interbank/otc/listings
+    cy.intercept('GET', '/api/otc/listings', { statusCode: 200, body: [] }).as('localOtcListings');
+    cy.intercept('GET', '/api/interbank/otc/listings', {
+      statusCode: 200,
+      body: mockOtcRemoteListings,
+    }).as('remoteOtcListings');
+    cy.intercept('POST', '/api/interbank/otc/offers', {
+      statusCode: 200,
+      body: mockOtcRemoteOffer,
+    }).as('createInterbankOffer');
   });
 
-  it.skip('TODO S36: Tab "Iz drugih banaka" na OtcTrgovinaPage', () => {});
-  it.skip('TODO S37: Lista prikazuje bankCode i sellerName kolone', () => {});
-  it.skip('TODO S38: "Napravi ponudu" otvara formu i salje POST', () => {});
-  it.skip('TODO S39: Osvezi dugme poziva listRemoteListings', () => {});
+  const openRemoteTab = () => {
+    cy.visit('/otc', { onBeforeLoad: setupClientSession });
+    cy.wait('@localOtcListings');
+    cy.contains('[role="tab"]', 'Iz drugih banaka').click();
+    cy.wait('@remoteOtcListings');
+  };
+
+  it('TODO S36: Tab "Iz drugih banaka" na OtcTrgovinaPage', () => {
+    openRemoteTab();
+
+    cy.contains('[role="tab"]', 'Iz drugih banaka').should('have.attr', 'aria-selected', 'true');
+    cy.contains('Javno dostupne akcije iz drugih banaka (2)').should('be.visible');
+    cy.get('table tbody tr').should('have.length', mockOtcRemoteListings.length);
+  });
+
+  it('TODO S37: Lista prikazuje bankCode i sellerName kolone', () => {
+    openRemoteTab();
+
+    cy.contains('th', 'Banka prodavca').should('be.visible');
+    cy.contains('th', 'Prodavac').should('be.visible');
+    cy.contains('BANKA2').should('be.visible');
+    cy.contains('Remote Seller').should('be.visible');
+    cy.contains('BANKA3').should('be.visible');
+    cy.contains('Partner Seller').should('be.visible');
+  });
+
+  it('TODO S38: "Napravi ponudu" otvara formu i salje POST', () => {
+    openRemoteTab();
+
+    cy.contains('button', 'Napravi ponudu').first().click();
+    cy.get('input[id^="remote-qty-"]').clear().type('3');
+    cy.get('input[id^="remote-premium-"]').clear().type('11.5');
+    cy.contains('button', 'Posalji ponudu prodavcu').click();
+
+    cy.wait('@createInterbankOffer').then((interception) => {
+      expect(interception.request.body).to.deep.equal({
+        sellerBankCode: 'BANKA2',
+        sellerUserId: 'remote-user-1',
+        listingTicker: 'AAPL',
+        quantity: 3,
+        pricePerStock: 198.25,
+        premium: 11.5,
+        settlementDate: interception.request.body.settlementDate,
+      });
+    });
+
+    cy.wait('@remoteOtcListings');
+    cy.contains('Inter-bank ponuda je uspesno poslata.').should('be.visible');
+    cy.contains('button', 'Posalji ponudu prodavcu').should('not.exist');
+  });
+
+  it('TODO S39: Osvezi dugme poziva listRemoteListings', () => {
+    openRemoteTab();
+
+    cy.contains('button', 'Osvezi').click();
+    cy.wait('@remoteOtcListings');
+  });
 });
 
 

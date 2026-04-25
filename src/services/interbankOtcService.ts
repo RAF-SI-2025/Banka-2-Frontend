@@ -1,5 +1,3 @@
-// @ts-expect-error — `api` ce se koristiti kad tim implementira TODO metode.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import api from './api';
 import type {
   OtcInterbankListing,
@@ -33,42 +31,56 @@ import type {
 const interbankOtcService = {
   /** TODO — GET /interbank/otc/listings */
   async listRemoteListings(): Promise<OtcInterbankListing[]> {
-    throw new Error('TODO');
+    const { data } = await api.get<OtcInterbankListing[]>('/interbank/otc/listings');
+    return data;
   },
 
   /** TODO — POST /interbank/otc/offers */
-  async createOffer(_dto: CreateOtcInterbankOfferRequest): Promise<OtcInterbankOffer> {
-    throw new Error('TODO');
+  async createOffer(dto: CreateOtcInterbankOfferRequest): Promise<OtcInterbankOffer> {
+    const { data } = await api.post<OtcInterbankOffer>('/interbank/otc/offers', dto);
+    return data;
   },
 
   /** TODO — GET /interbank/otc/offers/my */
   async listMyOffers(): Promise<OtcInterbankOffer[]> {
-    throw new Error('TODO');
+    const { data } = await api.get<OtcInterbankOffer[]>('/interbank/otc/offers/my');
+    return data;
   },
 
   /** TODO — PATCH /interbank/otc/offers/{offerId}/counter */
-  async counterOffer(_offerId: string, _dto: CounterOtcInterbankOfferRequest): Promise<OtcInterbankOffer> {
-    throw new Error('TODO');
+  async counterOffer(offerId: string, dto: CounterOtcInterbankOfferRequest): Promise<OtcInterbankOffer> {
+    const { data } = await api.patch<OtcInterbankOffer>(`/interbank/otc/offers/${offerId}/counter`, dto);
+    return data;
   },
 
   /** TODO — PATCH /interbank/otc/offers/{offerId}/decline */
-  async declineOffer(_offerId: string): Promise<OtcInterbankOffer> {
-    throw new Error('TODO');
+  async declineOffer(offerId: string): Promise<OtcInterbankOffer> {
+    const { data } = await api.patch<OtcInterbankOffer>(`/interbank/otc/offers/${offerId}/decline`);
+    return data;
   },
 
   /** TODO — PATCH /interbank/otc/offers/{offerId}/accept?accountId=X */
-  async acceptOffer(_offerId: string, _accountId: number): Promise<OtcInterbankOffer> {
-    throw new Error('TODO');
+  async acceptOffer(offerId: string, accountId: number): Promise<OtcInterbankOffer> {
+    const { data } = await api.patch<OtcInterbankOffer>(`/interbank/otc/offers/${offerId}/accept`, null, {
+      params: { accountId },
+    });
+    return data;
   },
 
   /** TODO — GET /interbank/otc/contracts/my[?status=...] */
-  async listMyContracts(_status?: OtcInterbankOfferStatus | 'ALL'): Promise<unknown[]> {
-    throw new Error('TODO — vrati tip posle potvrde sa BE tim-om');
+  async listMyContracts(status?: OtcInterbankOfferStatus | 'ALL'): Promise<unknown[]> {
+    const { data } = await api.get<unknown[]>('/interbank/otc/contracts/my', {
+      params: status && status !== 'ALL' ? { status } : undefined,
+    });
+    return data;
   },
 
   /** TODO — POST /interbank/otc/contracts/{contractId}/exercise?buyerAccountId=X */
-  async exerciseContract(_contractId: string, _buyerAccountId: number): Promise<unknown> {
-    throw new Error('TODO');
+  async exerciseContract(contractId: string, buyerAccountId: number): Promise<unknown> {
+    const { data } = await api.post<unknown>(`/interbank/otc/contracts/${contractId}/exercise`, null, {
+      params: { buyerAccountId },
+    });
+    return data;
   },
 };
 
