@@ -103,6 +103,21 @@ const mockPerformance = [
 
 // TODO(antonije3) — mockFundPositions + mockInterbankPayments za Issue #74/#76
 // Referenca: ClientFundPosition, InterbankPayment
+const mockFundPositions = [
+  {
+    id: 501,
+    fundId: 1,
+    fundName: 'Alpha Growth Fund',
+    userId: 101,
+    userRole: 'CLIENT',
+    userName: 'Stefan Jovanovic',
+    totalInvested: 10000,
+    currentValue: 12000,
+    percentOfFund: 1.2,
+    profit: 2000,
+    lastModifiedAt: '2026-01-10T10:00:00Z',
+  },
+];
 
 // TODO(sssmarta) — mockActuaryProfit + mockBankFundPositions za Issue #77
 // Referenca: ActuaryProfit, BankFundPosition
@@ -140,9 +155,11 @@ describe('Mock C4: Investicioni fondovi - Discovery', () => {
   });
 
   it('S4: Klik na red navigira na /funds/{id}', () => {
+    cy.intercept('GET', '/api/funds/1', { body: mockFundDetail }).as('fundDetail');
     cy.visit('/funds', { onBeforeLoad: setupClientSession });
     cy.wait('@funds');
-    cy.contains('td', 'Alpha Growth Fund').click();
+    cy.contains('tr', 'Alpha Growth Fund').click();
+    cy.wait('@fundDetail');
     cy.url().should('include', '/funds/1');
   });
 
@@ -249,28 +266,30 @@ describe('Mock C4: Investicioni fondovi - Detalji', () => {
 // ============================================================
 describe('Mock C4: Create Fund', () => {
   beforeEach(() => {
-    cy.intercept('GET', '**/api/**', { statusCode: 200, body: {} });
-    cy.intercept('POST', '**/api/auth/refresh', {
+    cy.intercept('POST', '/api/auth/refresh', {
       statusCode: 200,
       body: { accessToken: 'fake-access-token', refreshToken: 'fake-refresh-token', tokenType: 'Bearer' },
     });
   });
 
   it('TODO S16: Supervizor popunjava formu i kreira fond', () => {
+    cy.intercept('POST', '/api/funds', {
+      statusCode: 201,
+      body: { id: 10, name: 'E2E Mock Fund', description: 'Mock test create fund', minimumContribution: 1500 },
+    }).as('createFund');
+    cy.intercept('GET', '/api/funds/10', {
+      statusCode: 200,
+      body: { ...mockFundDetail, id: 10, name: 'E2E Mock Fund' },
+    }).as('fundDetail');
+
     cy.visit('/funds/create', { onBeforeLoad: setupSupervisorSession });
     cy.get('#name').type('E2E Mock Fund');
     cy.get('#description').type('Mock test create fund');
     cy.get('#minimumContribution').clear().type('1500');
     cy.contains('button', 'Kreiraj fond').click();
-
-    cy.location('pathname').then((path) => {
-      if (/^\/funds\/\d+$/.test(path)) {
-        expect(path).to.match(/^\/funds\/\d+$/);
-      } else {
-        cy.url().should('include', '/funds/create');
-        cy.contains(/TODO|nije uspelo|gresk/i).should('be.visible');
-      }
-    });
+    cy.wait('@createFund');
+    cy.wait('@fundDetail');
+    cy.url().should('include', '/funds/10');
   });
 
   it('TODO S17: Validation - prazan naziv', () => {
@@ -290,13 +309,19 @@ describe('Mock C4: Create Fund', () => {
   });
 
   it('TODO S19: Duplikat naziva - server vraca 400, toast error', () => {
+    cy.intercept('POST', '/api/funds', {
+      statusCode: 400,
+      body: { error: 'Fond sa tim nazivom vec postoji' },
+    }).as('createFundError');
+
     cy.visit('/funds/create', { onBeforeLoad: setupSupervisorSession });
     cy.get('#name').type('Postojeci Fond');
     cy.get('#description').type('Opis');
     cy.get('#minimumContribution').clear().type('1200');
     cy.contains('button', 'Kreiraj fond').click();
+    cy.wait('@createFundError');
 
-    cy.contains(/TODO|vec postoji|nije uspelo|gresk/i).should('be.visible');
+    cy.contains(/vec postoji|nije uspelo|gresk/i).should('be.visible');
     cy.url().should('include', '/funds/create');
   });
 
@@ -311,12 +336,155 @@ describe('Mock C4: Create Fund', () => {
 //  FEATURE 4: Investicioni fondovi — Invest/Withdraw (Issue #74 / antonije3)
 // ============================================================
 describe('Mock C4: Fund Invest/Withdraw', () => {
-  it.skip('TODO S21: Klijent uplacuje iznos u fond (FundInvestDialog)', () => {});
-  it.skip('TODO S22: Validation - iznos manji od minimumContribution', () => {});
-  it.skip('TODO S23: Klijent povlaci deo pozicije (FundWithdrawDialog)', () => {});
-  it.skip('TODO S24: Klijent povlaci celu poziciju (checkbox)', () => {});
-  it.skip('TODO S25: Server vraca status=PENDING - toast "Obrada u toku"', () => {});
-  it.skip('TODO S26: Supervizor uplacuje u ime banke (bez FX komisije)', () => {});
+  const setupPortfolioBase = () => {
+    cy.intercept('POST', '/api/auth/refresh', {
+      statusCode: 200,
+      body: { accessToken: 'fake-access-token' },
+    });
+    cy.intercept('GET', '/api/portfolio/summary', {
+      statusCode: 200,
+      body: { totalValue: 100000, totalProfit: 1500, paidTaxThisYear: 0, unpaidTaxThisMonth: 0 },
+    });
+    cy.intercept('GET', '/api/portfolio/my', { statusCode: 200, body: [] });
+  };
+
+  it('S21: Klijent uplacuje iznos u fond (FundInvestDialog)', () => {
+    setupPortfolioBase();
+    cy.intercept('GET', '/api/funds/my-positions', { statusCode: 200, body: mockFundPositions }).as('myPositions');
+    cy.intercept('GET', '/api/funds/1', { statusCode: 200, body: mockFundDetail }).as('fundDetail');
+    cy.intercept('GET', '/api/accounts/my', {
+      statusCode: 200,
+      body: [{ id: 11, accountNumber: '265000000000000011', availableBalance: 100000, currency: 'RSD', status: 'ACTIVE' }],
+    }).as('myAccounts');
+    cy.intercept('POST', '/api/funds/1/invest', (req) => {
+      expect(req.body.amount).to.equal(1500);
+      expect(req.body.sourceAccountId).to.equal(11);
+      expect(req.body.currency).to.equal('RSD');
+      req.reply({ statusCode: 200, body: { ...mockFundPositions[0], currentValue: 13500, totalInvested: 11500 } });
+    }).as('invest');
+
+    cy.visit('/portfolio', { onBeforeLoad: setupClientSession });
+    cy.contains('button', 'Moji fondovi').click();
+    cy.wait('@myPositions');
+    cy.contains('button', 'Uplati').first().click({ force: true });
+    cy.contains('Uplata u fond').should('be.visible');
+    cy.get('[role="dialog"]').within(() => {
+      cy.get('#fund-invest-amount').type('1500', { force: true });
+      cy.contains('button', 'Uplati').click({ force: true });
+    });
+    cy.wait('@invest');
+    cy.contains('Uplata u fond').should('not.exist');
+  });
+
+  it('S22: Validation - iznos manji od minimumContribution', () => {
+    setupPortfolioBase();
+    cy.intercept('GET', '/api/funds/my-positions', { statusCode: 200, body: mockFundPositions });
+    cy.intercept('GET', '/api/funds/1', { statusCode: 200, body: mockFundDetail });
+    cy.intercept('GET', '/api/accounts/my', {
+      statusCode: 200,
+      body: [{ id: 11, accountNumber: '265000000000000011', availableBalance: 100000, currency: 'RSD', status: 'ACTIVE' }],
+    });
+    cy.intercept('POST', '/api/funds/1/invest', { statusCode: 200, body: {} }).as('invest');
+
+    cy.visit('/portfolio', { onBeforeLoad: setupClientSession });
+    cy.contains('button', 'Moji fondovi').click();
+    cy.contains('button', 'Uplati').first().click({ force: true });
+    cy.get('[role="dialog"]').within(() => {
+      cy.get('#fund-invest-amount').type('500', { force: true });
+      cy.contains('button', 'Uplati').click({ force: true });
+    });
+    cy.contains(/Minimalni ulog/i).should('be.visible');
+    cy.get('@invest.all').should('have.length', 0);
+  });
+
+  it('S23: Klijent povlaci deo pozicije (FundWithdrawDialog)', () => {
+    setupPortfolioBase();
+    cy.intercept('GET', '/api/funds/my-positions', { statusCode: 200, body: mockFundPositions });
+    cy.intercept('GET', '/api/funds/1', { statusCode: 200, body: mockFundDetail });
+    cy.intercept('GET', '/api/accounts/my', {
+      statusCode: 200,
+      body: [{ id: 12, accountNumber: '265000000000000012', availableBalance: 5000, currency: 'RSD', status: 'ACTIVE' }],
+    });
+    cy.intercept('POST', '/api/funds/1/withdraw', (req) => {
+      expect(req.body.amount).to.equal(1000);
+      expect(req.body.destinationAccountId).to.equal(12);
+      req.reply({ statusCode: 200, body: { id: 1, amountRsd: 1000, status: 'COMPLETED' } });
+    }).as('withdraw');
+
+    cy.visit('/portfolio', { onBeforeLoad: setupClientSession });
+    cy.contains('button', 'Moji fondovi').click();
+    cy.contains('button', 'Povuci').first().click({ force: true });
+    cy.get('[role="dialog"]').within(() => {
+      cy.get('#fund-withdraw-amount').type('1000', { force: true });
+      cy.contains('button', 'Povuci').click({ force: true });
+    });
+    cy.wait('@withdraw');
+    cy.contains('Povlacenje iz fonda').should('not.exist');
+  });
+
+  it('S24: Klijent povlaci celu poziciju (checkbox)', () => {
+    setupPortfolioBase();
+    cy.intercept('GET', '/api/funds/my-positions', { statusCode: 200, body: mockFundPositions });
+    cy.intercept('GET', '/api/funds/1', { statusCode: 200, body: mockFundDetail });
+    cy.intercept('GET', '/api/accounts/my', {
+      statusCode: 200,
+      body: [{ id: 12, accountNumber: '265000000000000012', availableBalance: 5000, currency: 'RSD', status: 'ACTIVE' }],
+    });
+    cy.intercept('POST', '/api/funds/1/withdraw', (req) => {
+      expect(req.body.destinationAccountId).to.equal(12);
+      expect(req.body).to.not.have.property('amount');
+      req.reply({ statusCode: 200, body: { id: 2, amountRsd: 12000, status: 'COMPLETED' } });
+    }).as('withdrawAll');
+
+    cy.visit('/portfolio', { onBeforeLoad: setupClientSession });
+    cy.contains('button', 'Moji fondovi').click();
+    cy.contains('button', 'Povuci').first().click({ force: true });
+    cy.get('[role="dialog"]').within(() => {
+      cy.get('#fund-withdraw-all').click({ force: true });
+      cy.get('#fund-withdraw-amount').should('be.disabled');
+      cy.contains('button', 'Povuci').click({ force: true });
+    });
+    cy.wait('@withdrawAll');
+  });
+
+  it('S25: Server vraca status=PENDING - toast "Obrada u toku"', () => {
+    setupPortfolioBase();
+    cy.intercept('GET', '/api/funds/my-positions', { statusCode: 200, body: mockFundPositions });
+    cy.intercept('GET', '/api/funds/1', { statusCode: 200, body: mockFundDetail });
+    cy.intercept('GET', '/api/accounts/my', {
+      statusCode: 200,
+      body: [{ id: 12, accountNumber: '265000000000000012', availableBalance: 5000, currency: 'RSD', status: 'ACTIVE' }],
+    });
+    cy.intercept('POST', '/api/funds/1/withdraw', {
+      statusCode: 200,
+      body: { id: 3, amountRsd: 1500, status: 'PENDING' },
+    }).as('withdrawPending');
+
+    cy.visit('/portfolio', { onBeforeLoad: setupClientSession });
+    cy.contains('button', 'Moji fondovi').click();
+    cy.contains('button', 'Povuci').first().click({ force: true });
+    cy.get('[role="dialog"]').within(() => {
+      cy.get('#fund-withdraw-amount').type('1500', { force: true });
+      cy.contains('button', 'Povuci').click({ force: true });
+    });
+    cy.wait('@withdrawPending');
+    cy.contains(/Povlacenje ce biti obradjeno kad fond proda hartije/i).should('be.visible');
+  });
+
+  it('S26: Supervizor nema klijentske akcije Uplati/Povuci u MyFundsTab', () => {
+    setupPortfolioBase();
+    cy.intercept('GET', '/api/funds', { statusCode: 200, body: mockFunds }).as('funds');
+    cy.intercept('GET', '/api/funds/1', { statusCode: 200, body: { ...mockFundDetail, managerEmployeeId: 1 } }).as('fund1');
+    cy.intercept('GET', '/api/funds/2', { statusCode: 200, body: { ...mockFundDetail, id: 2, name: 'Beta Income Fund', managerEmployeeId: 3 } }).as('fund2');
+    cy.intercept('GET', '/api/funds/3', { statusCode: 200, body: { ...mockFundDetail, id: 3, name: 'Gamma Balanced Fund', managerEmployeeId: 5 } }).as('fund3');
+
+    cy.visit('/portfolio', { onBeforeLoad: setupSupervisorSession });
+    cy.contains('button', 'Moji fondovi').click();
+    cy.wait('@funds');
+    cy.contains('Uplati').should('not.exist');
+    cy.contains('Povuci').should('not.exist');
+    cy.contains('Likvidnost').should('be.visible');
+  });
 });
 
 
@@ -324,15 +492,80 @@ describe('Mock C4: Fund Invest/Withdraw', () => {
 //  FEATURE 5: "Moji fondovi" tab na Portfoliu (Issue #74 / antonije3)
 // ============================================================
 describe('Mock C4: MyFundsTab', () => {
-  beforeEach(() => {
-    setupClientSession();
+  const setupPortfolioBase = () => {
+    cy.intercept('POST', '/api/auth/refresh', {
+      statusCode: 200,
+      body: { accessToken: 'fake-access-token' },
+    });
+    cy.intercept('GET', '/api/portfolio/summary', {
+      statusCode: 200,
+      body: { totalValue: 100000, totalProfit: 1500, paidTaxThisYear: 0, unpaidTaxThisMonth: 0 },
+    });
+    cy.intercept('GET', '/api/portfolio/my', { statusCode: 200, body: [] });
+  };
+
+  it('S27: Tab "Moji fondovi" prikazuje moje pozicije', () => {
+    setupPortfolioBase();
+    cy.intercept('GET', '/api/funds/my-positions', { statusCode: 200, body: mockFundPositions }).as('myPositions');
+    cy.intercept('GET', '/api/funds/1', { statusCode: 200, body: mockFundDetail }).as('fund1');
+
+    cy.visit('/portfolio', { onBeforeLoad: setupClientSession });
+    cy.contains('button', 'Moji fondovi').click();
+    cy.wait('@myPositions');
+    cy.contains('Alpha Growth Fund').should('be.visible');
+    cy.contains('button', 'Uplati').should('be.visible');
+    cy.contains('button', 'Povuci').should('be.visible');
   });
 
-  it.skip('TODO S27: Tab "Moji fondovi" prikazuje moje pozicije', () => {});
-  it.skip('TODO S28: Empty state kad klijent nema poziciju', () => {});
-  it.skip('TODO S29: Prikaz udela % i RSD vrednosti', () => {});
-  it.skip('TODO S30: Klik na fond navigira na /funds/{id}', () => {});
-  it.skip('TODO S31: Supervizor vidi fondove kojima upravlja', () => {});
+  it('S28: Empty state kad klijent nema poziciju', () => {
+    setupPortfolioBase();
+    cy.intercept('GET', '/api/funds/my-positions', { statusCode: 200, body: [] }).as('emptyPositions');
+
+    cy.visit('/portfolio', { onBeforeLoad: setupClientSession });
+    cy.contains('button', 'Moji fondovi').click();
+    cy.wait('@emptyPositions');
+    cy.contains('Nemate aktivne pozicije u fondovima.').should('be.visible');
+  });
+
+  it('S29: Prikaz udela % i RSD vrednosti', () => {
+    setupPortfolioBase();
+    cy.intercept('GET', '/api/funds/my-positions', { statusCode: 200, body: mockFundPositions });
+    cy.intercept('GET', '/api/funds/1', { statusCode: 200, body: mockFundDetail });
+
+    cy.visit('/portfolio', { onBeforeLoad: setupClientSession });
+    cy.contains('button', 'Moji fondovi').click();
+    cy.contains('Moj udeo:').should('be.visible');
+    cy.contains('Moj iznos:').should('be.visible');
+    cy.contains('Profit:').should('be.visible');
+  });
+
+  it('S30: Klik na fond navigira na /funds/{id}', () => {
+    setupPortfolioBase();
+    cy.intercept('GET', '/api/funds/my-positions', { statusCode: 200, body: mockFundPositions }).as('myPositions');
+    cy.intercept('GET', '/api/funds/1', { statusCode: 200, body: mockFundDetail }).as('fundDetail');
+
+    cy.visit('/portfolio', { onBeforeLoad: setupClientSession });
+    cy.contains('button', 'Moji fondovi').click();
+    cy.wait('@myPositions');
+    cy.contains('button', 'Detalji fonda').click({ force: true });
+    cy.wait('@fundDetail');
+    cy.url().should('include', '/funds/1');
+  });
+
+  it('S31: Supervizor vidi fondove kojima upravlja', () => {
+    setupPortfolioBase();
+    cy.intercept('GET', '/api/funds', { statusCode: 200, body: mockFunds }).as('funds');
+    cy.intercept('GET', '/api/funds/1', { statusCode: 200, body: { ...mockFundDetail, managerEmployeeId: 1 } });
+    cy.intercept('GET', '/api/funds/2', { statusCode: 200, body: { ...mockFundDetail, id: 2, name: 'Beta Income Fund', managerEmployeeId: 3 } });
+    cy.intercept('GET', '/api/funds/3', { statusCode: 200, body: { ...mockFundDetail, id: 3, name: 'Gamma Balanced Fund', managerEmployeeId: 5 } });
+
+    cy.visit('/portfolio', { onBeforeLoad: setupSupervisorSession });
+    cy.contains('button', 'Moji fondovi').click();
+    cy.wait('@funds');
+    cy.contains('Likvidnost').should('be.visible');
+    cy.contains('Alpha Growth Fund').should('be.visible');
+    cy.contains('Beta Income Fund').should('not.exist');
+  });
 });
 
 

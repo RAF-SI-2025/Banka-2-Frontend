@@ -35,6 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import MyFundsTab from '@/pages/Funds/MyFundsTab';
 
 function formatPercent(value: number | null | undefined): string {
   const num = typeof value === 'number' ? value : Number(value) || 0;
@@ -284,6 +285,7 @@ export default function PortfolioPage() {
   const [publicQuantities, setPublicQuantities] = useState<Record<number, string>>({});
   const [savingPublicId, setSavingPublicId] = useState<number | null>(null);
   const [exercisingId, setExercisingId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<'holdings' | 'funds'>('holdings');
 
   const loadPortfolio = async (showLoadingState = true) => {
     if (showLoadingState) setLoading(true);
@@ -413,13 +415,31 @@ export default function PortfolioPage() {
         </Alert>
       )}
 
-      {loading ? (
-        <>
-          <SummarySkeleton />
-          <TableSkeleton />
-        </>
-      ) : (
-        <>
+      <div className="inline-flex rounded-lg border bg-muted/40 p-1">
+        <button
+          type="button"
+          className={`rounded-md px-3 py-1.5 text-sm ${activeTab === 'holdings' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+          onClick={() => setActiveTab('holdings')}
+        >
+          Moje hartije
+        </button>
+        <button
+          type="button"
+          className={`rounded-md px-3 py-1.5 text-sm ${activeTab === 'funds' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+          onClick={() => setActiveTab('funds')}
+        >
+          Moji fondovi
+        </button>
+      </div>
+
+      {activeTab === 'holdings' ? (
+        loading ? (
+          <>
+            <SummarySkeleton />
+            <TableSkeleton />
+          </>
+        ) : (
+          <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Card className="relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent" />
@@ -670,7 +690,10 @@ export default function PortfolioPage() {
               )}
             </CardContent>
           </Card>
-        </>
+          </>
+        )
+      ) : (
+        <MyFundsTab />
       )}
     </div>
   );

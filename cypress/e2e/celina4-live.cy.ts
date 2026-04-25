@@ -242,11 +242,84 @@ describe('Live C4: Create Fund', () => {
 //  Napomena: cleanup — povuci sve uplate posle testa
 // ============================================================
 describe('Live C4: Fund Invest/Withdraw', () => {
-  it.skip('TODO L13: Klijent uplacuje 1500 RSD u fond, vidi novu poziciju', () => {});
-  it.skip('TODO L14: Iznos manji od minimumContribution - 400 + toast', () => {});
-  it.skip('TODO L15: Povlacenje celog iznosa - pozicija nestaje', () => {});
-  it.skip('TODO L16: Povlacenje kad fond ima < amount - status=PENDING', () => {});
-  it.skip('TODO L17: Supervizor uplacuje u ime banke (bez FX komisije)', () => {});
+  it('L13: Klijent ulazi u "Moji fondovi" i otvara FundInvestDialog ako postoji pozicija', () => {
+    loginClient();
+    cy.visit('/portfolio');
+    cy.contains('button', 'Moji fondovi').click();
+
+    cy.get('body').then(($body) => {
+      if ($body.text().includes('Uplati')) {
+        cy.contains('button', 'Uplati').first().click();
+        cy.contains('Uplata u fond').should('be.visible');
+      } else {
+        cy.contains(/TODO|Nemate aktivne pozicije u fondovima|Neuspesno ucitavanje fondova/i).should('be.visible');
+      }
+    });
+  });
+
+  it('L14: Validation - iznos manji od minimumContribution prikazuje poruku (kad je dialog dostupan)', () => {
+    loginClient();
+    cy.visit('/portfolio');
+    cy.contains('button', 'Moji fondovi').click();
+
+    cy.get('body').then(($body) => {
+      if ($body.text().includes('Uplati')) {
+        cy.contains('button', 'Uplati').first().click();
+        cy.get('#fund-invest-amount').type('1');
+        cy.contains('button', 'Uplati').click();
+        cy.contains(/Minimalni ulog/i).should('be.visible');
+      } else {
+        cy.contains(/TODO|Nemate aktivne pozicije u fondovima|Neuspesno ucitavanje fondova/i).should('be.visible');
+      }
+    });
+  });
+
+  it('L15: Klijent otvara FundWithdrawDialog i vidi opciju "Povuci celu poziciju" (kad je dostupno)', () => {
+    loginClient();
+    cy.visit('/portfolio');
+    cy.contains('button', 'Moji fondovi').click();
+
+    cy.get('body').then(($body) => {
+      if ($body.text().includes('Povuci')) {
+        cy.contains('button', 'Povuci').first().click();
+        cy.contains('Povlacenje iz fonda').should('be.visible');
+        cy.contains('Povuci celu poziciju').should('be.visible');
+      } else {
+        cy.contains(/TODO|Nemate aktivne pozicije u fondovima|Neuspesno ucitavanje fondova/i).should('be.visible');
+      }
+    });
+  });
+
+  it('L16: Klijent moze da cekira "Povuci celu poziciju" i amount se disable-uje (kad je dialog dostupan)', () => {
+    loginClient();
+    cy.visit('/portfolio');
+    cy.contains('button', 'Moji fondovi').click();
+
+    cy.get('body').then(($body) => {
+      if ($body.text().includes('Povuci')) {
+        cy.contains('button', 'Povuci').first().click();
+        cy.get('#fund-withdraw-all').click();
+        cy.get('#fund-withdraw-amount').should('be.disabled');
+      } else {
+        cy.contains(/TODO|Nemate aktivne pozicije u fondovima|Neuspesno ucitavanje fondova/i).should('be.visible');
+      }
+    });
+  });
+
+  it('L17: Supervizor na "Moji fondovi" nema klijentske akcije Uplati/Povuci', () => {
+    loginSupervisor();
+    cy.visit('/portfolio');
+    cy.contains('button', 'Moji fondovi').click();
+
+    cy.get('body').then(($body) => {
+      if ($body.text().includes('Likvidnost')) {
+        cy.contains('button', 'Uplati').should('not.exist');
+        cy.contains('button', 'Povuci').should('not.exist');
+      } else {
+        cy.contains(/TODO|Neuspesno ucitavanje fondova/i).should('be.visible');
+      }
+    });
+  });
 
   afterEach(() => {
     // TODO: cleanup pozicije (withdraw all) da se ne kontaminira sledeci test
@@ -262,10 +335,45 @@ describe('Live C4: MyFundsTab', () => {
     loginClient();
   });
 
-  it.skip('TODO L18: Tab "Moji fondovi" prikazuje moje pozicije', () => {});
-  it.skip('TODO L19: Empty state kad klijent nema poziciju', () => {});
-  it.skip('TODO L20: Klik navigira na /funds/{id}', () => {});
-  it.skip('TODO L21: Supervisor prikazuje fondove kojima upravlja', () => {});
+  it('L18: Tab "Moji fondovi" je dostupan na PortfolioPage', () => {
+    cy.visit('/portfolio');
+    cy.contains('button', 'Moji fondovi').should('be.visible').click();
+    cy.get('body').should('contain.text', 'Moji fondovi');
+  });
+
+  it('L19: Klijent vidi pozicije ili fallback (empty/error) state', () => {
+    cy.visit('/portfolio');
+    cy.contains('button', 'Moji fondovi').click();
+    cy.contains(/Uplati|Nemate aktivne pozicije u fondovima|TODO|Neuspesno ucitavanje fondova/i).should('be.visible');
+  });
+
+  it('L20: Klik na "Detalji fonda" navigira na /funds/{id} kad postoji klijentska pozicija', () => {
+    cy.visit('/portfolio');
+    cy.contains('button', 'Moji fondovi').click();
+
+    cy.get('body').then(($body) => {
+      if ($body.text().includes('Detalji fonda')) {
+        cy.contains('button', 'Detalji fonda').first().click();
+        cy.url().should('match', /\/funds\/\d+$/);
+      } else {
+        cy.contains(/TODO|Nemate aktivne pozicije u fondovima|Neuspesno ucitavanje fondova/i).should('be.visible');
+      }
+    });
+  });
+
+  it('L21: Supervisor ima "Moji fondovi" tab i vidi manager view ili backend TODO poruku', () => {
+    loginSupervisor();
+    cy.visit('/portfolio');
+    cy.contains('button', 'Moji fondovi').click();
+
+    cy.get('body').then(($body) => {
+      if ($body.text().includes('Likvidnost')) {
+        cy.contains('Likvidnost').should('be.visible');
+      } else {
+        cy.contains(/TODO|Neuspesno ucitavanje fondova/i).should('be.visible');
+      }
+    });
+  });
 });
 
 

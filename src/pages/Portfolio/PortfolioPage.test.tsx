@@ -71,6 +71,10 @@ vi.mock('../../services/listingService', () => ({
   },
 }));
 
+vi.mock('@/pages/Funds/MyFundsTab', () => ({
+  default: () => <div>Mocked MyFundsTab Content</div>,
+}));
+
 // Mock recharts
 vi.mock('recharts', () => ({
   PieChart: ({ children }: { children: React.ReactNode }) => <div data-testid="pie-chart">{children}</div>,
@@ -231,5 +235,17 @@ describe('PortfolioPage', () => {
     expect(screen.getByText(/Količina/i)).toBeInTheDocument();
     // "Profit" appears in both the summary card title and the table header
     expect(screen.getAllByText(/Profit/).length).toBeGreaterThan(0);
+  });
+
+  it('switches to Moji fondovi tab', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<PortfolioPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Moje hartije')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Moji fondovi' }));
+    expect(screen.getByText('Mocked MyFundsTab Content')).toBeInTheDocument();
   });
 });
