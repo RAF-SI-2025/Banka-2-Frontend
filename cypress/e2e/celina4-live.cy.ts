@@ -301,15 +301,16 @@ describe('Live C4: OTC Inter-bank Discovery', () => {
 
 // ============================================================
 //  FEATURE 8+9: OTC Inter-bank Offers + Contracts (Issue #68, #69 / ekalajdzic13322)
-//  Napomena: SAGA flow zahteva seed ponudu — BE tim treba da pripremi
+//  Live blokiran dok BE ne implementira /interbank/otc/offers* i /contracts*
+//  (trenutno controller vraca UnsupportedOperationException("TODO") → 400)
 // ============================================================
 describe('Live C4: OTC Inter-bank Offers + Contracts', () => {
-  it.skip('TODO L28: Aktivne inter-bank ponude - bojenje odstupanja', () => {});
-  it.skip('TODO L29: Kontraponuda - PATCH counter + refresh', () => {});
-  it.skip('TODO L30: Prihvat ponude kreira inter-bank contract', () => {});
-  it.skip('TODO L31: Sklopljeni ugovor - "Iskoristi" dugme', () => {});
-  it.skip('TODO L32: SAGA exercise - progres modal prolazi sve 5 faza', () => {});
-  it.skip('TODO L33: ABORTED - failureReason se prikazuje', () => {});
+  it.skip('L28: Aktivne inter-bank ponude - bojenje odstupanja', () => {});
+  it.skip('L29: Kontraponuda - PATCH counter + refresh', () => {});
+  it.skip('L30: Prihvat ponude kreira inter-bank contract', () => {});
+  it.skip('L31: Sklopljeni ugovor - "Iskoristi" dugme', () => {});
+  it.skip('L32: SAGA exercise - progres modal prolazi sve 5 faza', () => {});
+  it.skip('L33: ABORTED - failureReason se prikazuje', () => {});
 });
 
 
