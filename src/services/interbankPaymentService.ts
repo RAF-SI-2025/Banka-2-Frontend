@@ -1,5 +1,3 @@
-// @ts-expect-error — `api` ce se koristiti kad tim implementira TODO metode.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import api from './api';
 import type { InterbankPayment, InterbankPaymentInitiateRequest } from '@/types/celina4';
 
@@ -24,29 +22,19 @@ import type { InterbankPayment, InterbankPaymentInitiateRequest } from '@/types/
 ================================================================================
 */
 const interbankPaymentService = {
-  /**
-   * TODO — POST /interbank/payments/initiate
-   * Za OTP flow: backend ce vratiti 403 sa `devOtp` ako OTP nije tacan.
-   * FE koristi VerificationModal isti kao za /payments.
-   */
-  async initiatePayment(_dto: InterbankPaymentInitiateRequest): Promise<InterbankPayment> {
-    throw new Error('TODO: implementirati initiatePayment');
+  async initiatePayment(dto: InterbankPaymentInitiateRequest): Promise<InterbankPayment> {
+    const response = await api.post<InterbankPayment>('/interbank/payments/initiate', dto);
+    return response.data;
   },
 
-  /**
-   * TODO — GET /interbank/payments/{transactionId}
-   * Poll-uj dok status nije terminal (COMMITTED/ABORTED/STUCK).
-   */
-  async getStatus(_transactionId: string): Promise<InterbankPayment> {
-    throw new Error('TODO');
+  async getStatus(transactionId: string): Promise<InterbankPayment> {
+    const response = await api.get<InterbankPayment>(`/interbank/payments/${transactionId}`);
+    return response.data;
   },
 
-  /**
-   * TODO — GET /interbank/payments/my
-   * Istorija svih inter-bank placanja korisnika.
-   */
   async myHistory(): Promise<InterbankPayment[]> {
-    throw new Error('TODO');
+    const response = await api.get<InterbankPayment[]>('/interbank/payments/my');
+    return response.data;
   },
 };
 

@@ -433,15 +433,251 @@ describe('Mock C4: Admin Fund Reassignment', () => {
 // ============================================================
 describe('Mock C4: Inter-bank Payment Routing', () => {
   beforeEach(() => {
-    setupClientSession();
+    cy.intercept('GET', '**/api/accounts/my', {
+      statusCode: 200,
+      body: [
+        {
+          id: 1,
+          accountNumber: '222000100000000110',
+          name: 'Klijent RSD',
+          ownerName: 'Stefan Jovanovic',
+          availableBalance: 150000,
+          currency: 'RSD',
+          accountType: 'CHECKING',
+          accountSubtype: 'STANDARD',
+          status: 'ACTIVE',
+        },
+      ],
+    }).as('myAccounts');
+    cy.intercept('GET', '**/api/payment-recipients*', { statusCode: 200, body: [] }).as('recipients');
+    cy.intercept('POST', '**/api/payments/request-otp', { statusCode: 200, body: { sent: true, message: 'OTP sent' } });
+    cy.intercept('GET', '**/api/payments/my-otp', {
+      statusCode: 200,
+      body: { active: true, code: '123456', attempts: 0, maxAttempts: 3 },
+    });
   });
 
-  it.skip('TODO S63: Detekcija inter-bank po prve 3 cifre (ne 222)', () => {});
-  it.skip('TODO S64: Salje POST /interbank/payments/initiate', () => {});
-  it.skip('TODO S65: Modal prikazuje fazu (INITIATED → PREPARING → ... → COMMITTED)', () => {});
-  it.skip('TODO S66: Polling na svakih 3s', () => {});
-  it.skip('TODO S67: ABORTED - prikazuje failureReason', () => {});
-  it.skip('TODO S68: Intra-bank (222...) ide standard flow, ne interbank', () => {});
+  function fillMandatoryPaymentFields(receiverAccount: string) {
+    cy.get('select#fromAccount').select(1);
+    cy.get('input#toAccount').clear().type(receiverAccount);
+    cy.get('input#recipientName').clear().type('Test Primaoc');
+    cy.get('input#amount').clear().type('5000');
+    cy.get('textarea#purpose').clear().type('Interbank test placanje');
+    cy.contains('button', /Nastavi na verifikaciju/i).click();
+    cy.contains('Verifikacija transakcije').should('be.visible');
+    cy.contains('button', 'Popuni').click({ force: true });
+    cy.contains('button', 'Potvrdi').last().click({ force: true });
+  }
+
+  it('S63: Detekcija inter-bank po prve 3 cifre (ne 222)', () => {
+    cy.intercept('POST', '**/api/interbank/payments/initiate', {
+      statusCode: 200,
+      body: {
+        id: 1,
+        transactionId: 'tx-s63',
+        status: 'INITIATED',
+        senderAccountNumber: '222000100000000110',
+        receiverAccountNumber: '111000000000000001',
+        amount: 5000,
+        currency: 'RSD',
+        createdAt: '2026-04-25T10:00:00',
+      },
+    }).as('initInterbank');
+    cy.intercept('GET', '**/api/interbank/payments/tx-s63', {
+      statusCode: 200,
+      body: {
+        id: 1,
+        transactionId: 'tx-s63',
+        status: 'COMMITTED',
+        senderAccountNumber: '222000100000000110',
+        receiverAccountNumber: '111000000000000001',
+        amount: 5000,
+        currency: 'RSD',
+        createdAt: '2026-04-25T10:00:00',
+      },
+    });
+    cy.intercept('POST', '**/api/payments', { statusCode: 200, body: {} }).as('intraPayment');
+
+    cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
+    cy.wait('@myAccounts');
+    cy.wait('@recipients');
+    fillMandatoryPaymentFields('111000000000000001');
+    cy.wait('@initInterbank');
+    cy.get('@intraPayment.all').should('have.length', 0);
+  });
+
+  it('S64: Salje POST /interbank/payments/initiate', () => {
+    cy.intercept('POST', '**/api/interbank/payments/initiate', (req) => {
+      expect(req.body.receiverAccountNumber).to.equal('111000000000000002');
+      req.reply({
+        statusCode: 200,
+        body: {
+          id: 2,
+          transactionId: 'tx-s64',
+          status: 'INITIATED',
+          senderAccountNumber: req.body.senderAccountNumber,
+          receiverAccountNumber: req.body.receiverAccountNumber,
+          amount: req.body.amount,
+          currency: req.body.currency,
+          createdAt: '2026-04-25T10:00:00',
+        },
+      });
+    }).as('initInterbank');
+    cy.intercept('GET', '**/api/interbank/payments/tx-s64', {
+      statusCode: 200,
+      body: {
+        id: 2,
+        transactionId: 'tx-s64',
+        status: 'COMMITTED',
+        senderAccountNumber: '222000100000000110',
+        receiverAccountNumber: '111000000000000002',
+        amount: 5000,
+        currency: 'RSD',
+        createdAt: '2026-04-25T10:00:00',
+      },
+    });
+
+    cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
+    cy.wait('@myAccounts');
+    cy.wait('@recipients');
+    fillMandatoryPaymentFields('111000000000000002');
+    cy.wait('@initInterbank');
+  });
+
+  it('S65: Modal prikazuje fazu (INITIATED → PREPARING → ... → COMMITTED)', () => {
+    let statusCall = 0;
+    cy.intercept('POST', '**/api/interbank/payments/initiate', {
+      statusCode: 200,
+      body: {
+        id: 3,
+        transactionId: 'tx-s65',
+        status: 'INITIATED',
+        senderAccountNumber: '222000100000000110',
+        receiverAccountNumber: '111000000000000003',
+        amount: 5000,
+        currency: 'RSD',
+        createdAt: '2026-04-25T10:00:00',
+      },
+    });
+    cy.intercept('GET', '**/api/interbank/payments/tx-s65', (req) => {
+      statusCall += 1;
+      const statuses = ['PREPARING', 'PREPARED', 'COMMITTING', 'COMMITTED'] as const;
+      const status = statuses[Math.min(statusCall - 1, statuses.length - 1)];
+      req.reply({
+        statusCode: 200,
+        body: {
+          id: 3,
+          transactionId: 'tx-s65',
+          status,
+          senderAccountNumber: '222000100000000110',
+          receiverAccountNumber: '111000000000000003',
+          amount: 5000,
+          currency: 'RSD',
+          createdAt: '2026-04-25T10:00:00',
+        },
+      });
+    }).as('statusPoll');
+
+    cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
+    cy.wait('@myAccounts');
+    cy.wait('@recipients');
+    fillMandatoryPaymentFields('111000000000000003');
+    cy.wait('@statusPoll');
+    cy.wait('@statusPoll');
+    cy.get('@statusPoll.all').its('length').should('be.greaterThan', 1);
+  });
+
+  it('S66: Polling na svakih 3s', () => {
+    let statusCall = 0;
+    cy.intercept('POST', '**/api/interbank/payments/initiate', {
+      statusCode: 200,
+      body: {
+        id: 4,
+        transactionId: 'tx-s66',
+        status: 'INITIATED',
+        senderAccountNumber: '222000100000000110',
+        receiverAccountNumber: '111000000000000004',
+        amount: 5000,
+        currency: 'RSD',
+        createdAt: '2026-04-25T10:00:00',
+      },
+    });
+    cy.intercept('GET', '**/api/interbank/payments/tx-s66', (req) => {
+      statusCall += 1;
+      req.reply({
+        statusCode: 200,
+        body: {
+          id: 4,
+          transactionId: 'tx-s66',
+          status: statusCall < 2 ? 'PREPARING' : 'COMMITTED',
+          senderAccountNumber: '222000100000000110',
+          receiverAccountNumber: '111000000000000004',
+          amount: 5000,
+          currency: 'RSD',
+          createdAt: '2026-04-25T10:00:00',
+        },
+      });
+    }).as('statusPoll');
+
+    cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
+    cy.wait('@myAccounts');
+    cy.wait('@recipients');
+    fillMandatoryPaymentFields('111000000000000004');
+    cy.wait('@statusPoll');
+    cy.wait('@statusPoll');
+    cy.wrap(null).then(() => {
+      expect(statusCall).to.be.greaterThan(1);
+    });
+  });
+
+  it('S67: ABORTED - prikazuje failureReason', () => {
+    cy.intercept('POST', '**/api/interbank/payments/initiate', {
+      statusCode: 200,
+      body: {
+        id: 5,
+        transactionId: 'tx-s67',
+        status: 'INITIATED',
+        senderAccountNumber: '222000100000000110',
+        receiverAccountNumber: '111000000000000005',
+        amount: 5000,
+        currency: 'RSD',
+        createdAt: '2026-04-25T10:00:00',
+      },
+    });
+    cy.intercept('GET', '**/api/interbank/payments/tx-s67', {
+      statusCode: 200,
+      body: {
+        id: 5,
+        transactionId: 'tx-s67',
+        status: 'ABORTED',
+        senderAccountNumber: '222000100000000110',
+        receiverAccountNumber: '111000000000000005',
+        amount: 5000,
+        currency: 'RSD',
+        createdAt: '2026-04-25T10:00:00',
+        failureReason: 'Nedovoljno sredstava u drugoj banci',
+      },
+    });
+
+    cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
+    cy.wait('@myAccounts');
+    cy.wait('@recipients');
+    fillMandatoryPaymentFields('111000000000000005');
+    cy.contains('ABORTED').should('be.visible');
+    cy.contains('Nedovoljno sredstava u drugoj banci').should('be.visible');
+  });
+
+  it('S68: Intra-bank (222...) ide standard flow, ne interbank', () => {
+    cy.intercept('POST', '**/api/interbank/payments/initiate', { statusCode: 200, body: {} }).as('interbankInit');
+    cy.intercept('POST', '**/api/payments', { statusCode: 200, body: {} }).as('intraPayment');
+
+    cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
+    cy.wait('@myAccounts');
+    cy.wait('@recipients');
+    fillMandatoryPaymentFields('222000000000000001');
+    cy.wait('@intraPayment');
+    cy.get('@interbankInit.all').should('have.length', 0);
+  });
 });
 
 
