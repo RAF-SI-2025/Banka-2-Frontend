@@ -67,18 +67,15 @@ describe('ExchangePage', () => {
   it('displays buy, middle, and sell rates', async () => {
     renderPage();
 
-    await waitFor(() => {
-      expect(screen.getAllByText('EUR').length).toBeGreaterThan(0);
-    });
-
-    // Check rate column headers
-    const buyHeaders = screen.getAllByText(/Kupovni/i);
+    // findAllByText polls until elements appear — sprecava CI flake kad render
+    // jos nije zavrsen kad se cita DOM (lokalno radi, CI sporiji).
+    const buyHeaders = await screen.findAllByText(/Kupovni/i);
     expect(buyHeaders.length).toBeGreaterThan(0);
 
-    const middleHeaders = screen.getAllByText(/Srednji/i);
+    const middleHeaders = await screen.findAllByText(/Srednji/i);
     expect(middleHeaders.length).toBeGreaterThan(0);
 
-    const sellHeaders = screen.getAllByText(/Prodajni/i);
+    const sellHeaders = await screen.findAllByText(/Prodajni/i);
     expect(sellHeaders.length).toBeGreaterThan(0);
   });
 

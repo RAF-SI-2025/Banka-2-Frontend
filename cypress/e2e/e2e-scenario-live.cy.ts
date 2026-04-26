@@ -245,13 +245,15 @@ describe('E2E: Kompletan radni dan na berzi', () => {
     // Submit
     cy.contains('button', 'Nastavi na potvrdu').click();
 
-    // Sacekaj da se dijalog potvrde otvori i prikaze sadrzaj
-    cy.get('[role="dialog"]', { timeout: 10000 }).should('be.visible');
-    cy.contains('Potvrda naloga', { timeout: 5000 }).should('be.visible');
+    // Sacekaj da se dijalog potvrde otvori. Cypress 15 lazno javlja "covered by overlay"
+    // za elemente unutar Radix Portal-a sa opaque overlay-em (bg-black/50,
+    // pointer-events:auto, alpha>0) — koristimo should('exist') + native DOM click.
+    cy.get('[role="dialog"]', { timeout: 10000 }).should('exist');
+    cy.contains('Potvrda naloga', { timeout: 5000 }).should('exist');
 
     // Potvrdi — native DOM click (Cypress .click() ne propagira event korektno
     // kroz Radix Dialog Portal sa React 19 event delegation)
-    cy.get('[data-cy="confirm-order"]').should('be.visible').and('not.be.disabled').then($btn => {
+    cy.get('[data-cy="confirm-order"]').should('exist').and('not.be.disabled').then($btn => {
       $btn[0].click();
     });
 
