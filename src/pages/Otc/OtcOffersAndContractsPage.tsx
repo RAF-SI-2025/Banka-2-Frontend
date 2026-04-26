@@ -25,7 +25,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatAmount, formatDateTime, asArray, getErrorMessage } from '@/utils/formatters';
+import { computeOfferDeviation } from './otcOfferUtils';
+import OtcInterBankOffersTab from './OtcInterBankOffersTab';
+import OtcInterBankContractsTab from './OtcInterBankContractsTab';
 
 const CONTRACT_STATUS_LABEL: Record<string, string> = {
   ACTIVE: 'Aktivan',
@@ -40,58 +44,12 @@ const statusBadgeVariant = (status: string): 'success' | 'secondary' | 'destruct
   return 'destructive';
 };
 
-/**
- * Spec (Celina 4): zeleno ≤ ±5% odstupanja cene ponude od trzisne cene,
- * zuto ±5-20%, crveno > ±20%. Vraca klase za pozadinu reda + labelu.
- */
-type OfferDeviation = {
-  percent: number;
-  label: string;
-  rowClass: string;
-  badgeClass: string;
-};
-
-function computeOfferDeviation(
-  pricePerStock: number,
-  currentPrice: number | null | undefined,
-): OfferDeviation | null {
-  if (currentPrice == null || !Number.isFinite(currentPrice) || currentPrice <= 0) {
-    return null;
-  }
-  const pct = ((pricePerStock - currentPrice) / currentPrice) * 100;
-  const abs = Math.abs(pct);
-  const sign = pct > 0 ? '+' : pct < 0 ? '-' : '';
-  const label = `${sign}${abs.toFixed(1)}%`;
-  if (abs <= 5) {
-    return {
-      percent: pct,
-      label,
-      rowClass: 'bg-emerald-500/5 hover:bg-emerald-500/10',
-      badgeClass: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
-    };
-  }
-  if (abs <= 20) {
-    return {
-      percent: pct,
-      label,
-      rowClass: 'bg-amber-500/5 hover:bg-amber-500/10',
-      badgeClass: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
-    };
-  }
-  return {
-    percent: pct,
-    label,
-    rowClass: 'bg-red-500/5 hover:bg-red-500/10',
-    badgeClass: 'bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30',
-  };
-}
-
-type Tab = 'offers' | 'contracts';
+type Tab = 'offers-local' | 'contracts-local' | 'offers-remote' | 'contracts-remote';
 
 export default function OtcOffersAndContractsPage() {
   const { isAdmin, isAgent, isSupervisor } = useAuth();
   const isEmployee = isAdmin || isAgent || isSupervisor;
-  const [tab, setTab] = useState<Tab>('offers');
+  const [tab, setTab] = useState<Tab>('offers-local');
 
   const [offers, setOffers] = useState<OtcOffer[]>([]);
   const [contracts, setContracts] = useState<OtcContract[]>([]);
@@ -160,7 +118,7 @@ export default function OtcOffersAndContractsPage() {
       await otcService.acceptOffer(offer.id, buyerAccount.id);
       toast.success('Ponuda je prihvacena, opcioni ugovor je sklopljen.');
       await Promise.all([reloadOffers(), reloadContracts()]);
-      setTab('contracts');
+      setTab('contracts-local');
     } catch (err) {
       toast.error(getErrorMessage(err, 'Prihvatanje ponude nije uspelo.'));
     } finally {
@@ -271,35 +229,22 @@ export default function OtcOffersAndContractsPage() {
         </div>
       </div>
 
-      <div className="flex gap-1 bg-muted/60 dark:bg-slate-800/60 p-1 rounded-xl border border-border/50 w-fit">
-        <button
-          onClick={() => setTab('offers')}
-          className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-            tab === 'offers'
-              ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/25'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          Aktivne ponude
-          {activeOffers.length > 0 && (
-            <Badge variant="secondary" className="ml-2">
-              {activeOffers.length}
-            </Badge>
-          )}
-        </button>
-        <button
-          onClick={() => setTab('contracts')}
-          className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-            tab === 'contracts'
-              ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/25'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          Sklopljeni ugovori
-        </button>
-      </div>
+      <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
+        <TabsList>
+          <TabsTrigger value="offers-local">
+            Aktivne ponude (intra-bank)
+            {activeOffers.length > 0 && (
+              <Badge variant="secondary" className="ml-2">
+                {activeOffers.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="contracts-local">Sklopljeni ugovori (intra-bank)</TabsTrigger>
+          <TabsTrigger value="offers-remote">Aktivne ponude (inter-bank)</TabsTrigger>
+          <TabsTrigger value="contracts-remote">Sklopljeni ugovori (inter-bank)</TabsTrigger>
+        </TabsList>
 
-      {tab === 'offers' && (
+      <TabsContent value="offers-local" className="pt-6">
         <Card>
           <CardHeader>
             <CardTitle>Moji aktivni pregovori</CardTitle>
@@ -495,9 +440,9 @@ export default function OtcOffersAndContractsPage() {
             )}
           </CardContent>
         </Card>
-      )}
+      </TabsContent>
 
-      {tab === 'contracts' && (
+      <TabsContent value="contracts-local" className="pt-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle>Opcioni ugovori</CardTitle>
@@ -607,7 +552,16 @@ export default function OtcOffersAndContractsPage() {
             )}
           </CardContent>
         </Card>
-      )}
+      </TabsContent>
+
+      <TabsContent value="offers-remote" className="pt-6">
+        <OtcInterBankOffersTab onAcceptedOffer={() => setTab('contracts-remote')} />
+      </TabsContent>
+
+      <TabsContent value="contracts-remote" className="pt-6">
+        <OtcInterBankContractsTab />
+      </TabsContent>
+      </Tabs>
 
       {accounts.length === 0 && (
         <Alert variant="warning">

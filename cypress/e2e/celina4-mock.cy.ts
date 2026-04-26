@@ -98,8 +98,139 @@ const mockPerformance = [
   { date: '2026-01-01', fundValue: 2600000, profit: 150000 },
 ];
 
-// TODO(ekalajdzic13322) — mockOtcRemoteListings + mockOtcRemoteOffers za Issue #66-69
+// Mock podaci za OTC inter-bank discovery/offers/contracts (Issue #67/#68/#69)
 // Referenca: src/types/celina4.ts → OtcInterbankListing, OtcInterbankOffer
+const mockOtcRemoteOffers = [
+  {
+    offerId: 'remote-offer-green',
+    listingTicker: 'AAPL',
+    listingName: 'Apple Inc.',
+    listingCurrency: 'USD',
+    currentPrice: 100,
+    buyerBankCode: 'BANKA1',
+    buyerUserId: 'buyer-1',
+    buyerName: 'Stefan Jovanovic',
+    sellerBankCode: 'BANKA2',
+    sellerUserId: 'seller-1',
+    sellerName: 'Remote Seller',
+    quantity: 5,
+    pricePerStock: 102,
+    premium: 10,
+    settlementDate: '2026-05-10',
+    waitingOnBankCode: 'BANKA1',
+    waitingOnUserId: 'buyer-1',
+    myTurn: true,
+    status: 'ACTIVE',
+    lastModifiedAt: '2026-04-25T10:00:00Z',
+    lastModifiedByName: 'Stefan Jovanovic',
+  },
+  {
+    offerId: 'remote-offer-yellow',
+    listingTicker: 'MSFT',
+    listingName: 'Microsoft Corporation',
+    listingCurrency: 'USD',
+    currentPrice: 100,
+    buyerBankCode: 'BANKA3',
+    buyerUserId: 'buyer-2',
+    buyerName: 'Partner Buyer',
+    sellerBankCode: 'BANKA1',
+    sellerUserId: 'seller-2',
+    sellerName: 'Ana Agent',
+    quantity: 3,
+    pricePerStock: 114,
+    premium: 8,
+    settlementDate: '2026-05-12',
+    waitingOnBankCode: 'BANKA3',
+    waitingOnUserId: 'buyer-2',
+    myTurn: false,
+    status: 'ACTIVE',
+    lastModifiedAt: '2026-04-25T11:00:00Z',
+    lastModifiedByName: 'Partner Buyer',
+  },
+  {
+    offerId: 'remote-offer-red',
+    listingTicker: 'NVDA',
+    listingName: 'NVIDIA Corporation',
+    listingCurrency: 'USD',
+    currentPrice: 100,
+    buyerBankCode: 'BANKA1',
+    buyerUserId: 'buyer-3',
+    buyerName: 'Stefan Jovanovic',
+    sellerBankCode: 'BANKA4',
+    sellerUserId: 'seller-3',
+    sellerName: 'Remote Supervisor',
+    quantity: 9,
+    pricePerStock: 130,
+    premium: 15,
+    settlementDate: '2026-05-15',
+    waitingOnBankCode: 'BANKA1',
+    waitingOnUserId: 'buyer-3',
+    myTurn: true,
+    status: 'ACTIVE',
+    lastModifiedAt: '2026-04-25T12:00:00Z',
+    lastModifiedByName: 'Stefan Jovanovic',
+  },
+];
+
+const mockOtcRemoteContracts = [
+  {
+    id: 'remote-contract-1',
+    listingId: 1001,
+    listingTicker: 'AAPL',
+    listingName: 'Apple Inc.',
+    listingCurrency: 'USD',
+    buyerUserId: 'buyer-1',
+    buyerBankCode: 'BANKA1',
+    buyerName: 'Stefan Jovanovic',
+    sellerUserId: 'seller-1',
+    sellerBankCode: 'BANKA2',
+    sellerName: 'Remote Seller',
+    quantity: 5,
+    strikePrice: 102,
+    premium: 10,
+    currentPrice: 104,
+    settlementDate: '2026-05-10',
+    status: 'ACTIVE',
+    createdAt: '2026-04-25T10:30:00Z',
+  },
+];
+
+const mockAccounts = [
+  {
+    id: 1,
+    accountNumber: '222000000000000001',
+    ownerName: 'Stefan Jovanovic',
+    accountType: 'CHECKING',
+    currency: 'USD',
+    balance: 10000,
+    availableBalance: 10000,
+    reservedBalance: 0,
+    dailyLimit: 100000,
+    monthlyLimit: 500000,
+    dailySpending: 0,
+    monthlySpending: 0,
+    maintenanceFee: 0,
+    status: 'ACTIVE',
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 2,
+    accountNumber: '222000000000000002',
+    ownerName: 'Stefan Jovanovic',
+    accountType: 'CHECKING',
+    currency: 'USD',
+    balance: 5000,
+    availableBalance: 5000,
+    reservedBalance: 0,
+    dailyLimit: 100000,
+    monthlyLimit: 500000,
+    dailySpending: 0,
+    monthlySpending: 0,
+    maintenanceFee: 0,
+    status: 'ACTIVE',
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+];
 
 // TODO(antonije3) — mockFundPositions + mockInterbankPayments za Issue #74/#76
 // Referenca: ClientFundPosition, InterbankPayment
@@ -606,12 +737,132 @@ describe('Mock C4: OTC Inter-bank Discovery', () => {
 //  FEATURE 8: OTC Inter-bank Offers tab (Issue #68 / ekalajdzic13322)
 // ============================================================
 describe('Mock C4: OTC Inter-bank Offers', () => {
-  it.skip('TODO S40: Tab prikazuje moje aktivne inter-bank ponude', () => {});
-  it.skip('TODO S41: Bojenje odstupanja - zeleno/zuto/crveno (±5/±20)', () => {});
-  it.skip('TODO S42: "Moj red" vs "Ceka drugu stranu" badge', () => {});
-  it.skip('TODO S43: Prihvati - PATCH /accept + account selector', () => {});
-  it.skip('TODO S44: Kontraponuda - PATCH /counter sa novim iznosima', () => {});
-  it.skip('TODO S45: Odbij - PATCH /decline', () => {});
+  beforeEach(() => {
+    cy.intercept('GET', '/api/otc/offers/active', { statusCode: 200, body: [] }).as('localOtcOffers');
+    cy.intercept('GET', '/api/otc/contracts*', { statusCode: 200, body: [] }).as('localOtcContracts');
+    cy.intercept('GET', '/api/interbank/otc/offers/my', {
+      statusCode: 200,
+      body: mockOtcRemoteOffers,
+    }).as('remoteOtcOffers');
+    cy.intercept('GET', '/api/interbank/otc/contracts/my*', {
+      statusCode: 200,
+      body: mockOtcRemoteContracts,
+    }).as('remoteOtcContracts');
+    cy.intercept('GET', '/api/accounts/my', { statusCode: 200, body: mockAccounts }).as('myAccounts');
+    cy.intercept('PATCH', '/api/interbank/otc/offers/*/accept*', {
+      statusCode: 200,
+      body: { ...mockOtcRemoteOffers[0], status: 'ACCEPTED', myTurn: false },
+    }).as('acceptRemoteOffer');
+    cy.intercept('PATCH', '/api/interbank/otc/offers/*/counter', (req) => {
+      req.reply({
+        statusCode: 200,
+        body: {
+          ...mockOtcRemoteOffers[0],
+          quantity: req.body.quantity,
+          pricePerStock: req.body.pricePerStock,
+          premium: req.body.premium,
+          settlementDate: req.body.settlementDate,
+          myTurn: false,
+          lastModifiedByName: 'Stefan Jovanovic',
+        },
+      });
+    }).as('counterRemoteOffer');
+    cy.intercept('PATCH', '/api/interbank/otc/offers/*/decline', {
+      statusCode: 200,
+      body: { ...mockOtcRemoteOffers[0], status: 'DECLINED', myTurn: false },
+    }).as('declineRemoteOffer');
+  });
+
+  const openRemoteOffersTab = () => {
+    cy.visit('/otc/offers', { onBeforeLoad: setupClientSession });
+    cy.wait('@localOtcOffers');
+    cy.wait('@localOtcContracts');
+    cy.wait('@myAccounts');
+    cy.contains('[role="tab"]', 'Aktivne ponude (inter-bank)').click();
+    cy.wait('@remoteOtcOffers');
+  };
+
+  it('S40: Tab prikazuje moje aktivne inter-bank ponude', () => {
+    openRemoteOffersTab();
+
+    cy.contains('[role="tab"]', 'Aktivne ponude (inter-bank)').should('have.attr', 'aria-selected', 'true');
+    cy.contains('AAPL').should('be.visible');
+    cy.contains('MSFT').should('be.visible');
+    cy.contains('NVDA').should('be.visible');
+    cy.contains('Kupac: BANKA1').should('be.visible');
+    cy.contains('Prodavac: BANKA2').should('be.visible');
+  });
+
+  it('S41: Bojenje odstupanja - zeleno/zuto/crveno (±5/±20)', () => {
+    openRemoteOffersTab();
+
+    cy.contains('+2.0%')
+      .invoke('attr', 'class')
+      .should('include', 'bg-emerald-500/15');
+    cy.contains('+14.0%')
+      .invoke('attr', 'class')
+      .should('include', 'bg-amber-500/15');
+    cy.contains('+30.0%')
+      .invoke('attr', 'class')
+      .should('include', 'bg-red-500/15');
+  });
+
+  it('S42: "Moj red" vs "Ceka drugu stranu" badge', () => {
+    openRemoteOffersTab();
+
+    cy.contains('Moj red').should('have.length.at.least', 1);
+    cy.contains('Ceka drugu stranu').should('be.visible');
+    cy.contains('BANKA3 / buyer-2').should('be.visible');
+  });
+
+  it('S43: Prihvati - PATCH /accept + account selector', () => {
+    openRemoteOffersTab();
+
+    cy.contains('tr', 'AAPL').within(() => {
+      cy.contains('button', 'Prihvati').click();
+    });
+    cy.get('select[id^="remote-accept-account-"]').select('2');
+    cy.contains('button', 'Potvrdi prihvatanje').click();
+
+    cy.wait('@acceptRemoteOffer').then((interception) => {
+      expect(interception.request.query.accountId).to.equal('2');
+    });
+    cy.wait('@remoteOtcOffers');
+    cy.wait('@remoteOtcContracts');
+    cy.contains('[role="tab"]', 'Sklopljeni ugovori (inter-bank)').should('have.attr', 'aria-selected', 'true');
+  });
+
+  it('S44: Kontraponuda - PATCH /counter sa novim iznosima', () => {
+    openRemoteOffersTab();
+
+    cy.contains('tr', 'AAPL').within(() => {
+      cy.contains('button', 'Kontraponuda').click();
+    });
+    cy.get('input[id^="remote-counter-qty-"]').clear().type('7');
+    cy.get('input[id^="remote-counter-premium-"]').clear().type('12.5');
+    cy.contains('button', 'Posalji kontraponudu').click();
+
+    cy.wait('@counterRemoteOffer').then((interception) => {
+      expect(interception.request.body.quantity).to.equal(7);
+      expect(interception.request.body.premium).to.equal(12.5);
+      expect(interception.request.body.offerId).to.equal('remote-offer-green');
+    });
+    cy.wait('@remoteOtcOffers');
+    cy.contains('Inter-bank kontraponuda je poslata.').should('be.visible');
+  });
+
+  it('S45: Odbij - PATCH /decline', () => {
+    cy.on('window:confirm', () => true);
+    openRemoteOffersTab();
+
+    cy.contains('tr', 'AAPL').within(() => {
+      cy.contains('button', 'Odbij').click();
+    });
+
+    cy.wait('@declineRemoteOffer');
+    cy.wait('@remoteOtcOffers');
+    cy.contains('Inter-bank ponuda je odbijena.').should('be.visible');
+  });
 });
 
 
