@@ -16,7 +16,9 @@ import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { paymentRecipientService } from '@/services/paymentRecipientService';
 import { transactionService } from '@/services/transactionService';
+import interbankPaymentService from '@/services/interbankPaymentService';
 import type { Account, PaymentRecipient } from '@/types/celina2';
+import type { InterbankPayment, InterbankPaymentStatus } from '@/types/celina4';
 import { newPaymentSchema, type NewPaymentFormData } from '@/utils/validationSchemas.celina2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +27,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import VerificationModal from '@/components/shared/VerificationModal';
 import { SendHorizonal, Wallet, ArrowRight, User, FileText, Hash, BookUser, CheckCircle2, X } from 'lucide-react';
 import { asArray, formatAmount } from '@/utils/formatters';
+
+const OUR_BANK_PREFIX = '222';
+const INTERBANK_POLL_MS = 3000;
+const INTERBANK_MAX_POLLS = 40;
+const INTERBANK_TERMINAL_STATUSES: InterbankPaymentStatus[] = ['COMMITTED', 'ABORTED', 'STUCK'];
+
+function isInterbank(accountNumber: string): boolean {
+  return accountNumber.length >= 3 && accountNumber.slice(0, 3) !== OUR_BANK_PREFIX;
+}
 
 export default function NewPaymentPage() {
   const navigate = useNavigate();
@@ -40,6 +51,7 @@ export default function NewPaymentPage() {
   const [showVerification, setShowVerification] = useState(false);
   const [saveRecipientPrompt, setSaveRecipientPrompt] = useState<{ name: string; accountNumber: string } | null>(null);
   const [savingRecipient, setSavingRecipient] = useState(false);
+  const [interbankTracking, setInterbankTracking] = useState<InterbankPayment | null>(null);
 
   const {
     register,
@@ -131,6 +143,21 @@ export default function NewPaymentPage() {
   const watchedCode = watch('paymentCode');
   const watchedModel = watch('model');
   const watchedCallNumber = watch('callNumber');
+
+  const pollInterbankUntilDone = async (transactionId: string) => {
+    let attempts = 0;
+    while (attempts < INTERBANK_MAX_POLLS) {
+      attempts += 1;
+      await new Promise((resolve) => setTimeout(resolve, INTERBANK_POLL_MS));
+      const status = await interbankPaymentService.getStatus(transactionId);
+      setInterbankTracking(status);
+      if (INTERBANK_TERMINAL_STATUSES.includes(status.status)) {
+        return status;
+      }
+    }
+
+    return interbankPaymentService.getStatus(transactionId);
+  };
 
   return (
     <div className="container mx-auto py-8 max-w-6xl space-y-8">
@@ -556,10 +583,10 @@ export default function NewPaymentPage() {
         isOpen={showVerification}
         onClose={() => setShowVerification(false)}
         onVerified={async (otpCode: string) => {
-          // OTP je verifikovan - sad kreiraj placanje sa kodom
+          // OTP je verifikovan - sada biramo flow: intra-bank ili inter-bank.
           try {
             const formData = getValues();
-            await transactionService.createPayment({
+            const paymentDto = {
               fromAccountNumber: formData.fromAccountNumber,
               toAccountNumber: formData.toAccountNumber,
               amount: formData.amount,
@@ -569,9 +596,32 @@ export default function NewPaymentPage() {
               model: formData.model || undefined,
               callNumber: formData.callNumber || undefined,
               referenceNumber: formData.referenceNumber || undefined,
-            }, otpCode);
+            };
 
-            toast.success('Placanje je uspesno izvrseno.');
+            if (isInterbank(formData.toAccountNumber)) {
+              const initiated = await interbankPaymentService.initiatePayment({
+                senderAccountNumber: formData.fromAccountNumber,
+                receiverAccountNumber: formData.toAccountNumber,
+                receiverName: formData.recipientName,
+                amount: formData.amount,
+                currency: fromAccountCurrency || 'RSD',
+                description: formData.paymentPurpose || undefined,
+                otpCode,
+              });
+              setInterbankTracking(initiated);
+              toast.info('Inter-bank transakcija u obradi...');
+              const finalStatus = await pollInterbankUntilDone(initiated.transactionId);
+              if (finalStatus.status === 'COMMITTED') {
+                toast.success('Inter-bank placanje je uspesno izvrseno.');
+              } else {
+                const reason = finalStatus.failureReason || 'Inter-bank transakcija nije uspesno zavrsena.';
+                toast.error(reason);
+              }
+            } else {
+              await transactionService.createPayment(paymentDto, otpCode);
+              toast.success('Placanje je uspesno izvrseno.');
+            }
+
             setShowVerification(false);
 
             // Proveri da li je primalac vec sacuvan — ako nije, ponudi opciju cuvanja
@@ -590,6 +640,32 @@ export default function NewPaymentPage() {
           }
         }}
       />
+
+      {interbankTracking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-up">
+          <Card className="w-full max-w-md mx-4 rounded-2xl border shadow-2xl">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-base">Inter-bank status</h3>
+                <span className="font-mono text-sm">{interbankTracking.status}</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Transaction ID: <span className="font-mono">{interbankTracking.transactionId}</span>
+              </p>
+              {interbankTracking.failureReason && (
+                <p className="text-sm text-destructive">{interbankTracking.failureReason}</p>
+              )}
+              {INTERBANK_TERMINAL_STATUSES.includes(interbankTracking.status) && (
+                <div className="flex justify-end">
+                  <Button type="button" onClick={() => setInterbankTracking(null)}>
+                    Zatvori
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

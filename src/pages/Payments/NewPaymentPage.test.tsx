@@ -32,6 +32,14 @@ vi.mock('@/services/transactionService', () => ({
   },
 }));
 
+vi.mock('@/services/interbankPaymentService', () => ({
+  default: {
+    initiatePayment: vi.fn(),
+    getStatus: vi.fn(),
+    myHistory: vi.fn(),
+  },
+}));
+
 vi.mock('@/components/shared/VerificationModal', () => ({
   default: ({ isOpen, onClose, onVerified }: {
     isOpen: boolean;
@@ -49,10 +57,12 @@ vi.mock('@/components/shared/VerificationModal', () => ({
 import { accountService } from '@/services/accountService';
 import { paymentRecipientService } from '@/services/paymentRecipientService';
 import { transactionService } from '@/services/transactionService';
+import interbankPaymentService from '@/services/interbankPaymentService';
 
 const mockAccountService = vi.mocked(accountService);
 const mockRecipientService = vi.mocked(paymentRecipientService);
 const mockTransactionService = vi.mocked(transactionService);
+const mockInterbankPaymentService = vi.mocked(interbankPaymentService);
 
 const acc1 = mockAccount({ id: 1, accountNumber: '265000000000000001', balance: 150000, availableBalance: 140000 });
 const acc2 = mockAccountEUR({ id: 2, accountNumber: '265000000000000002' });
@@ -71,6 +81,26 @@ describe('NewPaymentPage', () => {
     vi.clearAllMocks();
     mockAccountService.getMyAccounts.mockResolvedValue([acc1, acc2]);
     mockRecipientService.getAll.mockResolvedValue([recipient1]);
+    mockInterbankPaymentService.initiatePayment.mockResolvedValue({
+      id: 11,
+      transactionId: 'tx-11',
+      status: 'INITIATED',
+      senderAccountNumber: '265000000000000001',
+      receiverAccountNumber: '111000000000000001',
+      amount: 5000,
+      currency: 'RSD',
+      createdAt: '2026-01-01T00:00:00',
+    });
+    mockInterbankPaymentService.getStatus.mockResolvedValue({
+      id: 11,
+      transactionId: 'tx-11',
+      status: 'COMMITTED',
+      senderAccountNumber: '265000000000000001',
+      receiverAccountNumber: '111000000000000001',
+      amount: 5000,
+      currency: 'RSD',
+      createdAt: '2026-01-01T00:00:00',
+    });
   });
 
   it('renders page header', async () => {
@@ -167,7 +197,7 @@ describe('NewPaymentPage', () => {
 
     // Fill mandatory fields
     const toAccountInput = screen.getByLabelText(/Racun primaoca/i);
-    await user.type(toAccountInput, '265000000000000099');
+    await user.type(toAccountInput, '222000000000000099');
 
     const recipientNameInput = screen.getByLabelText(/Naziv primaoca/i);
     await user.type(recipientNameInput, 'Test Primalac');
@@ -328,7 +358,7 @@ describe('NewPaymentPage', () => {
 
     // Fill all mandatory fields
     const toAccountInput = screen.getByLabelText(/Racun primaoca/i);
-    await user.type(toAccountInput, '265000000000000099');
+    await user.type(toAccountInput, '222000000000000099');
 
     const recipientNameInput = screen.getByLabelText(/Naziv primaoca/i);
     await user.type(recipientNameInput, 'Test Primalac');
@@ -354,6 +384,33 @@ describe('NewPaymentPage', () => {
 
     await waitFor(() => {
       expect(mockTransactionService.createPayment).toHaveBeenCalled();
+    });
+  });
+
+  it('routes to interbank service when receiver prefix is not 222', async () => {
+    const user = userEvent.setup();
+    mockTransactionService.createPayment.mockResolvedValue(undefined as never);
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Iznos/i)).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText(/Racun primaoca/i), '111000000000000001');
+    await user.type(screen.getByLabelText(/Naziv primaoca/i), 'Interbank Receiver');
+    await user.clear(screen.getByLabelText(/Iznos/i));
+    await user.type(screen.getByLabelText(/Iznos/i), '5000');
+    await user.type(screen.getByLabelText(/Svrha placanja/i), 'Interbank payment');
+    await user.click(screen.getByRole('button', { name: /Nastavi na verifikaciju/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('verification-modal')).toBeInTheDocument();
+    });
+    await user.click(screen.getByText('Potvrdi OTP'));
+
+    await waitFor(() => {
+      expect(mockInterbankPaymentService.initiatePayment).toHaveBeenCalled();
+      expect(mockTransactionService.createPayment).not.toHaveBeenCalled();
     });
   });
 
