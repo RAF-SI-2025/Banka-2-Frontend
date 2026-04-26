@@ -445,11 +445,72 @@ describe('Live C4: OTC Inter-bank Discovery', () => {
     loginClient();
   });
 
-  it.skip('TODO L25: Tab "Iz drugih banaka" na /otc prikazuje listu', () => {});
-  it.skip('TODO L26: "Napravi ponudu" salje POST ka partnerskoj banci', () => {
-    // Zavisi od BE: mora postojati mock partnerske banke u dev environment-u
+  const openRemoteTab = () => {
+    cy.visit('/otc');
+    cy.contains('[role="tab"]', 'Iz drugih banaka').click();
+  };
+
+  it('TODO L25: Tab "Iz drugih banaka" na /otc prikazuje listu', () => {
+    cy.intercept('GET', '/api/interbank/otc/listings').as('remoteOtcListings');
+
+    openRemoteTab();
+
+    cy.wait('@remoteOtcListings').its('response.statusCode').should('eq', 200);
+    cy.contains('[role="tab"]', 'Iz drugih banaka').should('have.attr', 'aria-selected', 'true');
+    cy.contains('th', 'Banka prodavca').should('be.visible');
+    cy.contains('th', 'Prodavac').should('be.visible');
+    cy.get('table tbody tr').its('length').should('be.gte', 1);
   });
-  it.skip('TODO L27: Osvezi dugme ponovo ucitava listu', () => {});
+
+  it('TODO L26: "Napravi ponudu" salje POST ka partnerskoj banci', () => {
+    cy.intercept('GET', '/api/interbank/otc/listings').as('remoteOtcListings');
+    cy.intercept('POST', '/api/interbank/otc/offers').as('createRemoteOffer');
+
+    openRemoteTab();
+
+    cy.wait('@remoteOtcListings').its('response.statusCode').should('eq', 200);
+    cy.contains('button', 'Napravi ponudu').first().click();
+    cy.get('input[id^="remote-qty-"]').clear().type('1');
+    cy.get('input[id^="remote-premium-"]').clear().type('1.5');
+    cy.contains('button', 'Posalji ponudu prodavcu').click();
+
+    cy.wait('@createRemoteOffer').then((interception) => {
+      expect(interception.response?.statusCode).to.be.oneOf([200, 201]);
+      expect(interception.request.body.quantity).to.equal(1);
+      expect(interception.request.body.premium).to.equal(1.5);
+
+      const offerId = interception.response?.body?.offerId;
+      cy.contains('Inter-bank ponuda je uspesno poslata.').should('be.visible');
+
+      if (typeof offerId !== 'string' || !offerId) {
+        return;
+      }
+
+      cy.window().then((win) => {
+        const accessToken = win.sessionStorage.getItem('accessToken');
+        if (!accessToken) {
+          return;
+        }
+
+        cy.request({
+          method: 'PATCH',
+          url: `/api/interbank/otc/offers/${offerId}/decline`,
+          headers: { Authorization: `Bearer ${accessToken}` },
+          failOnStatusCode: false,
+        });
+      });
+    });
+  });
+
+  it('TODO L27: Osvezi dugme ponovo ucitava listu', () => {
+    cy.intercept('GET', '/api/interbank/otc/listings').as('remoteOtcListings');
+
+    openRemoteTab();
+
+    cy.wait('@remoteOtcListings').its('response.statusCode').should('eq', 200);
+    cy.contains('button', 'Osvezi').click();
+    cy.wait('@remoteOtcListings').its('response.statusCode').should('eq', 200);
+  });
 });
 
 
