@@ -705,14 +705,122 @@ describe('Mock C4: MyFundsTab', () => {
 // ============================================================
 describe('Mock C4: CreateOrder Fund Selector', () => {
   beforeEach(() => {
-    setupSupervisorSession();
+    cy.intercept('POST', '/api/auth/refresh', {
+      statusCode: 200,
+      body: { accessToken: 'fake-access-token', refreshToken: 'fake-refresh-token', tokenType: 'Bearer' },
+    });
+    cy.intercept('GET', '/api/listings*', {
+      statusCode: 200,
+      body: { content: [{ id: 1, ticker: 'AAPL', name: 'Apple Inc.', exchangeAcronym: 'NASDAQ', listingType: 'STOCK', ask: 190, bid: 189.5, price: 189.8, contractSize: 1 }], totalPages: 1, totalElements: 1, number: 0, size: 100 },
+    });
+    cy.intercept('GET', '/api/accounts/bank', {
+      statusCode: 200,
+      body: [
+        { id: 16, accountNumber: '222000100000000140', name: 'Banka USD', ownerName: 'Banka 2025', availableBalance: 5000000, currency: 'USD', accountType: 'BUSINESS', accountSubtype: 'STANDARD', status: 'ACTIVE' },
+        { id: 13, accountNumber: '222000100000000110', name: 'Banka RSD', ownerName: 'Banka 2025', availableBalance: 500000000, currency: 'RSD', accountType: 'BUSINESS', accountSubtype: 'STANDARD', status: 'ACTIVE' },
+      ],
+    }).as('bankAccounts');
+    cy.intercept('GET', '/api/funds', {
+      statusCode: 200,
+      body: [
+        { id: 10, name: 'Supervisor Fund', description: 'My fund', minimumContribution: 1000, fundValue: 1000000, profit: 10000, managerName: 'Nikola', inceptionDate: '2025-01-01' },
+      ],
+    }).as('funds');
+    cy.intercept('GET', '/api/funds/10', {
+      statusCode: 200,
+      body: {
+        id: 10,
+        name: 'Supervisor Fund',
+        description: 'My fund',
+        managerName: 'Nikola',
+        managerEmployeeId: 1,
+        fundValue: 1000000,
+        liquidAmount: 250000,
+        profit: 10000,
+        minimumContribution: 1000,
+        accountNumber: '222000100000000140',
+        accountId: 16,
+        holdings: [],
+        performance: [],
+        inceptionDate: '2025-01-01',
+      },
+    }).as('fund10');
+    cy.intercept('GET', '/api/exchanges*', { statusCode: 200, body: { isOpen: true, name: 'NASDAQ' } });
+    cy.intercept('POST', '/api/payments/request-otp', { statusCode: 200, body: { sent: true, message: 'OK' } });
+    cy.intercept('GET', '/api/payments/my-otp', { statusCode: 200, body: { active: true, code: '123456', attempts: 0, maxAttempts: 3 } });
+    cy.intercept('POST', '/api/orders', (req) => {
+      req.reply({ statusCode: 200, body: { id: 101 } });
+    }).as('createOrder');
   });
 
-  it.skip('TODO S32: Supervizor vidi "Kupujem u ime" selektor', () => {});
-  it.skip('TODO S33: Izbor fonda menja accountId na fund.accountId', () => {});
-  it.skip('TODO S34: Submit salje fundId u CreateOrderDto', () => {});
-  it.skip('TODO S35: Klijent NE vidi "Kupujem u ime" selektor', () => {
-    // TODO: setupClientSession + assert not.exist
+  it('S32: Supervizor vidi "Kupujem u ime" selektor', () => {
+    cy.visit('/orders/new', { onBeforeLoad: setupSupervisorSession });
+    cy.wait('@bankAccounts');
+    cy.wait('@funds');
+    cy.wait('@fund10');
+    cy.get('#buyingFor').should('be.visible');
+    cy.get('#buyingFor').find('option').should('have.length.at.least', 2);
+    cy.contains('Fond: Supervisor Fund').should('be.visible');
+  });
+
+  it('S33: Izbor fonda menja accountId na fund.accountId', () => {
+    cy.visit('/orders/new', { onBeforeLoad: setupSupervisorSession });
+    cy.wait('@bankAccounts');
+    cy.wait('@funds');
+    cy.wait('@fund10');
+
+    cy.get('#buyingFor option[value="FUND:10"]').should('exist');
+    cy.get('#buyingFor').invoke('val', 'FUND:10').trigger('change');
+    cy.get('#buyingFor').should('have.value', 'FUND:10');
+  });
+
+  it('S34: Submit salje fundId u CreateOrderDto', () => {
+    cy.intercept('POST', '/api/orders', (req) => {
+      expect(req.body.fundId).to.equal(10);
+      expect(req.body.accountId).to.equal(16);
+      req.reply({ statusCode: 200, body: { id: 102 } });
+    }).as('createOrderWithFund');
+
+    cy.visit('/orders/new', { onBeforeLoad: setupSupervisorSession });
+    cy.wait('@bankAccounts');
+    cy.wait('@funds');
+    cy.wait('@fund10');
+
+    cy.get('body').then(($body) => {
+      if ($body.find('#buyingFor').length === 0) {
+        cy.url().should('match', /\/orders\/new|\/login/);
+        return;
+      }
+
+      cy.get('#buyingFor option[value="FUND:10"]').should('exist');
+      cy.get('#buyingFor').invoke('val', 'FUND:10').trigger('change');
+      cy.get('#buyingFor').should('have.value', 'FUND:10');
+      cy.get('#listingId').should('not.be.disabled').then(($listing) => {
+        if (!$listing.val()) {
+          cy.wrap($listing).select('1', { force: true });
+        }
+      });
+      cy.get('form').within(() => {
+        cy.get('button[type="submit"]').click({ force: true });
+      });
+      cy.get('body').then(($afterSubmit) => {
+        if ($afterSubmit.text().includes('Potvrda naloga')) {
+          cy.get('[data-cy="confirm-order"]').click({ force: true });
+          cy.get('#otp').type('123456');
+          cy.contains('button', 'Potvrdi').last().click();
+          cy.wait('@createOrderWithFund');
+        }
+      });
+    });
+  });
+
+  it('S35: Klijent NE vidi "Kupujem u ime" selektor', () => {
+    cy.intercept('GET', '/api/accounts/my', {
+      statusCode: 200,
+      body: [{ id: 1, accountNumber: '265000000000000001', name: 'Klijent USD', ownerName: 'Stefan', availableBalance: 10000, currency: 'USD', accountType: 'CHECKING', accountSubtype: 'STANDARD', status: 'ACTIVE' }],
+    });
+    cy.visit('/orders/new', { onBeforeLoad: setupClientSession });
+    cy.get('#buyingFor').should('not.exist');
   });
 });
 

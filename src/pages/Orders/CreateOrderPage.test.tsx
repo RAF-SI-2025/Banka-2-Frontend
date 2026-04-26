@@ -7,6 +7,7 @@ import type { Listing } from '@/types/celina3';
 import type { Account } from '@/types/celina2';
 
 const mockNavigate = vi.fn();
+const mockUseAuth = vi.fn();
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
@@ -21,15 +22,7 @@ vi.mock('../../context/AuthContext', async () => {
   const actual = await vi.importActual<typeof import('../../context/AuthContext')>('../../context/AuthContext');
   return {
     ...actual,
-    useAuth: () => ({
-      user: null,
-      isAuthenticated: true,
-      isLoading: false,
-      login: vi.fn(),
-      logout: vi.fn(),
-      hasPermission: () => true,
-      isAdmin: false,
-    }),
+    useAuth: () => mockUseAuth(),
   };
 });
 
@@ -87,6 +80,25 @@ vi.mock('../../services/orderService', () => ({
   },
 }));
 
+vi.mock('../../components/shared/VerificationModal', () => ({
+  default: ({
+    isOpen,
+    onVerified,
+  }: { isOpen: boolean; onVerified: (otpCode: string) => Promise<void> | void }) => (
+    isOpen ? <button onClick={() => onVerified('123456')}>Mock OTP Confirm</button> : null
+  ),
+}));
+
+const mockFundList = vi.fn().mockResolvedValue([]);
+const mockFundGet = vi.fn();
+
+vi.mock('../../services/investmentFundService', () => ({
+  default: {
+    list: (...args: unknown[]) => mockFundList(...args),
+    get: (...args: unknown[]) => mockFundGet(...args),
+  },
+}));
+
 const mockGetAllAccounts = vi.fn();
 const mockGetMyAccounts = vi.fn();
 
@@ -94,6 +106,7 @@ vi.mock('../../services/accountService', () => ({
   accountService: {
     getAll: (...args: unknown[]) => mockGetAllAccounts(...args),
     getMyAccounts: (...args: unknown[]) => mockGetMyAccounts(...args),
+    getBankAccounts: (...args: unknown[]) => mockGetMyAccounts(...args),
   },
 }));
 
@@ -123,9 +136,22 @@ vi.mock('../../services/marginService', () => ({
 describe('CreateOrderPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseAuth.mockReturnValue({
+      user: null,
+      isAuthenticated: true,
+      isLoading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      hasPermission: () => true,
+      isAdmin: false,
+      isSupervisor: false,
+      isAgent: false,
+    });
     mockGetAll.mockResolvedValue({ content: mockListings, totalPages: 1, totalElements: 1, number: 0, size: 100 });
     mockGetAllAccounts.mockResolvedValue({ content: mockAccounts });
     mockGetMyAccounts.mockResolvedValue(mockAccounts);
+    mockFundList.mockResolvedValue([]);
+    mockFundGet.mockResolvedValue(null);
   });
 
   it('renders the page header', async () => {
@@ -465,5 +491,85 @@ describe('CreateOrderPage', () => {
     await waitFor(() => {
       expect(screen.queryByLabelText(/Limit vrednost/i)).not.toBeInTheDocument();
     });
+  });
+
+  it('shows "Kupujem u ime" selector for supervisor with managed funds', async () => {
+    mockUseAuth.mockReturnValue({
+      user: { id: 1, role: 'EMPLOYEE' },
+      isAuthenticated: true,
+      isLoading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      hasPermission: () => true,
+      isAdmin: false,
+      isSupervisor: true,
+      isAgent: false,
+    });
+    mockFundList.mockResolvedValue([{ id: 10, name: 'Tech Fund' }]);
+    mockFundGet.mockResolvedValue({
+      id: 10,
+      name: 'Tech Fund',
+      managerEmployeeId: 1,
+      liquidAmount: 150000,
+      accountId: 1,
+    });
+
+    renderWithProviders(<CreateOrderPage />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Kupujem u ime/i)).toBeInTheDocument();
+    });
+
+    const selector = screen.getByLabelText(/Kupujem u ime/i) as HTMLSelectElement;
+    const options = Array.from(selector.options).map((o) => o.textContent);
+    expect(options).toContain('Banka');
+    expect(options).toContain('Fond: Tech Fund');
+  });
+
+  it('includes fundId in create DTO when supervisor selects fund', async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({
+      user: { id: 1, role: 'EMPLOYEE' },
+      isAuthenticated: true,
+      isLoading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      hasPermission: () => true,
+      isAdmin: false,
+      isSupervisor: true,
+      isAgent: false,
+    });
+    mockFundList.mockResolvedValue([{ id: 10, name: 'Tech Fund' }]);
+    mockFundGet.mockResolvedValue({
+      id: 10,
+      name: 'Tech Fund',
+      managerEmployeeId: 1,
+      liquidAmount: 150000,
+      accountId: 1,
+    });
+
+    renderWithProviders(<CreateOrderPage />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Kupujem u ime/i)).toBeInTheDocument();
+    });
+
+    await user.selectOptions(screen.getByLabelText(/Kupujem u ime/i), 'FUND:10');
+    await user.selectOptions(screen.getByLabelText('Tip ordera'), 'MARKET');
+    await user.type(screen.getByLabelText(/Količina/i), '{selectall}2');
+    await user.click(screen.getByRole('button', { name: /Nastavi na potvrdu/i }));
+    await user.click(screen.getByRole('button', { name: /Potvrdi/i }));
+    await user.click(screen.getByRole('button', { name: /Mock OTP Confirm/i }));
+
+    await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalled();
+    });
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fundId: 10,
+        accountId: 1,
+      })
+    );
   });
 });
