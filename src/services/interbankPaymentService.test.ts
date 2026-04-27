@@ -10,7 +10,7 @@ describe('interbankPaymentService', () => {
     vi.clearAllMocks();
   });
 
-  it('initiatePayment sends POST /interbank/payments/initiate', async () => {
+  it('initiatePayment sends POST /payments', async () => {
     const dto = {
       senderAccountNumber: '222000100000000110',
       receiverAccountNumber: '111000100000000999',
@@ -34,7 +34,18 @@ describe('interbankPaymentService', () => {
 
     const result = await interbankPaymentService.initiatePayment(dto);
 
-    expect(mockedApi.post).toHaveBeenCalledWith('/interbank/payments/initiate', dto);
+    expect(mockedApi.post).toHaveBeenCalledWith('/payments', {
+      fromAccount: dto.senderAccountNumber,
+      toAccount: dto.receiverAccountNumber,
+      amount: dto.amount,
+      paymentCode: '289',
+      description: dto.description,
+      referenceNumber: undefined,
+      recipientName: dto.receiverName,
+      model: undefined,
+      callNumber: undefined,
+      otpCode: dto.otpCode,
+    });
     expect(result).toEqual(payment);
   });
 

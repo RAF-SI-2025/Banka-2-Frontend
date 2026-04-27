@@ -607,6 +607,17 @@ export default function NewPaymentPage() {
                 currency: fromAccountCurrency || 'RSD',
                 description: formData.paymentPurpose || undefined,
                 otpCode,
+                paymentCode: formData.paymentCode,
+                paymentPurpose: formData.paymentPurpose || undefined,
+                model: formData.model || undefined,
+                callNumber: formData.callNumber || undefined,
+                referenceNumber: formData.referenceNumber || undefined,
+              } as InterbankPaymentInitiateRequest & {
+                paymentCode?: string;
+                paymentPurpose?: string;
+                model?: string;
+                callNumber?: string;
+                referenceNumber?: string;
               });
               setInterbankTracking(initiated);
               toast.info('Inter-bank transakcija u obradi...');

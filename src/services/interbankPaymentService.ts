@@ -44,7 +44,26 @@ import type { InterbankPayment, InterbankPaymentInitiateRequest } from '@/types/
 const interbankPaymentService = {
   async initiatePayment(dto: InterbankPaymentInitiateRequest): Promise<InterbankPayment> {
     // TODO: zameni sa paymentService.create(...) — BE detektuje inter-bank po prefiksu
-    const response = await api.post<InterbankPayment>('/interbank/payments/initiate', dto);
+    const extendedDto = dto as InterbankPaymentInitiateRequest & {
+      paymentCode?: string;
+      paymentPurpose?: string;
+      model?: string;
+      callNumber?: string;
+      referenceNumber?: string;
+    };
+    const payload = {
+      fromAccount: dto.senderAccountNumber,
+      toAccount: dto.receiverAccountNumber,
+      amount: dto.amount,
+      paymentCode: extendedDto.paymentCode ?? '289',
+      description: extendedDto.paymentPurpose ?? dto.description ?? undefined,
+      referenceNumber: extendedDto.referenceNumber || undefined,
+      recipientName: dto.receiverName,
+      model: extendedDto.model || undefined,
+      callNumber: extendedDto.callNumber || undefined,
+      otpCode: dto.otpCode || '',
+    };
+    const response = await api.post<InterbankPayment>('/payments', payload);
     return response.data;
   },
 
