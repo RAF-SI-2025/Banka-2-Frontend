@@ -9,6 +9,8 @@ import {
   TrendingUp,
   Globe,
   ArrowRight,
+  Landmark,
+  PiggyBank,
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -223,6 +225,8 @@ export default function SupervisorDashboardPage() {
       { label: 'Orderi', route: '/employee/orders', Icon: ShoppingCart },
       { label: 'Aktuari', route: '/employee/actuaries', Icon: TrendingUp },
       { label: 'Porez', route: '/employee/tax', Icon: Calculator },
+      { label: 'Profit Banke', route: '/employee/profit-bank', Icon: Landmark },
+      { label: 'Investicioni fondovi', route: '/funds', Icon: PiggyBank },
     ] : []),
     { label: 'Berze', route: '/employee/exchanges', Icon: Globe },
     { label: 'Berza', route: '/securities', Icon: TrendingUp },

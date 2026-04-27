@@ -60,6 +60,7 @@ import OtcOffersAndContractsPage from './pages/Otc/OtcOffersAndContractsPage';
 import FundsDiscoveryPage from './pages/Funds/FundsDiscoveryPage';
 import FundDetailsPage from './pages/Funds/FundDetailsPage';
 import CreateFundPage from './pages/Funds/CreateFundPage';
+import ProfitBankPage from './pages/ProfitBank/ProfitBankPage';
 
 export default function App() {
   return (
@@ -138,12 +139,7 @@ export default function App() {
           <Route path="/funds" element={<FundsDiscoveryPage />} />
           <Route path="/funds/create" element={<CreateFundPage />} />
           <Route path="/funds/:id" element={<FundDetailsPage />} />
-
-          {/*
-            TODO — CELINA 4 PREOSTALA RUTA:
-              Zaduzen: sssmarta (profit banke — supervisor only)
-                <Route path="/employee/profit-bank" element={<ProfitBankPage />} />
-          */}
+          <Route path="/employee/profit-bank" element={<ProfitBankPage />} />
         </Route>
       </Route>
 
