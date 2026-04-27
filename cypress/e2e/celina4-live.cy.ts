@@ -660,10 +660,45 @@ describe('Live C4: Inter-bank Payments', () => {
 //  FEATURE 13: HomePage + Sidebar finalizacija (Issue #79 / sssmarta)
 // ============================================================
 describe('Live C4: HomePage + Sidebar', () => {
-  it.skip('TODO L46: Supervisor vidi "Profit Banke" tile na dashboard-u', () => {});
-  it.skip('TODO L47: Klijent vidi "Investicioni fondovi" u Brze akcije', () => {});
-  it.skip('TODO L48: Sidebar link "Investicioni fondovi" vidljiv svim ulogama', () => {});
-  it.skip('TODO L49: Sidebar link "Profit Banke" samo supervizor', () => {});
+  it('L46: Supervisor vidi "Profit Banke" tile na dashboard-u', () => {
+    loginSupervisor();
+    cy.visit('/home');
+    cy.get('main').contains('Profit Banke').should('be.visible');
+  });
+
+  it('L47: Klijent vidi "Investicioni fondovi" u Brze akcije', () => {
+    loginClient();
+    cy.visit('/home');
+    cy.get('main').contains('Investicioni fondovi').should('be.visible');
+  });
+
+  it('L48: Sidebar link "Investicioni fondovi" vidljiv svim ulogama', () => {
+    loginClient();
+    cy.visit('/home');
+    cy.get('nav').contains('Investicioni fondovi').should('be.visible');
+
+    loginSupervisor();
+    cy.visit('/home');
+    cy.get('nav').contains('Investicioni fondovi').should('be.visible');
+
+    _loginAgent();
+    cy.visit('/home');
+    cy.get('nav').contains('Investicioni fondovi').should('be.visible');
+  });
+
+  it('L49: Sidebar link "Profit Banke" samo supervizor', () => {
+    loginSupervisor();
+    cy.visit('/home');
+    cy.get('nav').contains('Profit Banke').should('be.visible');
+
+    loginClient();
+    cy.visit('/home');
+    cy.get('nav').should('not.contain', 'Profit Banke');
+
+    _loginAgent();
+    cy.visit('/home');
+    cy.get('nav').should('not.contain', 'Profit Banke');
+  });
 });
 
 /*
