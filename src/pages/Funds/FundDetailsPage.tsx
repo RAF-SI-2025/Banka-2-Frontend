@@ -16,10 +16,12 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import investmentFundService from '@/services/investmentFundService';
-import type { InvestmentFundDetail, FundPerformancePoint } from '@/types/celina4';
+import type { InvestmentFundDetail, FundPerformancePoint, ClientFundPosition } from '@/types/celina4';
 import { formatAmount, formatDate, formatPrice, getErrorMessage } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import FundInvestDialog from './FundInvestDialog';
+import FundWithdrawDialog from './FundWithdrawDialog';
 import {
   Table,
   TableBody,
@@ -57,6 +59,34 @@ export default function FundDetailsPage() {
   const [performance, setPerformance] = useState<FundPerformancePoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [perfPeriod, setPerfPeriod] = useState<PerfPeriod>('quarter');
+  // Spec Celina 4 (Nova) §4585-4628: Uplata/Povlacenje akcije po fondu.
+  const [myPosition, setMyPosition] = useState<ClientFundPosition | null>(null);
+  const [bankPosition, setBankPosition] = useState<ClientFundPosition | null>(null);
+  const [investMode, setInvestMode] = useState<null | 'self' | 'bank'>(null);
+  const [withdrawMode, setWithdrawMode] = useState<null | 'self' | 'bank'>(null);
+
+  const reloadPositions = async (fundId: number) => {
+    try {
+      if (user?.role === 'CLIENT') {
+        const positions = await investmentFundService.myPositions();
+        const found = positions.find((p) => p.fundId === fundId) ?? null;
+        setMyPosition(found);
+      }
+      if (isSupervisor) {
+        const bankPositions = await investmentFundService.bankPositions();
+        const found = bankPositions.find((p) => p.fundId === fundId) ?? null;
+        setBankPosition(found);
+      }
+    } catch {
+      // tihi fail — pozicije nisu kriticne za stranicu, samo onemogucuju Povuci dugme
+    }
+  };
+
+  useEffect(() => {
+    if (!fund?.id) return;
+    void reloadPositions(fund.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fund?.id, user?.role, isSupervisor]);
 
   const isOwner = isSupervisor && fund?.managerEmployeeId === user?.id;
 
@@ -340,34 +370,69 @@ export default function FundDetailsPage() {
         </CardContent>
       </Card>
 
-      {/* Action Buttons */}
+      {/* Action Buttons — Spec Celina 4 (Nova) §4585-4628 */}
       <Card>
         <CardContent className="pt-6 flex flex-wrap gap-3">
           {user?.role === 'CLIENT' && (
             <>
-              <Button onClick={() => toast.info('Uplata u fond — čeka implementaciju dialoga (Issue #74)')}>
+              <Button onClick={() => setInvestMode('self')}>
                 Uplati u fond
               </Button>
-              <Button variant="outline" onClick={() => toast.info('Povlačenje iz fonda — čeka implementaciju dialoga (Issue #74)')}>
+              <Button
+                variant="outline"
+                disabled={!myPosition || (myPosition.totalInvested ?? 0) <= 0}
+                onClick={() => setWithdrawMode('self')}
+              >
                 Povuci iz fonda
               </Button>
             </>
           )}
           {isSupervisor && (
             <>
-              <Button onClick={() => toast.info('Uplata u fond — čeka implementaciju dialoga (Issue #74)')}>
-                Uplati u fond
-              </Button>
-              <Button variant="outline" onClick={() => toast.info('Povlačenje iz fonda — čeka implementaciju dialoga (Issue #74)')}>
-                Povuci iz fonda
-              </Button>
-              <Button variant="secondary" onClick={() => toast.info('Uplata u ime banke — čeka implementaciju dialoga (Issue #74)')}>
+              <Button variant="secondary" onClick={() => setInvestMode('bank')}>
                 Uplati u ime banke
+              </Button>
+              <Button
+                variant="outline"
+                disabled={!bankPosition || (bankPosition.totalInvested ?? 0) <= 0}
+                onClick={() => setWithdrawMode('bank')}
+              >
+                Povuci u ime banke
               </Button>
             </>
           )}
         </CardContent>
       </Card>
+
+      {investMode !== null && fund && (
+        <FundInvestDialog
+          open
+          fundId={fund.id}
+          fundName={fund.name}
+          minimumContribution={fund.minimumContribution ?? 0}
+          onClose={() => setInvestMode(null)}
+          onSuccess={() => {
+            setInvestMode(null);
+            void reloadPositions(fund.id);
+            toast.success('Uplata uspesno izvrsena.');
+          }}
+        />
+      )}
+
+      {withdrawMode !== null && fund && (withdrawMode === 'self' ? myPosition : bankPosition) && (
+        <FundWithdrawDialog
+          open
+          fundId={fund.id}
+          fundName={fund.name}
+          myPosition={(withdrawMode === 'self' ? myPosition : bankPosition) as ClientFundPosition}
+          onClose={() => setWithdrawMode(null)}
+          onSuccess={() => {
+            setWithdrawMode(null);
+            void reloadPositions(fund.id);
+            toast.success('Zahtev za povlacenje uspesno poslat.');
+          }}
+        />
+      )}
     </div>
   );
 }
