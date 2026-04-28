@@ -1516,7 +1516,7 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
         },
       });
     }).as('initInterbank');
-    cy.intercept('GET', '**/api/interbank/payments/tx-s64', {
+    cy.intercept('GET', '**/api/interbank-tx/tx-s64', {
       statusCode: 200,
       body: {
         id: 2,
@@ -1552,7 +1552,7 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
         createdAt: '2026-04-25T10:00:00',
       },
     });
-    cy.intercept('GET', '**/api/interbank/payments/tx-s65', (req) => {
+    cy.intercept('GET', '**/api/interbank-tx/tx-s65', (req) => {
       statusCall += 1;
       const statuses = ['PREPARING', 'PREPARED', 'COMMITTING', 'COMMITTED'] as const;
       const status = statuses[Math.min(statusCall - 1, statuses.length - 1)];
@@ -1595,7 +1595,7 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
         createdAt: '2026-04-25T10:00:00',
       },
     });
-    cy.intercept('GET', '**/api/interbank/payments/tx-s66', (req) => {
+    cy.intercept('GET', '**/api/interbank-tx/tx-s66', (req) => {
       statusCall += 1;
       req.reply({
         statusCode: 200,
@@ -1637,7 +1637,7 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
         createdAt: '2026-04-25T10:00:00',
       },
     });
-    cy.intercept('GET', '**/api/interbank/payments/tx-s67', {
+    cy.intercept('GET', '**/api/interbank-tx/tx-s67', {
       statusCode: 200,
       body: {
         id: 5,
@@ -1661,7 +1661,7 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
   });
 
   it('S68: Intra-bank (222...) ide standard flow, ne interbank', () => {
-    cy.intercept('GET', '**/api/interbank/payments/*').as('interbankStatus');
+    cy.intercept('GET', '**/api/interbank-tx/*').as('interbankStatus');
     cy.intercept('POST', '**/api/payments', { statusCode: 200, body: {} }).as('intraPayment');
 
     cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
