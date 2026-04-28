@@ -48,8 +48,7 @@ import {
   setupAdminSession,
   setupClientSession,
   setupSupervisorSession,
-  // TODO(tim): otkomentarisi setupAgentSession kad ti zatreba Agent sesija u TODO testu
-  // setupAgentSession,
+  setupAgentSession,
 } from '../support/commands';
 
 // ============================================================
@@ -1464,72 +1463,63 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
   }
 
   it('S63: Detekcija inter-bank po prve 3 cifre (ne 222)', () => {
-    cy.intercept('POST', '**/api/interbank/payments/initiate', {
+    cy.intercept('POST', '**/api/payments', {
       statusCode: 200,
       body: {
         id: 1,
-        transactionId: 'tx-s63',
-        status: 'INITIATED',
-        senderAccountNumber: '222000100000000110',
-        receiverAccountNumber: '111000000000000001',
+        fromAccount: '222000100000000110',
+        toAccount: '111000000000000001',
         amount: 5000,
         currency: 'RSD',
+        status: 'PENDING',
         createdAt: '2026-04-25T10:00:00',
       },
     }).as('initInterbank');
-    cy.intercept('GET', '**/api/interbank/payments/tx-s63', {
+
+    cy.intercept('GET', '**/api/payments/1', {
       statusCode: 200,
       body: {
         id: 1,
-        transactionId: 'tx-s63',
-        status: 'COMMITTED',
-        senderAccountNumber: '222000100000000110',
-        receiverAccountNumber: '111000000000000001',
+        fromAccount: '222000100000000110',
+        toAccount: '111000000000000001',
         amount: 5000,
         currency: 'RSD',
+        status: 'COMPLETED',
         createdAt: '2026-04-25T10:00:00',
       },
-    });
-    cy.intercept('POST', '**/api/payments', { statusCode: 200, body: {} }).as('intraPayment');
+    }).as('statusPoll');
 
     cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
     cy.wait('@myAccounts');
     cy.wait('@recipients');
+    cy.clock();
+
     fillMandatoryPaymentFields('111000000000000001');
     cy.wait('@initInterbank');
-    cy.get('@intraPayment.all').should('have.length', 0);
+
+    cy.tick(3000);
+    cy.wait('@statusPoll', { timeout: 10000 });
+
+    cy.contains('Inter-bank status').should('be.visible');
+    cy.contains('p', 'Transaction ID:').find('span').should('have.text', '1');
   });
 
-  it('S64: Salje POST /interbank/payments/initiate', () => {
-    cy.intercept('POST', '**/api/interbank/payments/initiate', (req) => {
-      expect(req.body.receiverAccountNumber).to.equal('111000000000000002');
+  it('S64: Salje POST /payments', () => {
+    cy.intercept('POST', '**/api/payments', (req) => {
+      expect(req.body.toAccount).to.equal('111000000000000002');
       req.reply({
         statusCode: 200,
         body: {
           id: 2,
-          transactionId: 'tx-s64',
-          status: 'INITIATED',
-          senderAccountNumber: req.body.senderAccountNumber,
-          receiverAccountNumber: req.body.receiverAccountNumber,
+          fromAccount: req.body.fromAccount,
+          toAccount: req.body.toAccount,
           amount: req.body.amount,
-          currency: req.body.currency,
+          currency: 'RSD',
+          status: 'PENDING',
           createdAt: '2026-04-25T10:00:00',
         },
       });
     }).as('initInterbank');
-    cy.intercept('GET', '**/api/interbank/payments/tx-s64', {
-      statusCode: 200,
-      body: {
-        id: 2,
-        transactionId: 'tx-s64',
-        status: 'COMMITTED',
-        senderAccountNumber: '222000100000000110',
-        receiverAccountNumber: '111000000000000002',
-        amount: 5000,
-        currency: 'RSD',
-        createdAt: '2026-04-25T10:00:00',
-      },
-    });
 
     cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
     cy.wait('@myAccounts');
@@ -1540,33 +1530,31 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
 
   it('S65: Modal prikazuje fazu (INITIATED → PREPARING → ... → COMMITTED)', () => {
     let statusCall = 0;
-    cy.intercept('POST', '**/api/interbank/payments/initiate', {
+    cy.intercept('POST', '**/api/payments', {
       statusCode: 200,
       body: {
         id: 3,
-        transactionId: 'tx-s65',
-        status: 'INITIATED',
-        senderAccountNumber: '222000100000000110',
-        receiverAccountNumber: '111000000000000003',
+        fromAccount: '222000100000000110',
+        toAccount: '111000000000000003',
         amount: 5000,
         currency: 'RSD',
+        status: 'PENDING',
         createdAt: '2026-04-25T10:00:00',
       },
     });
-    cy.intercept('GET', '**/api/interbank/payments/tx-s65', (req) => {
+    cy.intercept('GET', '**/api/payments/3', (req) => {
       statusCall += 1;
-      const statuses = ['PREPARING', 'PREPARED', 'COMMITTING', 'COMMITTED'] as const;
+      const statuses = ['PROCESSING', 'COMPLETED'] as const;
       const status = statuses[Math.min(statusCall - 1, statuses.length - 1)];
       req.reply({
         statusCode: 200,
         body: {
           id: 3,
-          transactionId: 'tx-s65',
-          status,
-          senderAccountNumber: '222000100000000110',
-          receiverAccountNumber: '111000000000000003',
+          fromAccount: '222000100000000110',
+          toAccount: '111000000000000003',
           amount: 5000,
           currency: 'RSD',
+          status,
           createdAt: '2026-04-25T10:00:00',
         },
       });
@@ -1575,39 +1563,44 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
     cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
     cy.wait('@myAccounts');
     cy.wait('@recipients');
+    cy.clock();
+
     fillMandatoryPaymentFields('111000000000000003');
-    cy.wait('@statusPoll');
-    cy.wait('@statusPoll');
+
+    cy.tick(3000);
+    cy.wait('@statusPoll', { timeout: 10000 });
+    cy.tick(3000);
+    cy.wait('@statusPoll', { timeout: 10000 });
+
     cy.get('@statusPoll.all').its('length').should('be.greaterThan', 1);
+    cy.contains(/INITIATED|COMMITTING|COMMITTED/).should('exist');
   });
 
   it('S66: Polling na svakih 3s', () => {
     let statusCall = 0;
-    cy.intercept('POST', '**/api/interbank/payments/initiate', {
+    cy.intercept('POST', '**/api/payments', {
       statusCode: 200,
       body: {
         id: 4,
-        transactionId: 'tx-s66',
-        status: 'INITIATED',
-        senderAccountNumber: '222000100000000110',
-        receiverAccountNumber: '111000000000000004',
+        fromAccount: '222000100000000110',
+        toAccount: '111000000000000004',
         amount: 5000,
         currency: 'RSD',
+        status: 'PENDING',
         createdAt: '2026-04-25T10:00:00',
       },
     });
-    cy.intercept('GET', '**/api/interbank/payments/tx-s66', (req) => {
+    cy.intercept('GET', '**/api/payments/4', (req) => {
       statusCall += 1;
       req.reply({
         statusCode: 200,
         body: {
           id: 4,
-          transactionId: 'tx-s66',
-          status: statusCall < 2 ? 'PREPARING' : 'COMMITTED',
-          senderAccountNumber: '222000100000000110',
-          receiverAccountNumber: '111000000000000004',
+          fromAccount: '222000100000000110',
+          toAccount: '111000000000000004',
           amount: 5000,
           currency: 'RSD',
+          status: statusCall < 2 ? 'PROCESSING' : 'COMPLETED',
           createdAt: '2026-04-25T10:00:00',
         },
       });
@@ -1616,61 +1609,74 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
     cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
     cy.wait('@myAccounts');
     cy.wait('@recipients');
+    cy.clock();
+
     fillMandatoryPaymentFields('111000000000000004');
-    cy.wait('@statusPoll');
-    cy.wait('@statusPoll');
+
+    cy.tick(3000);
+    cy.wait('@statusPoll', { timeout: 10000 });
+    cy.tick(3000);
+    cy.wait('@statusPoll', { timeout: 10000 });
+
     cy.wrap(null).then(() => {
       expect(statusCall).to.be.greaterThan(1);
     });
   });
 
   it('S67: ABORTED - prikazuje failureReason', () => {
-    cy.intercept('POST', '**/api/interbank/payments/initiate', {
+    cy.intercept('POST', '**/api/payments', {
       statusCode: 200,
       body: {
         id: 5,
-        transactionId: 'tx-s67',
-        status: 'INITIATED',
-        senderAccountNumber: '222000100000000110',
-        receiverAccountNumber: '111000000000000005',
+        fromAccount: '222000100000000110',
+        toAccount: '111000000000000005',
         amount: 5000,
         currency: 'RSD',
+        status: 'PENDING',
         createdAt: '2026-04-25T10:00:00',
       },
     });
-    cy.intercept('GET', '**/api/interbank/payments/tx-s67', {
+    cy.intercept('GET', '**/api/payments/5', {
       statusCode: 200,
       body: {
         id: 5,
-        transactionId: 'tx-s67',
-        status: 'ABORTED',
-        senderAccountNumber: '222000100000000110',
-        receiverAccountNumber: '111000000000000005',
+        fromAccount: '222000100000000110',
+        toAccount: '111000000000000005',
         amount: 5000,
         currency: 'RSD',
+        status: 'REJECTED',
         createdAt: '2026-04-25T10:00:00',
-        failureReason: 'Nedovoljno sredstava u drugoj banci',
       },
-    });
+    }).as('statusPoll');
 
     cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
     cy.wait('@myAccounts');
     cy.wait('@recipients');
+    cy.clock();
+
     fillMandatoryPaymentFields('111000000000000005');
+
+    cy.tick(3000);
+    cy.wait('@statusPoll', { timeout: 10000 });
+
     cy.contains('ABORTED').should('be.visible');
-    cy.contains('Nedovoljno sredstava u drugoj banci').should('be.visible');
+    cy.contains('Payment rejected.').should('be.visible');
   });
 
   it('S68: Intra-bank (222...) ide standard flow, ne interbank', () => {
-    cy.intercept('POST', '**/api/interbank/payments/initiate', { statusCode: 200, body: {} }).as('interbankInit');
+    cy.intercept('GET', /\/api\/payments\/\d+$/).as('paymentStatus');
     cy.intercept('POST', '**/api/payments', { statusCode: 200, body: {} }).as('intraPayment');
 
     cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
     cy.wait('@myAccounts');
     cy.wait('@recipients');
+    cy.clock();
+
     fillMandatoryPaymentFields('222000000000000001');
     cy.wait('@intraPayment');
-    cy.get('@interbankInit.all').should('have.length', 0);
+
+    cy.tick(15000);
+    cy.get('@paymentStatus.all').should('have.length', 0);
   });
 });
 
@@ -1679,10 +1685,69 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
 //  FEATURE 13: HomePage C4 tile-ovi (Issue #79 / sssmarta)
 // ============================================================
 describe('Mock C4: HomePage Dashboard Tiles', () => {
-  it.skip('TODO S69: Supervisor vidi "Profit Banke" i "Investicioni fondovi" tile-ove', () => {});
-  it.skip('TODO S70: Klijent vidi samo "Investicioni fondovi"', () => {});
-  it.skip('TODO S71: Agent vidi "Investicioni fondovi"', () => {});
-  it.skip('TODO S72: Klik na tile navigira na pravu rutu', () => {});
+  const mockHomeData = () => {
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] }).as('myAccounts');
+    cy.intercept('GET', '**/api/payment-recipients', { statusCode: 200, body: [] }).as('recipients');
+    cy.intercept('GET', '**/api/exchange-rates', { statusCode: 200, body: [] }).as('rates');
+    cy.intercept('GET', '**/api/payments*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    }).as('payments');
+    cy.intercept('GET', '**/api/portfolio/summary', {
+      statusCode: 200,
+      body: { totalValue: 0, totalProfit: 0, paidTaxThisYear: 0, unpaidTaxThisMonth: 0 },
+    }).as('portfolioSummary');
+    cy.intercept('GET', '**/api/orders/my*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    }).as('myOrders');
+    cy.intercept('GET', '**/api/employees*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    }).as('employees');
+    cy.intercept('GET', '**/api/loans*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    }).as('loans');
+  };
+
+  it('S69: Supervisor vidi "Profit Banke" i "Investicioni fondovi" tile-ove', () => {
+    mockHomeData();
+    cy.visit('/home', { onBeforeLoad: setupSupervisorSession });
+    cy.get('main').contains('Profit Banke').should('be.visible');
+    cy.get('main').contains('Investicioni fondovi').should('be.visible');
+  });
+
+  it('S70: Klijent vidi samo "Investicioni fondovi"', () => {
+    mockHomeData();
+    cy.visit('/home', { onBeforeLoad: setupClientSession });
+    cy.get('main').contains('Investicioni fondovi').should('be.visible');
+    cy.get('main').should('not.contain', 'Profit Banke');
+  });
+
+  it('S71: Agent vidi "Investicioni fondovi"', () => {
+    mockHomeData();
+    cy.visit('/home', { onBeforeLoad: setupAgentSession });
+    cy.get('main').contains('Investicioni fondovi').should('be.visible');
+    cy.get('main').should('not.contain', 'Profit Banke');
+  });
+
+  it('S72: Klik na tile navigira na pravu rutu', () => {
+    mockHomeData();
+    cy.intercept('GET', '/api/funds*', { statusCode: 200, body: [] }).as('funds');
+    cy.visit('/home', { onBeforeLoad: setupSupervisorSession });
+    cy.get('main').contains('Investicioni fondovi').click();
+    cy.url().should('include', '/funds');
+    cy.wait('@funds');
+
+    cy.intercept('GET', '/api/profit-bank/actuary-performance', { statusCode: 200, body: [] }).as('actuaries');
+    cy.intercept('GET', '/api/profit-bank/fund-positions', { statusCode: 200, body: [] }).as('bankFunds');
+    cy.visit('/home', { onBeforeLoad: setupSupervisorSession });
+    cy.get('main').contains('Profit Banke').click();
+    cy.url().should('include', '/employee/profit-bank');
+    cy.wait('@actuaries');
+    cy.wait('@bankFunds');
+  });
 });
 
 
@@ -1690,10 +1755,55 @@ describe('Mock C4: HomePage Dashboard Tiles', () => {
 //  FEATURE 14: Sidebar linkovi (Issue #79 / sssmarta)
 // ============================================================
 describe('Mock C4: Sidebar C4 Links', () => {
-  it.skip('TODO S73: "Investicioni fondovi" link pod Berza sekcijom', () => {});
-  it.skip('TODO S74: "Profit Banke" link samo za supervizora', () => {});
-  it.skip('TODO S75: Klijent NE vidi "Profit Banke"', () => {});
-  it.skip('TODO S76: Agent NE vidi "Profit Banke"', () => {});
+  const mockHomeData = () => {
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/payment-recipients', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/exchange-rates', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/payments*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    });
+    cy.intercept('GET', '**/api/portfolio/summary', {
+      statusCode: 200,
+      body: { totalValue: 0, totalProfit: 0, paidTaxThisYear: 0, unpaidTaxThisMonth: 0 },
+    });
+    cy.intercept('GET', '**/api/orders/my*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    });
+    cy.intercept('GET', '**/api/employees*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    });
+    cy.intercept('GET', '**/api/loans*', {
+      statusCode: 200,
+      body: { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0 },
+    });
+  };
+
+  it('S73: "Investicioni fondovi" link pod Berza sekcijom', () => {
+    mockHomeData();
+    cy.visit('/home', { onBeforeLoad: setupClientSession });
+    cy.get('nav').contains('Investicioni fondovi').should('be.visible');
+  });
+
+  it('S74: "Profit Banke" link samo za supervizora', () => {
+    mockHomeData();
+    cy.visit('/home', { onBeforeLoad: setupSupervisorSession });
+    cy.get('nav').contains('Profit Banke').should('be.visible');
+  });
+
+  it('S75: Klijent NE vidi "Profit Banke"', () => {
+    mockHomeData();
+    cy.visit('/home', { onBeforeLoad: setupClientSession });
+    cy.get('nav').should('not.contain', 'Profit Banke');
+  });
+
+  it('S76: Agent NE vidi "Profit Banke"', () => {
+    mockHomeData();
+    cy.visit('/home', { onBeforeLoad: setupAgentSession });
+    cy.get('nav').should('not.contain', 'Profit Banke');
+  });
 });
 
 /*

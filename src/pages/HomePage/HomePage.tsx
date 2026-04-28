@@ -101,7 +101,7 @@ interface AdminCard {
   gradient: string;
 }
 
-function getQuickCards(isAdmin: boolean, isSupervisor: boolean): AdminCard[] {
+function getQuickCards(isAdmin: boolean, isSupervisor: boolean, isAgent: boolean): AdminCard[] {
   const cards: AdminCard[] = [];
 
   if (isAdmin) {
@@ -120,6 +120,14 @@ function getQuickCards(isAdmin: boolean, isSupervisor: boolean): AdminCard[] {
     cards.push(
       { title: 'Orderi', description: 'Pregled i odobravanje', path: '/employee/orders', icon: <ShieldCheck className="h-5 w-5" />, gradient: 'from-rose-500 to-pink-600' },
       { title: 'Aktuari', description: 'Upravljanje limitima', path: '/employee/actuaries', icon: <TrendingUp className="h-5 w-5" />, gradient: 'from-purple-500 to-violet-600' },
+      { title: 'Profit Banke', description: 'Pregled profita', path: '/employee/profit-bank', icon: <Landmark className="h-5 w-5" />, gradient: 'from-indigo-500 to-violet-600' },
+      { title: 'Investicioni fondovi', description: 'Fondovi i ulaganja', path: '/funds', icon: <PiggyBank className="h-5 w-5" />, gradient: 'from-emerald-500 to-teal-600' },
+    );
+  }
+
+  if (isAgent && !isSupervisor && !isAdmin) {
+    cards.push(
+      { title: 'Investicioni fondovi', description: 'Pregled i ulaganja', path: '/funds', icon: <PiggyBank className="h-5 w-5" />, gradient: 'from-emerald-500 to-teal-600' },
     );
   }
 
@@ -555,6 +563,7 @@ export default function HomePage() {
             { label: 'Menjacnica', sub: 'Konverzija valuta', icon: <Banknote className="h-6 w-6" />, path: '/exchange', color: 'from-emerald-500 to-green-500' },
             { label: 'Kartice', sub: 'Upravljanje', icon: <CreditCard className="h-6 w-6" />, path: '/cards', color: 'from-amber-500 to-orange-500' },
             { label: 'Krediti', sub: 'Apliciranje', icon: <PiggyBank className="h-6 w-6" />, path: '/loans', color: 'from-rose-500 to-pink-500' },
+            { label: 'Investicioni fondovi', sub: 'Fondovi i ulaganja', icon: <Landmark className="h-6 w-6" />, path: '/funds', color: 'from-emerald-500 to-teal-500' },
             { label: 'Primaoci', sub: 'Sacuvani kontakti', icon: <BookUser className="h-6 w-6" />, path: '/payments/recipients', color: 'from-purple-500 to-violet-500' },
             { label: 'Istorija', sub: 'Sve transakcije', icon: <Clock className="h-6 w-6" />, path: '/payments/history', color: 'from-slate-500 to-gray-600' },
             { label: 'Racuni', sub: 'Pregled stanja', icon: <Wallet className="h-6 w-6" />, path: '/accounts', color: 'from-teal-500 to-cyan-600' },
@@ -931,7 +940,7 @@ export default function HomePage() {
             Brze akcije
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            {getQuickCards(isAdmin, isSupervisor).map(card => (
+            {getQuickCards(isAdmin, isSupervisor, isAgent).map(card => (
               <Card
                 key={card.path}
                 className="group cursor-pointer rounded-2xl transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-1 border-0 bg-muted/20 hover:bg-background"

@@ -47,7 +47,7 @@ const statusBadgeVariant = (status: string): 'success' | 'secondary' | 'destruct
 type Tab = 'offers-local' | 'contracts-local' | 'offers-remote' | 'contracts-remote';
 
 export default function OtcOffersAndContractsPage() {
-  const { isAdmin, isAgent, isSupervisor } = useAuth();
+  const { user, isAdmin, isAgent, isSupervisor } = useAuth();
   const isEmployee = isAdmin || isAgent || isSupervisor;
   const [tab, setTab] = useState<Tab>('offers-local');
 
@@ -61,6 +61,8 @@ export default function OtcOffersAndContractsPage() {
   const [busyContractId, setBusyContractId] = useState<number | null>(null);
   const [counterFormByOfferId, setCounterFormByOfferId] = useState<Record<number, CounterOtcOfferRequest>>({});
   const [openedOfferId, setOpenedOfferId] = useState<number | null>(null);
+
+  const [previousEntranceTs, setPreviousEntranceTs] = useState(0);
 
   const reloadOffers = async () => {
     setLoadingOffers(true);
@@ -87,6 +89,18 @@ export default function OtcOffersAndContractsPage() {
       setLoadingContracts(false);
     }
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem('otc:lastEntrance');
+      const prev = raw ? Number(raw) : 0;
+      setPreviousEntranceTs(Number.isFinite(prev) ? prev : 0);
+      window.localStorage.setItem('otc:lastEntrance', String(Date.now()));
+    } catch {
+      setPreviousEntranceTs(0);
+    }
+  }, []);
 
   useEffect(() => {
     reloadOffers();
@@ -215,6 +229,17 @@ export default function OtcOffersAndContractsPage() {
     [offers],
   );
 
+  const unreadOffersCount = useMemo(() => {
+    const userId = user?.id;
+    if (loadingOffers || !userId) return 0;
+
+    return activeOffers.filter((offer) => {
+      if (offer.lastModifiedById === userId) return false;
+      const ts = Date.parse(offer.lastModifiedAt);
+      return Number.isFinite(ts) && ts > previousEntranceTs;
+    }).length;
+  }, [activeOffers, loadingOffers, previousEntranceTs, user?.id]);
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center gap-3">
@@ -240,7 +265,10 @@ export default function OtcOffersAndContractsPage() {
       */}
       <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
         <TabsList>
-          <TabsTrigger value="offers-local">
+          <TabsTrigger
+            value="offers-local"
+            title={unreadOffersCount > 0 ? `${unreadOffersCount} neprocitanih pregovora` : undefined}
+          >
             Aktivne ponude (intra-bank)
             {activeOffers.length > 0 && (
               <Badge variant="secondary" className="ml-2">

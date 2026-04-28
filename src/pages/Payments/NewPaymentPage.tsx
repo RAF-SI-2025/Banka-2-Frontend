@@ -18,7 +18,7 @@ import { paymentRecipientService } from '@/services/paymentRecipientService';
 import { transactionService } from '@/services/transactionService';
 import interbankPaymentService from '@/services/interbankPaymentService';
 import type { Account, PaymentRecipient } from '@/types/celina2';
-import type { InterbankPayment, InterbankPaymentStatus } from '@/types/celina4';
+import type { InterbankPayment, InterbankPaymentInitiateRequest, InterbankPaymentStatus } from '@/types/celina4';
 import { newPaymentSchema, type NewPaymentFormData } from '@/utils/validationSchemas.celina2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -607,6 +607,17 @@ export default function NewPaymentPage() {
                 currency: fromAccountCurrency || 'RSD',
                 description: formData.paymentPurpose || undefined,
                 otpCode,
+                paymentCode: formData.paymentCode,
+                paymentPurpose: formData.paymentPurpose || undefined,
+                model: formData.model || undefined,
+                callNumber: formData.callNumber || undefined,
+                referenceNumber: formData.referenceNumber || undefined,
+              } as InterbankPaymentInitiateRequest & {
+                paymentCode?: string;
+                paymentPurpose?: string;
+                model?: string;
+                callNumber?: string;
+                referenceNumber?: string;
               });
               setInterbankTracking(initiated);
               toast.info('Inter-bank transakcija u obradi...');

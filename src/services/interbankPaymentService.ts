@@ -3,61 +3,153 @@ import type { InterbankPayment, InterbankPaymentInitiateRequest } from '@/types/
 
 /*
 ================================================================================
- INTER-BANK PLACANJA — FE SERVICE WRAPPER (PROTOKOL §2)
- Spec ref: Info o predmetu/A protocol for bank-to-bank asset exchange.htm,
-           §2 Transaction execution protocol
+ INTER-BANK PLACANJA — FE SERVICE WRAPPER (TEMP)
 --------------------------------------------------------------------------------
- ARHITEKTURA (POSLE PROTOKOL REFAKTORA, BE):
-  Klijent (FE) NIKAD ne komunicira direktno sa drugom bankom — uvek ide
-  preko nase BE. BE strana (TransactionExecutorService) odlucuje da li je
-  receiver lokalni (intra-bank, postojeci flow) ili remote (inter-bank,
-  protokol §2.8.5 Remote transaction execution).
+ Trenutni BE (swagger) nema posebne interbank endpoint-e (nema /interbank-tx).
+ Sve ide kroz standardne payment rute:
 
- NAPOMENA O ENDPOINT-IMA:
-  Stari TODO endpoint-i (`/interbank/payments/initiate`) su uklonjeni iz
-  BE-a jer protokol rezervise URL prefix `/interbank` strogo za poruke
-  IZMEDJU banaka (POST /interbank, GET /negotiations/*, ...).
-  Klijentski (FE -> BE) pozivi treba da idu na druge URL-ove:
+  - POST /api/payments          -> PaymentResponseDto (status: PENDING/PROCESSING/...)
+  - GET  /api/payments/{id}     -> PaymentResponseDto (za polling statusa)
+  - GET  /api/payments?page&size -> Page<PaymentListItemDto> (istorija/lista)
 
-   POST /api/payments              — vec postoji (paymentService.create);
-                                     BE detektuje inter-bank receiver po
-                                     prefiksu broja racuna (BankRoutingService)
-                                     i prosledjuje u TransactionExecutorService
-   GET  /api/payments/my           — istorija (postoji)
-   GET  /api/interbank-tx/{id}     — TODO: novi endpoint za poll status
-                                     distribuirane transakcije po protokolu
-                                     (mapira na InterbankTransaction.status)
-
- STATUS:
-  Ovaj servis se moze obrisati — NewPaymentPage treba da koristi obicni
-  paymentService.create i samo poll-uje /api/interbank-tx/{id} ako BE vraca
-  202 Accepted ili tx.status != COMMITTED. Zadrzano je za sada da bi FE
-  testovi i dalje prolazili dok BE ne implementira novi flow.
-
- TODO (FE tim):
-  1. Obrisi ovaj fajl
-  2. Migriraj NewPaymentPage na paymentService.create + interbank poll
-  3. Obrisi InterbankPayment / InterbankPaymentInitiateRequest tipove iz
-     types/celina4.ts (zameni sa standardnim Payment tipom)
+ Ovaj servis i dalje izlaže "InterbankPayment" tip (celina4) da NewPaymentPage
+ zadrži overlay/poll UX, ali se podaci mapiraju iz standardnih payment DTO-a.
 ================================================================================
 */
+
+type PaymentStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
+
+type PaymentResponseDto = {
+  id: number;
+  fromAccount: string;
+  toAccount: string;
+  amount: number;
+  fee?: number;
+  currency: string;
+  recipientName?: string;
+  description?: string;
+  status: PaymentStatus;
+  createdAt: string;
+};
+
+type PaymentListItemDto = {
+  id: number;
+  fromAccount: string;
+  toAccount: string;
+  amount: number;
+  fee?: number;
+  currency: string;
+  description?: string;
+  recipientName?: string;
+  status: PaymentStatus;
+  createdAt: string;
+};
+
+type PageDto<T> = {
+  content: T[];
+};
+
+function mapPaymentStatus(status: PaymentStatus): { status: InterbankPayment['status']; failureReason?: string } {
+  switch (status) {
+    case 'PENDING':
+      return { status: 'INITIATED' };
+    case 'PROCESSING':
+      return { status: 'COMMITTING' };
+    case 'COMPLETED':
+      return { status: 'COMMITTED' };
+    case 'REJECTED':
+      return { status: 'ABORTED', failureReason: 'Payment rejected.' };
+    case 'CANCELLED':
+      return { status: 'ABORTED', failureReason: 'Payment cancelled.' };
+    default:
+      return { status: 'STUCK', failureReason: `Unknown payment status: ${status}` };
+  }
+}
+
+function mapPaymentToInterbank(payment: PaymentResponseDto): InterbankPayment {
+  const mapped = mapPaymentStatus(payment.status);
+  return {
+    id: payment.id,
+    transactionId: String(payment.id),
+    status: mapped.status,
+    senderAccountNumber: payment.fromAccount,
+    receiverAccountNumber: payment.toAccount,
+    amount: payment.amount,
+    currency: payment.currency,
+    exchangeRate: null,
+    convertedAmount: null,
+    convertedCurrency: null,
+    commissionAmount: payment.fee ?? null,
+    createdAt: payment.createdAt,
+    preparedAt: null,
+    committedAt: null,
+    abortedAt: null,
+    failureReason: mapped.failureReason ?? null,
+  };
+}
+
+function mapPaymentListItemToInterbank(item: PaymentListItemDto): InterbankPayment {
+  const mapped = mapPaymentStatus(item.status);
+  return {
+    id: item.id,
+    transactionId: String(item.id),
+    status: mapped.status,
+    senderAccountNumber: item.fromAccount,
+    receiverAccountNumber: item.toAccount,
+    amount: item.amount,
+    currency: item.currency,
+    exchangeRate: null,
+    convertedAmount: null,
+    convertedCurrency: null,
+    commissionAmount: item.fee ?? null,
+    createdAt: item.createdAt,
+    preparedAt: null,
+    committedAt: null,
+    abortedAt: null,
+    failureReason: mapped.failureReason ?? null,
+  };
+}
+
 const interbankPaymentService = {
   async initiatePayment(dto: InterbankPaymentInitiateRequest): Promise<InterbankPayment> {
-    // TODO: zameni sa paymentService.create(...) — BE detektuje inter-bank po prefiksu
-    const response = await api.post<InterbankPayment>('/interbank/payments/initiate', dto);
-    return response.data;
+    const extendedDto = dto as InterbankPaymentInitiateRequest & {
+      paymentCode?: string;
+      paymentPurpose?: string;
+      referenceNumber?: string;
+    };
+
+    const payload = {
+      fromAccount: dto.senderAccountNumber,
+      toAccount: dto.receiverAccountNumber,
+      amount: dto.amount,
+      paymentCode: extendedDto.paymentCode ?? '289',
+      referenceNumber: extendedDto.referenceNumber || undefined,
+      description: extendedDto.paymentPurpose ?? dto.description ?? 'Inter-bank payment',
+      recipientName: dto.receiverName,
+      otpCode: dto.otpCode || '',
+    };
+
+    const response = await api.post<PaymentResponseDto>('/payments', payload);
+    return mapPaymentToInterbank(response.data);
   },
 
   async getStatus(transactionId: string): Promise<InterbankPayment> {
-    // TODO: zameni sa /api/interbank-tx/{transactionId}
-    const response = await api.get<InterbankPayment>(`/interbank/payments/${transactionId}`);
-    return response.data;
+    const paymentId = Number(transactionId);
+    if (!Number.isFinite(paymentId)) {
+      throw new Error(`Invalid payment id: ${transactionId}`);
+    }
+
+    const response = await api.get<PaymentResponseDto>(`/payments/${paymentId}`);
+    return mapPaymentToInterbank(response.data);
   },
 
   async myHistory(): Promise<InterbankPayment[]> {
-    // TODO: zameni sa paymentService.myHistory() filtriran po remote-flag-u
-    const response = await api.get<InterbankPayment[]>('/interbank/payments/my');
-    return response.data;
+    const params = new URLSearchParams();
+    params.append('page', '0');
+    params.append('size', '50');
+
+    const response = await api.get<PageDto<PaymentListItemDto>>('/payments', { params });
+    return response.data.content.map(mapPaymentListItemToInterbank);
   },
 };
 
