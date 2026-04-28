@@ -1,8 +1,9 @@
-import { Fragment, useCallback, useEffect, useState } from 'react';
-import { RefreshCw, TrendingUp } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Info, RefreshCw, TrendingUp } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import interbankOtcService from '@/services/interbankOtcService';
 import type { CreateOtcInterbankOfferRequest, OtcInterbankListing } from '@/types/celina4';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -35,23 +36,24 @@ const getListingKey = (listing: OtcInterbankListing) =>
   `${listing.bankCode}:${listing.sellerPublicId}:${listing.listingTicker}`;
 
 /*
-  P8 — TODO ROLE FILTER (Spec Celina 5 (Nova) §840-848):
+  ROLE FILTER (Spec Celina 5 (Nova) §840-848):
   "Klijenti vide ponude Klijenata, Aktuari vide ponude Aktuara."
 
-  Trenutno: FE prikazuje sve ponude koje BE vrati. Posto profesorov protokol
-  HTML §3.1 (`GET /public-stock`) ne nudi role discovery (`PublicStock.sellers`
-  ima samo `ForeignBankId` koji je opaque), filter se moze uraditi tek na
-  jedan od ova 4 nacina (vidi InterbankClient.fetchPublicStocks TODO blok):
-    a) BE filter sa /user/{rn}/{id} po-seller (sporo, N+1)
-    b) FE filter ako partner banka u extension polju vrati seller userRole
-    c) Konvencija ID prefiksa (npr. "C-" / "E-")
-    d) Postaviti pri acceptOffer-u: server vraca 400 ako role-mismatch
-
-  PRIVREMENO: prikazujemo sve. Kupac koji pokusa cross-role accept ce dobiti
-  IllegalArgumentException 400 iz `OtcService.ensureSameRoleParticipants` — vec
-  pokriveno kroz P2.
+  Strategija (resolved per Issue #95):
+  - Defensive FE filter po opcionom `OtcInterbankListing.sellerRole` polju
+    koje partner banke mogu da vrate kao extension u `GET /public-stock`.
+  - Ako polje POSTOJI: izbacujemo cross-role listinge (klijent ne vidi
+    EMPLOYEE, zaposleni ne vidi CLIENT).
+  - Ako polje NE postoji: prikazujemo listing (defensive fallback) i oslanjamo
+    se na BE acceptOffer guard (`OtcService.ensureSameRoleParticipants`) koji
+    vraca 400 za cross-role pokusaje. UI ima info badge koji upozorava korisnika
+    da ce server odbiti kupovinu ako je rola pogresna.
+  - UI takodje pokazuje koliko je listinga sakriveno filterom.
 */
 export default function OtcInterBankDiscoveryTab() {
+  const { isAdmin, isAgent, isSupervisor } = useAuth();
+  const myRole: 'CLIENT' | 'EMPLOYEE' = isAdmin || isAgent || isSupervisor ? 'EMPLOYEE' : 'CLIENT';
+
   const [listings, setListings] = useState<OtcInterbankListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,6 +65,16 @@ export default function OtcInterBankDiscoveryTab() {
     premium: '',
     settlementDate: addDaysISO(7),
   });
+
+  const visibleListings = useMemo(
+    () => listings.filter((l) => !l.sellerRole || l.sellerRole === myRole),
+    [listings, myRole],
+  );
+  const hiddenByRoleCount = listings.length - visibleListings.length;
+  const unknownRoleCount = useMemo(
+    () => visibleListings.filter((l) => !l.sellerRole).length,
+    [visibleListings],
+  );
 
   const refresh = useCallback(async (mode: 'initial' | 'manual' | 'post-submit' = 'initial') => {
     if (mode === 'initial') {
@@ -155,7 +167,19 @@ export default function OtcInterBankDiscoveryTab() {
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <CardTitle className="flex items-center gap-2">
           <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
-          Javno dostupne akcije iz drugih banaka ({listings.length})
+          Javno dostupne akcije iz drugih banaka ({visibleListings.length})
+          <Badge
+            variant="outline"
+            className="ml-2 font-normal"
+            data-testid="role-filter-badge"
+            title={
+              myRole === 'CLIENT'
+                ? 'Vidis samo ponude koje su postavili klijenti drugih banaka.'
+                : 'Vidis samo ponude koje su postavili aktuari drugih banaka.'
+            }
+          >
+            {myRole === 'CLIENT' ? 'Klijenti' : 'Aktuari'}
+          </Badge>
         </CardTitle>
         <Button
           type="button"
@@ -169,20 +193,48 @@ export default function OtcInterBankDiscoveryTab() {
         </Button>
       </CardHeader>
       <CardContent>
+        {!loading && (hiddenByRoleCount > 0 || unknownRoleCount > 0) && (
+          <div
+            className="mb-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
+            data-testid="role-filter-hint"
+          >
+            <Info className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="space-y-0.5">
+              {hiddenByRoleCount > 0 && (
+                <p>
+                  <span data-testid="hidden-by-role-count">{hiddenByRoleCount}</span>{' '}
+                  {hiddenByRoleCount === 1 ? 'ponuda je sakrivena' : 'ponuda je sakriveno'}{' '}
+                  jer{' '}
+                  {hiddenByRoleCount === 1 ? 'odgovara' : 'odgovaraju'}{' '}
+                  drugoj roli korisnika.
+                </p>
+              )}
+              {unknownRoleCount > 0 && (
+                <p>
+                  Za <span data-testid="unknown-role-count">{unknownRoleCount}</span>{' '}
+                  {unknownRoleCount === 1 ? 'ponudu' : 'ponuda'} partner banka nije vratila
+                  rolu prodavca; pokusaj kupovine ce biti odbijen ako rola ne odgovara.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
         {loading ? (
           <div className="space-y-2">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="h-14 animate-pulse rounded bg-muted/50" />
             ))}
           </div>
-        ) : listings.length === 0 ? (
+        ) : visibleListings.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
               <TrendingUp className="h-6 w-6 text-muted-foreground" />
             </div>
             <p className="font-medium">Nema dostupnih inter-bank OTC ponuda</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Trenutno nema javnih listinga iz partnerskih banaka za vas profil trgovanja.
+              {hiddenByRoleCount > 0
+                ? `Sve ${hiddenByRoleCount} dostupnih ponuda odgovara drugoj roli korisnika.`
+                : 'Trenutno nema javnih listinga iz partnerskih banaka za vas profil trgovanja.'}
             </p>
           </div>
         ) : (
@@ -198,7 +250,7 @@ export default function OtcInterBankDiscoveryTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {listings.map((listing) => {
+              {visibleListings.map((listing) => {
                 const listingKey = getListingKey(listing);
                 const isOpen = openedListingKey === listingKey;
 

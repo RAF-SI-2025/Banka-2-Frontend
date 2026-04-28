@@ -124,6 +124,15 @@ export interface OtcInterbankListing {
   listingCurrency: string;
   currentPrice: number;
   availableQuantity: number;
+  /**
+   * Spec Celina 5 (Nova) §840-848: "Klijenti vide ponude Klijenata, Aktuari
+   * vide ponude Aktuara." Polje je opciono jer profesorov bank-to-bank protokol
+   * §3.1 (`GET /public-stock`) ne nudi role discovery — partner banke koje
+   * dodaju ovo polje kao extension nas FE moze precizno filtrirati. Ako polje
+   * nije prisutno, FE prikazuje listing (defensive fallback) i oslanja se na
+   * BE acceptOffer guard koji vraca 400 za cross-role pokusaje.
+   */
+  sellerRole?: 'CLIENT' | 'EMPLOYEE';
 }
 
 export type OtcInterbankOfferStatus = 'ACTIVE' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
