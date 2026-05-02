@@ -33,7 +33,7 @@ import listingService from '@/services/listingService';
 import marginService, { type MarginAccount } from '@/services/marginService';
 import orderService from '@/services/orderService';
 import { Permission } from '@/types';
-import type { Account } from '@/types/celina2';
+import { Currency, type Account } from '@/types/celina2';
 import { ListingType, OrderDirection, OrderType, type CreateOrderRequest, type Listing } from '@/types/celina3';
 import type { InvestmentFundDetail } from '@/types/celina4';
 import { asArray, formatAmount, getErrorMessage } from '@/utils/formatters';
@@ -187,12 +187,16 @@ import { getOrderCommission as getCommission } from '@/utils/orderCalculations';
  */
 const FX_MARGIN = 0.01;
 
-function getDefaultCurrencyForListing(listing: Listing | null): string {
-  if (!listing) return 'USD';
+function isKnownCurrency(value: string | undefined | null): value is Currency {
+  return value != null && (Object.values(Currency) as string[]).includes(value);
+}
+
+function getDefaultCurrencyForListing(listing: Listing | null): Currency {
+  if (!listing) return Currency.USD;
 
   const acronym = listing.exchangeAcronym.toUpperCase();
 
-  if (listing.quoteCurrency) return listing.quoteCurrency;
+  if (isKnownCurrency(listing.quoteCurrency)) return listing.quoteCurrency;
 
   if (
     acronym.includes('NASDAQ') ||
@@ -201,17 +205,17 @@ function getDefaultCurrencyForListing(listing: Listing | null): string {
     acronym.includes('ARCA') ||
     acronym.includes('CME')
   ) {
-    return 'USD';
+    return Currency.USD;
   }
 
-  if (acronym.includes('LSE')) return 'GBP';
-  if (acronym.includes('XETRA') || acronym.includes('EUREX')) return 'EUR';
-  if (acronym.includes('BELEX')) return 'RSD';
+  if (acronym.includes('LSE')) return Currency.GBP;
+  if (acronym.includes('XETRA') || acronym.includes('EUREX')) return Currency.EUR;
+  if (acronym.includes('BELEX')) return Currency.RSD;
 
-  return 'USD';
+  return Currency.USD;
 }
 
-function getPricingCurrency(listing: Listing | null): string {
+function getPricingCurrency(listing: Listing | null): Currency {
   return getDefaultCurrencyForListing(listing);
 }
 
