@@ -81,10 +81,57 @@ export default defineConfig({
     css: true,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'lcov'],
-      include: ['src/utils/**', 'src/lib/**', 'src/services/**', 'src/pages/**'],
+      reporter: ['text', 'lcov', 'json-summary'],
+      // Coverage scope = sav app source koji ima i logiku i smisao da se
+      // testira. Iskljucujemo:
+      //   - assistant/* — Arbitro (Celina 6 internal, NIJE Celina 1-5 KT3 cilj)
+      //   - GlobeView/three-globe — lazy-loaded WebGL canvas, JSDOM ne moze
+      //   - main.tsx + index.tsx + vite-env — bootstrap, samo deklarativno
+      //   - *.test.* + test/ + types/ + setupTest fajlovi
+      include: [
+        'src/utils/**',
+        'src/lib/**',
+        'src/services/**',
+        'src/pages/**',
+        'src/hooks/**',
+        'src/context/**',
+        'src/components/**',
+      ],
+      exclude: [
+        // Arbitro AI asistent (Celina 6 internal, NIJE Celina 1-5 KT3 cilj)
+        'src/components/assistant/**',
+        'src/services/assistantService.ts',
+        'src/context/ArbitroContext.tsx',
+        'src/context/useArbitro.ts',
+        'src/hooks/useArbitro*',
+        'src/hooks/useSpeechRecognition.ts',
+        // GlobeView i three.js — lazy-loaded WebGL canvas, JSDOM ne render-uje
+        'src/components/GlobeView*',
+        'src/pages/Exchanges/GlobeView*',
+        '**/GlobeView*',
+        // Bootstrap fajlovi
+        'src/main.tsx',
+        'src/vite-env.d.ts',
+        // Test infrastruktura
+        'src/test/**',
+        '**/*.test.*',
+        '**/types/**',
+        '**/__mocks__/**',
+      ],
       thresholds: {
-        statements: 80,
+        // KT3 zahtev za FE: 80% statements minimalno. Trenutna realnost (nakon
+        // Arbitro/GlobeView/UI-wrapper exclude-ova): statements 88.7%, lines 88.7%,
+        // branches 74.7%, functions 69.9%. Funkcije su nize jer shadcn/ui wrapper
+        // komponente (forwardRef export-i koji se koriste kroz JSX) JaCoCo broji
+        // kao function bez covered. Threshold-ove postavljamo iznad KT3 minimum-a
+        // ali ispod trenutnog stanja sa zaglavljem za rast — svaki PR moze samo
+        // da podigne (ne da spusti) coverage. Cilj sledecih sprintova: functions
+        // ka 75%+ kroz testove za OtcOffersAndContractsPage / OtcTrgovinaPage /
+        // ProfitBankPage / SecuritiesListPage.
+        statements: 85,
+        branches: 70,
+        functions: 65,
+        lines: 85,
       },
     },
   },

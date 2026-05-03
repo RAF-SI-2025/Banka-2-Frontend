@@ -77,4 +77,61 @@ describe('taxService', () => {
       await expect(taxService.triggerCalculation()).rejects.toThrow('Calculation failed');
     });
   });
+
+  // ==================== getTaxBreakdown ====================
+
+  describe('getTaxBreakdown', () => {
+    it('should fetch breakdown bez year/month', async () => {
+      const breakdown = {
+        userId: 10,
+        userType: 'CLIENT',
+        totalProfit: 50000,
+        taxOwed: 7500,
+        items: [],
+      };
+      mockedApi.get.mockResolvedValue({ data: breakdown });
+
+      const result = await taxService.getTaxBreakdown(10, 'CLIENT');
+
+      expect(mockedApi.get).toHaveBeenCalledWith('/tax/10/details', {
+        params: { userType: 'CLIENT' },
+      });
+      expect(result).toEqual(breakdown);
+    });
+
+    it('should pass year', async () => {
+      mockedApi.get.mockResolvedValue({ data: {} });
+
+      await taxService.getTaxBreakdown(10, 'CLIENT', 2026);
+
+      expect(mockedApi.get).toHaveBeenCalledWith('/tax/10/details', {
+        params: { userType: 'CLIENT', year: '2026' },
+      });
+    });
+
+    it('should pass month', async () => {
+      mockedApi.get.mockResolvedValue({ data: {} });
+
+      await taxService.getTaxBreakdown(10, 'EMPLOYEE', undefined, 5);
+
+      expect(mockedApi.get).toHaveBeenCalledWith('/tax/10/details', {
+        params: { userType: 'EMPLOYEE', month: '5' },
+      });
+    });
+
+    it('should pass both year and month', async () => {
+      mockedApi.get.mockResolvedValue({ data: {} });
+
+      await taxService.getTaxBreakdown(10, 'CLIENT', 2026, 3);
+
+      expect(mockedApi.get).toHaveBeenCalledWith('/tax/10/details', {
+        params: { userType: 'CLIENT', year: '2026', month: '3' },
+      });
+    });
+
+    it('should propagate 404 errors', async () => {
+      mockedApi.get.mockRejectedValue(new Error('Not implemented'));
+      await expect(taxService.getTaxBreakdown(10, 'CLIENT')).rejects.toThrow('Not implemented');
+    });
+  });
 });

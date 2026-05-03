@@ -647,10 +647,11 @@ describe('Live: Moj portfolio', () => {
     cy.contains('Hartije u vlasnistvu').should('be.visible');
     cy.contains('AAPL', { timeout: 15000 }).should('be.visible');
 
-    // Kolone
-    cy.contains('th', 'Ticker').should('be.visible');
-    cy.contains('th', /Količ|Količina/i).should('be.visible');
-    cy.contains('th', 'Profit').should('be.visible');
+    // Kolone — table moze biti scroll-ovan u layout-u sa sidebar `position: fixed`
+    // koji prekriva right edge. Scroll do tabele pre vidljivosti check-a.
+    cy.contains('th', 'Ticker').scrollIntoView().should('be.visible');
+    cy.contains('th', /Količ|Količina/i).scrollIntoView().should('be.visible');
+    cy.contains('th', 'Profit').scrollIntoView().should('be.visible');
   });
 
   it('S68: Portfolio prikazuje ukupan profit', () => {

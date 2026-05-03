@@ -1528,7 +1528,10 @@ describe('Tax detail view modal', () => {
   ];
 
   beforeEach(() => {
-    cy.intercept('GET', '**/api/tax', { statusCode: 200, body: mockTaxRecords });
+    // taxService.getTaxRecords() salje GET /api/tax sa optionalnim query params
+    // (`?userType=CLIENT&name=...`). Glob `/api/tax` matches samo bez params,
+    // pa `/api/tax*` koji obuhvata i query string varijantu.
+    cy.intercept('GET', '**/api/tax*', { statusCode: 200, body: mockTaxRecords });
     cy.intercept('GET', '**/api/currency-rates**', { statusCode: 200, body: [] });
   });
 

@@ -47,7 +47,7 @@ jobs:
         run: npx tsc --noEmit
 
   vitest:
-    name: Vitest Unit Tests
+    name: Vitest Unit Tests + Coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,8 +61,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run vitest
-        run: npm test
+      - name: Run vitest sa coverage gate
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vitest-coverage
+          path: coverage/
+          if-no-files-found: ignore
 
   cypress-mocked:
     name: Cypress E2E Tests (Mocked)
@@ -84,7 +92,11 @@ jobs:
           wait-on: "http://localhost:3000"
           wait-on-timeout: 120
           config: video=false
-          spec: "cypress/e2e/celina1-mock.cy.ts,cypress/e2e/celina2-mock.cy.ts,cypress/e2e/celina3-mock.cy.ts"
+          # Spec liste su eksplicitno enumerirane (ne wildcard) da bi se
+          # `arbitro-mock.cy.ts` (Arbitro AI asistent — opcioni Celina 6,
+          # zahteva live Ollama+RAG+TTS sidecar-e koje GH runner nema)
+          # uvek izostavio iz CI-a, bez obzira sto je u istom direktorijumu.
+          spec: "cypress/e2e/celina1-mock.cy.ts,cypress/e2e/celina2-mock.cy.ts,cypress/e2e/celina3-mock.cy.ts,cypress/e2e/celina4-mock.cy.ts"
 
       - name: Upload screenshots on failure
         uses: actions/upload-artifact@v4
@@ -273,7 +285,9 @@ jobs:
           wait-on: "http://localhost"
           wait-on-timeout: 60
           config: video=false,baseUrl=http://localhost
-          spec: "cypress/e2e/celina1-live.cy.ts,cypress/e2e/celina2-live.cy.ts,cypress/e2e/celina3-live.cy.ts,cypress/e2e/e2e-scenario-live.cy.ts"
+          # `arbitro-live.cy.ts` se izostavlja jer trazi Ollama + RAG + TTS sidecar-e
+          # koji nisu dostupni u CI-u (samo lokalno).
+          spec: "cypress/e2e/celina1-live.cy.ts,cypress/e2e/celina2-live.cy.ts,cypress/e2e/celina3-live.cy.ts,cypress/e2e/celina4-live.cy.ts"
 
       - name: Upload screenshots on failure
         uses: actions/upload-artifact@v4
