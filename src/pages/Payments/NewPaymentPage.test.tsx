@@ -79,6 +79,12 @@ function renderPage(route = '/payments/new') {
 describe('NewPaymentPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Cisti aktivni inter-bank txId iz sessionStorage izmedju testova —
+    // recovery useEffect na mount-u inace re-trigger-uje getStatus poziv
+    // sa stale txId-em iz prethodnog testa.
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.clear();
+    }
     mockAccountService.getMyAccounts.mockResolvedValue([acc1, acc2]);
     mockRecipientService.getAll.mockResolvedValue([recipient1]);
     mockInterbankPaymentService.initiatePayment.mockResolvedValue({

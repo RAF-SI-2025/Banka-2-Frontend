@@ -35,6 +35,11 @@ import { asArray, formatAmount, getErrorMessage } from '@/utils/formatters';
 const OUR_BANK_PREFIX = '222';
 const INTERBANK_POLL_MS = 3000;
 const INTERBANK_MAX_POLLS = 40;
+// Spec Celina 5 (Nova) Sc 5/11 indirect FE coverage: kad korisnik reloaduje
+// stranicu dok je inter-bank placanje u toku, zelimo da rehydrate-ujemo
+// modal i nastavimo polling. txId se cuva u sessionStorage da preživi reload
+// ali ne zatvaranje tab-a (sigurnosni princip kao i sa JWT-om).
+const INTERBANK_ACTIVE_TX_KEY = 'interbank-active-tx';
 
 function isInterbank(accountNumber: string): boolean {
   return accountNumber.length >= 3 && accountNumber.slice(0, 3) !== OUR_BANK_PREFIX;
@@ -208,6 +213,56 @@ export default function NewPaymentPage() {
     return isInterbank(watchedTo);
   }, [watchedTo]);
 
+  // Spec Celina 5 (Nova) Sc 11 indirect FE coverage: ako user reloaduje
+  // stranicu dok je inter-bank placanje u toku, transakcija je vec
+  // inicirana na BE-u i nastavlja u retry scheduler-u. Rehydrate-ujemo
+  // tracking modal: fetchujemo status, prikazujemo modal i resume-ujemo
+  // polling. Ako BE vrati 404 (npr. txId iz davnijeg ciscenja), tihi
+  // cleanup sessionStorage.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const savedTxId = window.sessionStorage.getItem(INTERBANK_ACTIVE_TX_KEY);
+    if (!savedTxId) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const status = await interbankPaymentService.getStatus(savedTxId);
+        if (cancelled) return;
+        setInterbankTracking(status);
+        if (INTERBANK_TERMINAL_STATUSES.includes(status.status)) {
+          window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
+          return;
+        }
+        toast.info('Nastavljam pracenje inter-bank transakcije iz prethodne sesije...');
+        try {
+          const finalStatus = await pollInterbankUntilDone(savedTxId);
+          if (cancelled) return;
+          if (finalStatus.status === 'COMMITTED') {
+            toast.success('Inter-bank placanje je uspesno izvrseno.');
+            window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
+          } else if (finalStatus.failureReason) {
+            toast.error(finalStatus.failureReason);
+            if (INTERBANK_TERMINAL_STATUSES.includes(finalStatus.status)) {
+              window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
+            }
+          }
+        } catch {
+          if (cancelled) return;
+          toast.error('Nastavak pracenja statusa nije uspeo.');
+        }
+      } catch {
+        if (!cancelled) {
+          window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Spec Celina 5 (Nova): "Sistem ce automatski pokusati ponovno povezivanje"
   // za STUCK transakcije. User moze rucno triggerovati retry — fetcha status
   // jos jednom (BE moze u medjuvremenu vec resiti) i resume polling-a ako
@@ -226,6 +281,9 @@ export default function NewPaymentPage() {
         } else {
           toast.error(refreshed.failureReason ?? 'Transakcija nije uspela.');
         }
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
+        }
       } else {
         // Vratila se u in-progress stanje (npr. PREPARING), nastavi polling
         toast.info('Transakcija je nastavila — pratite napredak.');
@@ -235,6 +293,12 @@ export default function NewPaymentPage() {
             toast.success('Inter-bank placanje je uspesno izvrseno.');
           } else if (finalStatus.failureReason) {
             toast.error(finalStatus.failureReason);
+          }
+          if (
+            typeof window !== 'undefined' &&
+            INTERBANK_TERMINAL_STATUSES.includes(finalStatus.status)
+          ) {
+            window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
           }
         } catch {
           toast.error('Polling statusa nije uspeo. Pogledajte istoriju placanja.');
@@ -284,7 +348,27 @@ export default function NewPaymentPage() {
       }
     }
 
-    return interbankPaymentService.getStatus(transactionId);
+    // Spec Celina 5 (Nova) Sc 5 indirect FE coverage: kad istekne polling
+    // budget od INTERBANK_MAX_POLLS × INTERBANK_POLL_MS = 2 minuta, eskaliramo
+    // na STUCK status. To pokrece amber STUCK banner sa "Pokusaj ponovo"
+    // dugmetom (handleRetryStuck), koje user moze kliknuti vise puta dok
+    // BE retry scheduler ne razresi transakciju.
+    const finalStatus = await interbankPaymentService.getStatus(transactionId);
+    if (INTERBANK_TERMINAL_STATUSES.includes(finalStatus.status)) {
+      setInterbankTracking(finalStatus);
+      return finalStatus;
+    }
+    const stuckStatus: InterbankPayment = {
+      ...finalStatus,
+      status: 'STUCK',
+      failureReason:
+        finalStatus.failureReason ??
+        `Pracenje statusa je isteklo posle ${(INTERBANK_MAX_POLLS * INTERBANK_POLL_MS) / 1000}s. ` +
+        'Banka primaoca jos nije zavrsila 2PC flow. Sistem ce nastaviti retry u pozadini — ' +
+        'mozete osveziti status rucno klikom na "Pokusaj ponovo".',
+    };
+    setInterbankTracking(stuckStatus);
+    return stuckStatus;
   };
 
   return (
@@ -768,6 +852,11 @@ export default function NewPaymentPage() {
                 referenceNumber?: string;
               });
               setInterbankTracking(initiated);
+              // Spec Celina 5 (Nova) Sc 11: persistiramo aktivni txId tako da
+              // user moze reloadovati stranicu i rehydrate tracking modal.
+              if (typeof window !== 'undefined') {
+                window.sessionStorage.setItem(INTERBANK_ACTIVE_TX_KEY, initiated.transactionId);
+              }
               toast.info('Inter-bank transakcija u obradi...');
               const finalStatus = await pollInterbankUntilDone(initiated.transactionId);
               if (finalStatus.status === 'COMMITTED') {
@@ -775,6 +864,12 @@ export default function NewPaymentPage() {
               } else {
                 const reason = finalStatus.failureReason || 'Inter-bank transakcija nije uspesno zavrsena.';
                 toast.error(reason);
+              }
+              if (
+                typeof window !== 'undefined' &&
+                INTERBANK_TERMINAL_STATUSES.includes(finalStatus.status)
+              ) {
+                window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
               }
             } else {
               await transactionService.createPayment(paymentDto, otpCode);
@@ -969,7 +1064,15 @@ export default function NewPaymentPage() {
 
                 {isTerminal && (
                   <div className="flex justify-end">
-                    <Button type="button" onClick={() => setInterbankTracking(null)}>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setInterbankTracking(null);
+                        if (typeof window !== 'undefined') {
+                          window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
+                        }
+                      }}
+                    >
                       Zatvori
                     </Button>
                   </div>

@@ -9,47 +9,16 @@ import type {
   InterbankTransaction,
 } from '@/types/celina4';
 
-/*
-================================================================================
- OTC INTER-BANK — FE SERVICE WRAPPER (PROTOKOL §3)
- Spec ref: Info o predmetu/A protocol for bank-to-bank asset exchange.htm,
-           §3 OTC negotiation protocol
---------------------------------------------------------------------------------
- ARHITEKTURA (POSLE PROTOKOL REFAKTORA, BE):
-  Klijent (FE) komunicira sa nasim BE-om; BE preko OtcNegotiationService
-  poziva drugu banku po §3.1-3.7 (POST /negotiations, GET /public-stock,
-  GET /negotiations/{rn}/{id}/accept, ...).
-
- NAPOMENA O ENDPOINT-IMA:
-  Stari TODO endpoint-i (`/interbank/otc/**`) su uklonjeni iz BE-a jer
-  protokol rezervise URL prefix `/negotiations`, `/public-stock`, `/user`
-  STROGO za pozive IZMEDJU banaka. Klijentski (FE -> BE) pozivi treba da
-  idu na nase interne URL-ove:
-
-   GET   /api/otc/remote-listings        — TODO BE: agregacija fetchRemotePublicStocks
-                                            iz svih partnera; vraca Stock + lista bank-prodavac
-   POST  /api/otc/remote-offers          — TODO BE: kreiraj pregovor
-                                            (BE pozove POST /negotiations partnera)
-   PUT   /api/otc/remote-offers/{id}     — TODO BE: counter-offer
-                                            (BE pozove PUT /negotiations/{rn}/{id})
-   DELETE /api/otc/remote-offers/{id}    — TODO BE: zatvori
-                                            (BE pozove DELETE /negotiations/{rn}/{id})
-   POST  /api/otc/remote-offers/{id}/accept
-                                          — TODO BE: prihvati
-                                            (BE pozove GET /negotiations/{rn}/{id}/accept,
-                                             ceka COMMITTED)
-   GET   /api/otc/remote-contracts/my    — TODO BE: moji inter-bank ugovori
-
- ID FORMAT (§2.3):
-  ForeignBankId u protokolu = {routingNumber, id}. Na FE-u koristimo
-  serijalizaciju "123:abc-uuid" (routingNumber:id). BE parsira pri prijemu.
-
- STATUS:
-  Endpoint-i ispod jos nisu redefinisani — prikazuju primere koje koristi
-  postojeci FE kod. BE tim ce pri implementaciji refaktorisati URL-ove
-  prema protokolu, FE prati.
-================================================================================
-*/
+/**
+ * OTC INTER-BANK — FE service wrapper (Spec ref: protokol §3 OTC negotiation).
+ *
+ * Arhitektura: klijent (FE) komunicira sa nasim BE-om kroz `/interbank/otc/*`
+ * rute (vidi InterbankOtcWrapperController). BE wrapper-i interno koriste
+ * OtcNegotiationService outbound putanju koja salje partner banci po §3.1-3.7.
+ *
+ * ID format: offerId u FE-u je serijalizacija "{routingNumber}:{idString}"
+ * (npr. "222:abc-uuid"); BE parsira pri prijemu.
+ */
 const interbankOtcService = {
   /** Lista dostupnih OTC listinga iz drugih banaka. */
   async listRemoteListings(): Promise<OtcInterbankListing[]> {

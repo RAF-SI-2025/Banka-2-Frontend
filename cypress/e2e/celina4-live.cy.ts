@@ -16,7 +16,7 @@
  *   Client:           milica.nikolic@gmail.com / Klijent12345 (client_id=2)
  *
  * ==========================================================================
- *  TODO — CELINA 4 LIVE SUITE (zaduzenja po GitHub Issue-ima #66-79)
+ *  Pending — CELINA 4 LIVE SUITE (zaduzenja po GitHub Issue-ima #66-79)
  * --------------------------------------------------------------------------
  *  Spec referenca: Info o predmetu/Celina 4.txt (linije 1-540)
  *  Distribucija: Info o predmetu/Celina4_Podela_Taskova.md
@@ -71,7 +71,7 @@ const loginAdmin = () =>
 const loginSupervisor = () =>
   loginAs('supervisor-c4', 'nikola.milenkovic@banka.rs', 'Zaposleni12', 'EMPLOYEE',
     ['SUPERVISOR', 'VIEW_STOCKS', 'TRADE_STOCKS']);
-// TODO(tim): zameni `_loginAgent` sa `loginAgent` u test-ovima gde ti treba Agent.
+// Pending(tim): zameni `_loginAgent` sa `loginAgent` u test-ovima gde ti treba Agent.
 // Prefix `_` postoji samo da ESLint ne prijavljuje unused dok svi testovi
 // u fajlu imaju `it.skip` body.
 const _loginAgent = () =>
@@ -183,7 +183,7 @@ describe('Live C4: Create Fund', () => {
     }
   });
 
-  it('TODO L10: Supervizor kreira novi fond (unique naziv)', () => {
+  it('[PENDING] L10: Supervizor kreira novi fond (unique naziv)', () => {
     const uniqueName = `E2E-LIVE-FUND-${Date.now()}`;
 
     cy.visit('/funds/create');
@@ -206,7 +206,7 @@ describe('Live C4: Create Fund', () => {
     });
   });
 
-  it('TODO L11: Duplikat naziva - server vraca 409/400', () => {
+  it('[PENDING] L11: Duplikat naziva - server vraca 409/400', () => {
     const duplicateName = `E2E-LIVE-DUP-${Date.now()}`;
 
     cy.visit('/funds/create');
@@ -232,14 +232,14 @@ describe('Live C4: Create Fund', () => {
         // indikator failure-a (status badge, error text, alert).
         cy.get('body', { timeout: 10000 })
           .invoke('text')
-          .should('match', /vec postoji|postoji|nije uspelo|gresk|duplicate|conflict|TODO/i);
+          .should('match', /vec postoji|postoji|nije uspelo|gresk|duplicate|conflict|Pending/i);
       } else {
         cy.url().should('include', '/funds/create');
       }
     });
   });
 
-  it('TODO L12: Klijent nema pristup (redirect)', () => {
+  it('[PENDING] L12: Klijent nema pristup (redirect)', () => {
     loginClient();
     cy.visit('/funds/create');
     // ProtectedRoute supervisorOnly preusmerava klijenta na /403
@@ -264,7 +264,7 @@ describe('Live C4: Fund Invest/Withdraw', () => {
         cy.contains('button', 'Uplati').first().click();
         cy.contains('Uplata u fond').should('be.visible');
       } else {
-        cy.contains(/TODO|Nemate aktivne pozicije u fondovima|Neuspesno ucitavanje fondova/i).should('be.visible');
+        cy.contains(/Pending|Nemate aktivne pozicije u fondovima|Neuspesno ucitavanje fondova/i).should('be.visible');
       }
     });
   });
@@ -281,7 +281,7 @@ describe('Live C4: Fund Invest/Withdraw', () => {
         cy.contains('button', 'Uplati').click();
         cy.contains(/Minimalni ulog/i).should('be.visible');
       } else {
-        cy.contains(/TODO|Nemate aktivne pozicije u fondovima|Neuspesno ucitavanje fondova/i).should('be.visible');
+        cy.contains(/Pending|Nemate aktivne pozicije u fondovima|Neuspesno ucitavanje fondova/i).should('be.visible');
       }
     });
   });
@@ -297,7 +297,7 @@ describe('Live C4: Fund Invest/Withdraw', () => {
         cy.contains('Povlacenje iz fonda').should('be.visible');
         cy.contains('Povuci celu poziciju').should('be.visible');
       } else {
-        cy.contains(/TODO|Nemate aktivne pozicije u fondovima|Neuspesno ucitavanje fondova/i).should('be.visible');
+        cy.contains(/Pending|Nemate aktivne pozicije u fondovima|Neuspesno ucitavanje fondova/i).should('be.visible');
       }
     });
   });
@@ -313,7 +313,7 @@ describe('Live C4: Fund Invest/Withdraw', () => {
         cy.get('#fund-withdraw-all').click();
         cy.get('#fund-withdraw-amount').should('be.disabled');
       } else {
-        cy.contains(/TODO|Nemate aktivne pozicije u fondovima|Neuspesno ucitavanje fondova/i).should('be.visible');
+        cy.contains(/Pending|Nemate aktivne pozicije u fondovima|Neuspesno ucitavanje fondova/i).should('be.visible');
       }
     });
   });
@@ -335,13 +335,13 @@ describe('Live C4: Fund Invest/Withdraw', () => {
         // Vise tolerantnih opcija jer page moze prikazati razlicite poruke.
         cy.get('body')
           .invoke('text')
-          .should('match', /TODO|Neuspesno|Nemate|nije dostupno|prazno|empty|Nema/i);
+          .should('match', /Pending|Neuspesno|Nemate|nije dostupno|prazno|empty|Nema/i);
       }
     });
   });
 
   afterEach(() => {
-    // TODO: cleanup pozicije (withdraw all) da se ne kontaminira sledeci test
+    // Pending: cleanup pozicije (withdraw all) da se ne kontaminira sledeci test
   });
 });
 
@@ -363,7 +363,7 @@ describe('Live C4: MyFundsTab', () => {
   it('L19: Klijent vidi pozicije ili fallback (empty/error) state', () => {
     cy.visit('/portfolio');
     cy.contains('button', 'Moji fondovi').click();
-    cy.contains(/Uplati|Nemate aktivne pozicije u fondovima|TODO|Neuspesno ucitavanje fondova/i).should('be.visible');
+    cy.contains(/Uplati|Nemate aktivne pozicije u fondovima|Pending|Neuspesno ucitavanje fondova/i).should('be.visible');
   });
 
   it('L20: Klik na "Detalji fonda" navigira na /funds/{id} kad postoji klijentska pozicija', () => {
@@ -375,7 +375,7 @@ describe('Live C4: MyFundsTab', () => {
         cy.contains('button', 'Detalji fonda').first().click();
         cy.url().should('match', /\/funds\/\d+$/);
       } else {
-        cy.contains(/TODO|Nemate aktivne pozicije u fondovima|Neuspesno ucitavanje fondova/i).should('be.visible');
+        cy.contains(/Pending|Nemate aktivne pozicije u fondovima|Neuspesno ucitavanje fondova/i).should('be.visible');
       }
     });
   });
@@ -393,7 +393,7 @@ describe('Live C4: MyFundsTab', () => {
         // ili BE jos nije implementirao manager view u potpunosti.
         cy.get('body')
           .invoke('text')
-          .should('match', /TODO|Neuspesno|Nemate|nije dostupno|prazno|empty|Nema/i);
+          .should('match', /Pending|Neuspesno|Nemate|nije dostupno|prazno|empty|Nema/i);
       }
     });
   });
@@ -473,9 +473,9 @@ describe('Live C4: OTC Inter-bank Discovery', () => {
   // routing) jos nije implementiran (Aja). Cim T3 bude mergovan, ovi testovi
   // se mogu enable-ovati bez izmene logike — BE ce vracati 200 sa listom.
   // Helper `openRemoteTab` uklonjen jer ga svi referencing testovi sada skip-uju.
-  it.skip('TODO L25: Tab "Iz drugih banaka" na /otc prikazuje listu (cekamo T3 BE)', () => {});
-  it.skip('TODO L26: "Napravi ponudu" salje POST ka partnerskoj banci (cekamo T3 BE)', () => {});
-  it.skip('TODO L27: Osvezi dugme ponovo ucitava listu (cekamo T3 BE)', () => {});
+  it.skip('[PENDING] L25: Tab "Iz drugih banaka" na /otc prikazuje listu (cekamo T3 BE)', () => {});
+  it.skip('[PENDING] L26: "Napravi ponudu" salje POST ka partnerskoj banci (cekamo T3 BE)', () => {});
+  it.skip('[PENDING] L27: Osvezi dugme ponovo ucitava listu (cekamo T3 BE)', () => {});
 });
 
 
@@ -502,11 +502,11 @@ describe('Live C4: Profit Banke', () => {
     loginSupervisor();
   });
 
-  it.skip('TODO L34: /employee/profit-bank ucitava se za supervizora', () => {});
-  it.skip('TODO L35: Tab "Profit aktuara" prikazuje listu sa RSD profitom', () => {});
-  it.skip('TODO L36: Tab "Pozicije u fondovima" prikazuje bankine pozicije', () => {});
-  it.skip('TODO L37: "Uplati (banka)" koristi bankin racun bez komisije', () => {});
-  it.skip('TODO L38: Agent/klijent dobija 403 na /profit-bank endpoint', () => {});
+  it.skip('[PENDING] L34: /employee/profit-bank ucitava se za supervizora', () => {});
+  it.skip('[PENDING] L35: Tab "Profit aktuara" prikazuje listu sa RSD profitom', () => {});
+  it.skip('[PENDING] L36: Tab "Pozicije u fondovima" prikazuje bankine pozicije', () => {});
+  it.skip('[PENDING] L37: "Uplati (banka)" koristi bankin racun bez komisije', () => {});
+  it.skip('[PENDING] L38: Agent/klijent dobija 403 na /profit-bank endpoint', () => {});
 });
 
 
@@ -518,12 +518,12 @@ describe('Live C4: Admin Fund Reassign', () => {
     loginAdmin();
   });
 
-  it.skip('TODO L39: Uklanjanje isSupervisor otvara confirmation dialog', () => {});
-  it.skip('TODO L40: Potvrda prebacuje fondove na admina', () => {});
-  it.skip('TODO L41: Cancel vraca checkbox state', () => {});
+  it.skip('[PENDING] L39: Uklanjanje isSupervisor otvara confirmation dialog', () => {});
+  it.skip('[PENDING] L40: Potvrda prebacuje fondove na admina', () => {});
+  it.skip('[PENDING] L41: Cancel vraca checkbox state', () => {});
 
   afterEach(() => {
-    // TODO: vrati isSupervisor permisiju korisniku na kome je test radjen
+    // Pending: vrati isSupervisor permisiju korisniku na kome je test radjen
   });
 });
 
@@ -553,8 +553,8 @@ describe('Live C4: Inter-bank Payments', () => {
 
     cy.get('body').then(($body) => {
       if ($body.find('[data-testid="verification-modal"]').length > 0) {
-        if ($body.text().match(/TODO|Greška|Greska|nije uspelo/i)) {
-          cy.contains(/TODO|Greška|Greska|nije uspelo/i).should('be.visible');
+        if ($body.text().match(/Pending|Greška|Greska|nije uspelo/i)) {
+          cy.contains(/Pending|Greška|Greska|nije uspelo/i).should('be.visible');
         } else {
           if ($body.find('button:contains("Popuni")').length > 0) cy.contains('button', 'Popuni').click();
           cy.contains('button', 'Potvrdi').last().click({ force: true });
@@ -575,7 +575,7 @@ describe('Live C4: Inter-bank Payments', () => {
         cy.contains('Inter-bank status').should('be.visible');
         cy.contains(/INITIATED|PREPARING|PREPARED|COMMITTING|COMMITTED|ABORTED|STUCK/).should('exist');
       } else if ($body.find('[data-testid="verification-modal"]').length > 0) {
-        cy.contains(/TODO|Greška|Greska|nije uspelo/i).should('be.visible');
+        cy.contains(/Pending|Greška|Greska|nije uspelo/i).should('be.visible');
       } else {
         cy.contains(/Novi platni nalog|Greška|Greska/i).should('be.visible');
       }
@@ -599,7 +599,7 @@ describe('Live C4: Inter-bank Payments', () => {
     cy.get('@interbankStatus.all').should('have.length', 0);
     cy.get('@intraPayment.all').then((calls) => {
       if (!calls || calls.length === 0) {
-        cy.contains(/TODO|Greška|Greska|nije uspelo|Novi platni nalog/i).should('be.visible');
+        cy.contains(/Pending|Greška|Greska|nije uspelo|Novi platni nalog/i).should('be.visible');
       }
     });
   });
@@ -611,8 +611,8 @@ describe('Live C4: Inter-bank Payments', () => {
     cy.get('body').then(($body) => {
       if ($body.text().includes('ABORTED')) {
         cy.contains('ABORTED').should('be.visible');
-      } else if ($body.text().match(/failureReason|nije uspelo|Greška|Greska|TODO/i)) {
-        cy.contains(/failureReason|nije uspelo|Greška|Greska|TODO/i).should('be.visible');
+      } else if ($body.text().match(/failureReason|nije uspelo|Greška|Greska|Pending/i)) {
+        cy.contains(/failureReason|nije uspelo|Greška|Greska|Pending/i).should('be.visible');
       } else {
         cy.contains(/Novi platni nalog|Inter-bank status/i).should('be.visible');
       }
@@ -668,7 +668,7 @@ describe('Live C4: HomePage + Sidebar', () => {
 
 /*
 ================================================================================
-  UKUPNO: 49 TODO LIVE scenarija
+  UKUPNO: 49 pending LIVE scenarija
   Preduslov: BE tim popunio interbank/ + investmentfund/ + profitbank/ pakete.
   Kad feature radi live, zameni `it.skip` → `it` i popuni.
   Cilj: do KT3 ceo live suite zelen.

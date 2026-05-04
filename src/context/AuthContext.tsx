@@ -10,7 +10,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (data: LoginRequest) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   hasPermission: (permission: Permission) => boolean;
   isAdmin: boolean;
   isSupervisor: boolean;
@@ -99,7 +99,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(authUser);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    // Opc.1 — POST /auth/logout pre lokalnog clean-up-a, da BE blacklist-uje
+    // JWT (Caffeine 20min TTL). Best-effort: ako BE puca, ipak cisti session.
+    // Axios interceptor automatski dodaje Bearer header, pa BE zna koji token
+    // se blacklist-uje.
+    if (sessionStorage.getItem('accessToken')) {
+      try {
+        await authService.logout();
+      } catch {
+        // BE moze biti unreachable, isteklim tokenom, etc. Lokalna sesija ide
+        // u cleanup nezavisno — bezbednost je defense-in-depth.
+      }
+    }
     sessionStorage.clear();
     setUser(null);
   };

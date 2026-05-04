@@ -3,7 +3,9 @@ services:
     build: .
     container_name: banka2_frontend
     ports:
-      - "3000:80"
+      # Default 3000, ali Hyper-V/WinNAT na Windows-u cesto rezervise 2996-3095 range —
+      # override-uj sa `FRONTEND_HOST_PORT=3500 docker compose up -d` ako je zauzeto.
+      - "${FRONTEND_HOST_PORT:-3000}:80"
     networks:
       - banka2_net
 

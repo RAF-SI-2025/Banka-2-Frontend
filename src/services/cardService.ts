@@ -38,8 +38,9 @@ export const cardService = {
     return response.data;
   },
 
-  // TODO: Backend nema REST endpoint za authorized persons (samo JPA relacija na Company entitetu).
-  //       URL je placeholder — treba dodati endpoint na backendu kada bude potreban.
+  // Backend trenutno ne izlozeni REST endpoint za authorized persons (samo JPA relacija
+  // na Company entitetu). Funkcija se NE poziva u trenutnom UI flow-u — zadrzano kao
+  // stub za eventualno prosirivanje (Celina 2 spec ne zahteva ovaj endpoint).
   getAuthorizedPersons: async (accountNumber: string): Promise<AuthorizedPerson[]> => {
     const response = await api.get<AuthorizedPerson[]>(`/accounts/${accountNumber}/authorized-persons`);
     return response.data;

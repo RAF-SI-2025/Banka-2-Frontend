@@ -1,22 +1,12 @@
-/*
-================================================================================
- TODO — TYPESCRIPT TIPOVI ZA CELINU 4 (FONDOVI + INTER-BANK)
- Zaduzeni (podela):
-   - Investicioni fondovi (InvestmentFund*, ClientFundPosition*, Transaction) → jkrunic
-   - OTC inter-bank (OtcInterbank*) → ekalajdzic13322
-   - Profit banke (ActuaryProfit, BankFundPosition) → sssmarta
-   - Inter-bank placanje (InterbankPayment*) → antonije3
- Spec referenca: Celina 4 (investicioni fondovi linije 160-351, inter-bank
-                  OTC 438-519, placanja 368-437, Profit Banke 353-364)
---------------------------------------------------------------------------------
- Tim napomena:
-  - Svaki tim (FE) popunjava svoj segment. Backend DTO vec postoji kao
-    referenca u `Banka-2-Backend/.../dto/...`. Polja ispod odgovaraju 1-na-1.
-  - Pre popunjavanja, uskladjuje se sa BE tim-om da se polja poklope.
-================================================================================
-*/
+/**
+ * TypeScript tipovi za Celinu 4 (fondovi + OTC + Profit Banke + inter-bank placanja).
+ * Polja odgovaraju 1-na-1 odgovarajucim BE DTO recordima.
+ *
+ * Spec ref: Celina 4 (investicioni fondovi 160-351, inter-bank OTC 438-519,
+ * placanja 368-437, Profit Banke 353-364).
+ */
 
-// ── INVESTICIONI FONDOVI (Zaduzen: jkrunic) ───────────────────────────────
+// ── INVESTICIONI FONDOVI ──────────────────────────────────────────────────
 
 export interface InvestmentFundSummary {
   id: number;
@@ -113,7 +103,7 @@ export interface ClientFundTransaction {
 }
 
 
-// ── OTC INTER-BANK (Zaduzen: ekalajdzic13322) ─────────────────────────────
+// ── OTC INTER-BANK ────────────────────────────────────────────────────────
 
 export interface OtcInterbankListing {
   bankCode: string;
@@ -250,7 +240,7 @@ export interface InterbankTransaction {
 }
 
 
-// ── INTER-BANK PLACANJE (Zaduzen: antonije3) ──────────────────────────────
+// ── INTER-BANK PLACANJE ───────────────────────────────────────────────────
 
 export type InterbankPaymentStatus =
   | 'INITIATED'
@@ -303,7 +293,7 @@ export interface InterbankPayment {
 }
 
 
-// ── PROFIT BANKE (Zaduzen: sssmarta) ──────────────────────────────────────
+// ── PROFIT BANKE ──────────────────────────────────────────────────────────
 
 export interface ActuaryProfit {
   employeeId: number;

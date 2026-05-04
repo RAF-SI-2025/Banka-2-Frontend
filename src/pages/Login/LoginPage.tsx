@@ -2,21 +2,28 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, Loader2, ArrowLeft, Lock } from 'lucide-react';
 import { loginSchema, type LoginFormData } from '../../utils/validationSchemas';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import AuthPageLayout from '@/components/layout/AuthPageLayout';
+
+// Opc.2 — Account lockout: BE AccountLockoutService zakljuca email posle 5
+// neuspesnih pokusaja na 15 min. BE poruka pocinje sa "Account temporarily
+// locked" — FE detektuje tu prefix-iranu poruku i prikazuje specifican
+// crveni alert sa Lock ikonicom (umesto generickog "Pogrešan email").
+const LOCKOUT_PREFIX = 'Account temporarily locked';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [isLocked, setIsLocked] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoSpin, setLogoSpin] = useState(false);
 
@@ -31,15 +38,23 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormData) => {
     setServerError('');
+    setIsLocked(false);
     setIsSubmitting(true);
     try {
       await login(data);
       navigate('/home');
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      setServerError(
-        error.response?.data?.message || 'Pogrešan email ili lozinka. Pokušajte ponovo.'
-      );
+      const error = err as { response?: { data?: { message?: string } }; message?: string };
+      // Opc.2 — BE AccountLockoutService.AccountLockedException puca sa porukom
+      // pocinjucom "Account temporarily locked due to too many failed attempts;
+      // try again in N min". FE detektuje ovaj prefix i prikazuje lockout alert.
+      const beMessage = error.response?.data?.message ?? error.message ?? '';
+      if (beMessage.startsWith(LOCKOUT_PREFIX)) {
+        setIsLocked(true);
+        setServerError(beMessage);
+      } else {
+        setServerError(beMessage || 'Pogrešan email ili lozinka. Pokušajte ponovo.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -71,9 +86,19 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent>
             {serverError && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertDescription>{serverError}</AlertDescription>
-              </Alert>
+              isLocked ? (
+                <Alert variant="warning" className="mb-4" data-testid="login-lockout-alert">
+                  <Lock className="h-4 w-4" />
+                  <AlertTitle>Nalog je privremeno zakljucan</AlertTitle>
+                  <AlertDescription>
+                    {serverError} Pokusajte ponovo kasnije ili koristite "Zaboravili ste lozinku".
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertDescription>{serverError}</AlertDescription>
+                </Alert>
+              )
             )}
 
             <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">

@@ -29,16 +29,28 @@ beforeEach(() => {
   currentTheme = 'light';
   mockFetch.mockResolvedValue({ ok: true });
 
-  const mockIntersectionObserver = vi.fn().mockImplementation((callback) => ({
-    observe: vi.fn().mockImplementation((el: Element) => {
-      callback([{ isIntersecting: true, target: el }]);
-    }),
-    unobserve: vi.fn(),
-    disconnect: vi.fn(),
-  }));
+  // Vitest 4 + jsdom 29 zahteva da IntersectionObserver mock bude konstruktor —
+  // `vi.fn().mockImplementation((cb) => {...})` vise nije callable sa `new` u
+  // strict mode-u (TypeError: is not a constructor). Class deklaracija koristi
+  // pravu prototype lanac strukturu pa moze da se nove-uje.
+  class MockIntersectionObserver {
+    constructor(private cb: IntersectionObserverCallback) {}
+    observe(el: Element) {
+      this.cb(
+        [{ isIntersecting: true, target: el } as IntersectionObserverEntry],
+        this as unknown as IntersectionObserver,
+      );
+    }
+    unobserve() {}
+    disconnect() {}
+    takeRecords(): IntersectionObserverEntry[] { return []; }
+    root = null;
+    rootMargin = '';
+    thresholds = [];
+  }
   Object.defineProperty(window, 'IntersectionObserver', {
     writable: true,
-    value: mockIntersectionObserver,
+    value: MockIntersectionObserver,
   });
 });
 

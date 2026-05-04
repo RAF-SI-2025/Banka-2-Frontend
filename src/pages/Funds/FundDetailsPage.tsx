@@ -13,13 +13,20 @@ import {
   BarChart3,
   DollarSign,
   ShoppingCart,
+  UserCog,
+  X,
+  Loader2,
 } from 'lucide-react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { useAuth } from '@/context/AuthContext';
 import investmentFundService from '@/services/investmentFundService';
+import { employeeService } from '@/services/employeeService';
 import type { InvestmentFundDetail, FundPerformancePoint, ClientFundPosition } from '@/types/celina4';
+import type { Employee } from '@/types';
 import { formatAmount, formatDate, formatPrice, getErrorMessage, toIsoDateOnly } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import FundInvestDialog from './FundInvestDialog';
 import FundWithdrawDialog from './FundWithdrawDialog';
 import {
@@ -53,11 +60,17 @@ const PERIOD_LABELS: Record<PerfPeriod, string> = {
 export default function FundDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, isSupervisor } = useAuth();
+  const { user, isAdmin, isSupervisor } = useAuth();
 
   const [fund, setFund] = useState<InvestmentFundDetail | null>(null);
   const [performance, setPerformance] = useState<FundPerformancePoint[]>([]);
   const [loading, setLoading] = useState(true);
+  // P1.2 — admin dialog za reassign manager.
+  const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
+  const [supervisors, setSupervisors] = useState<Employee[]>([]);
+  const [supervisorsLoading, setSupervisorsLoading] = useState(false);
+  const [selectedSupervisorId, setSelectedSupervisorId] = useState('');
+  const [reassigning, setReassigning] = useState(false);
   const [perfPeriod, setPerfPeriod] = useState<PerfPeriod>('quarter');
   // Spec Celina 4 (Nova) §4585-4628: Uplata/Povlacenje akcije po fondu.
   const [myPosition, setMyPosition] = useState<ClientFundPosition | null>(null);
@@ -89,6 +102,57 @@ export default function FundDetailsPage() {
   }, [fund?.id, user?.role, isSupervisor]);
 
   const isOwner = isSupervisor && fund?.managerEmployeeId === user?.id;
+
+  // P1.2 — admin reassign-manager dialog. Otvaranje fetcha listu supervizora,
+  // FE-strana filter (BE nema namenski endpoint za permission filtriranje).
+  const openReassignDialog = async () => {
+    setReassignDialogOpen(true);
+    setSelectedSupervisorId('');
+    if (supervisors.length > 0) return; // vec ucitano
+    setSupervisorsLoading(true);
+    try {
+      const response = await employeeService.getAll({ page: 0, limit: 200 });
+      const sup = (response.content ?? []).filter(
+        (e) => e.isActive && Array.isArray(e.permissions) && e.permissions.includes('SUPERVISOR'),
+      );
+      setSupervisors(sup);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Greska pri ucitavanju supervizora'));
+    } finally {
+      setSupervisorsLoading(false);
+    }
+  };
+
+  const handleReassign = async () => {
+    if (!fund || !selectedSupervisorId) return;
+    const newId = Number(selectedSupervisorId);
+    if (!Number.isFinite(newId) || newId <= 0) return;
+    if (newId === fund.managerEmployeeId) {
+      toast.info('Izabrali ste trenutnog menadzera fonda.');
+      return;
+    }
+    setReassigning(true);
+    try {
+      const updated = await investmentFundService.reassignManager(fund.id, newId);
+      setFund(updated);
+      toast.success(`Menadzer fonda promenjen na ${updated.managerName}.`);
+      setReassignDialogOpen(false);
+    } catch (err) {
+      const httpErr = err as { response?: { status?: number; data?: { message?: string } } };
+      const status = httpErr?.response?.status;
+      if (status === 400) {
+        toast.error(httpErr.response?.data?.message ?? 'Izabrani zaposleni nije supervizor.');
+      } else if (status === 404) {
+        toast.error('Fond ili zaposleni nije pronadjen.');
+      } else if (status === 403) {
+        toast.error('Nemate dozvolu za promenu menadzera.');
+      } else {
+        toast.error(getErrorMessage(err, 'Promena menadzera nije uspela.'));
+      }
+    } finally {
+      setReassigning(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -150,6 +214,17 @@ export default function FundDetailsPage() {
             Menadžer: {fund.managerName} · Osnovan: {formatDate(fund.inceptionDate)}
           </p>
         </div>
+        {isAdmin && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void openReassignDialog()}
+            data-testid="fund-reassign-manager-btn"
+          >
+            <UserCog className="mr-2 h-4 w-4" />
+            Promeni menadzera
+          </Button>
+        )}
       </div>
 
       {/* KPI Cards */}
@@ -433,6 +508,106 @@ export default function FundDetailsPage() {
           }}
         />
       )}
+
+      {/*
+        P1.2 — Admin reassign-manager dialog (spec Celina 4 §324).
+        BE endpoint: POST /funds/{id}/reassign-manager. BE odbacije sa 400 ako
+        izabrani zaposleni nema SUPERVISOR permisiju, sa 404 ako fond/employee
+        ne postoji, sa 403 ako pozivac nije admin.
+      */}
+      <Dialog.Root
+        open={reassignDialogOpen}
+        onOpenChange={(open) => {
+          if (!reassigning) setReassignDialogOpen(open);
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-background shadow-2xl">
+            <div className="flex items-start justify-between border-b p-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+                  <UserCog className="h-5 w-5" />
+                </div>
+                <div>
+                  <Dialog.Title className="text-lg font-semibold">Promeni menadzera fonda</Dialog.Title>
+                  <Dialog.Description className="mt-1 text-sm text-muted-foreground">
+                    Trenutni menadzer: {fund.managerName}
+                  </Dialog.Description>
+                </div>
+              </div>
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  disabled={reassigning}
+                  className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+                  aria-label="Zatvori"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </Dialog.Close>
+            </div>
+
+            <div className="space-y-4 p-6">
+              <div className="space-y-2">
+                <Label htmlFor="reassign-supervisor">Novi menadzer (samo supervizori)</Label>
+                {supervisorsLoading ? (
+                  <div className="flex h-10 items-center gap-2 rounded-md border bg-muted/30 px-3 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Ucitavam supervizore...
+                  </div>
+                ) : (
+                  <select
+                    id="reassign-supervisor"
+                    title="Novi menadzer fonda"
+                    aria-label="Izaberi novog menadzera fonda"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={selectedSupervisorId}
+                    onChange={(e) => setSelectedSupervisorId(e.target.value)}
+                    data-testid="fund-reassign-supervisor-select"
+                  >
+                    <option value="">Izaberi supervizora</option>
+                    {supervisors.map((sup) => (
+                      <option key={sup.id} value={String(sup.id)}>
+                        {sup.firstName} {sup.lastName} · {sup.email}
+                        {sup.id === fund.managerEmployeeId ? ' (trenutni)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {!supervisorsLoading && supervisors.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Nema aktivnih supervizora u sistemu.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => setReassignDialogOpen(false)}
+                  disabled={reassigning}
+                >
+                  Otkazi
+                </Button>
+                <Button
+                  onClick={() => void handleReassign()}
+                  disabled={reassigning || !selectedSupervisorId}
+                  className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white"
+                >
+                  {reassigning ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Postavljam...
+                    </>
+                  ) : (
+                    'Potvrdi'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

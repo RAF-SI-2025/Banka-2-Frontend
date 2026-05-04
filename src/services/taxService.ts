@@ -1,5 +1,5 @@
 import api from './api';
-import type { TaxRecord, TaxBreakdownResponse } from '../types/celina3';
+import type { TaxRecord, TaxBreakdownResponse, TaxBreakdownItemDto } from '../types/celina3';
 
 const taxService = {
   /**
@@ -40,6 +40,29 @@ const taxService = {
     if (year !== undefined) params.year = String(year);
     if (month !== undefined) params.month = String(month);
     const response = await api.get(`/tax/${userId}/details`, { params });
+    return response.data;
+  },
+
+  /**
+   * GET /tax/{userId}/{userType}/breakdown
+   * Spec Celina 3 §516-518 — per-listing aggregisani breakdown (P2.4 BE endpoint).
+   * Supervizor only, vraca List<TaxBreakdownItemDto> sortirano po taxOwed DESC.
+   */
+  getPerListingBreakdown: async (
+    userId: number,
+    userType: string,
+  ): Promise<TaxBreakdownItemDto[]> => {
+    const response = await api.get<TaxBreakdownItemDto[]>(`/tax/${userId}/${userType}/breakdown`);
+    return response.data;
+  },
+
+  /**
+   * GET /tax/my/breakdown
+   * Per-listing breakdown za trenutno autentifikovanog korisnika.
+   * Sortirano po taxOwed DESC.
+   */
+  getMyPerListingBreakdown: async (): Promise<TaxBreakdownItemDto[]> => {
+    const response = await api.get<TaxBreakdownItemDto[]>('/tax/my/breakdown');
     return response.data;
   },
 };

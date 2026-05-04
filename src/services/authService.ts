@@ -18,6 +18,18 @@ export const authService = {
     return response.data;
   },
 
+  /**
+   * POST /auth/logout — server-side blacklist trenutnog JWT-a (Caffeine cache,
+   * 20min TTL = max preostalo trajanje access tokena).
+   *
+   * Best-effort: ako BE nije reachable (network error / 5xx), klijentska
+   * sesija se i dalje cisti. Server-side blacklist je defense-in-depth, ne
+   * apsolutni autoritet — JWT i dalje istice za 15 minuta po default-u.
+   */
+  logout: async (): Promise<void> => {
+    await api.post('/auth/logout');
+  },
+
   forgotPassword: async (data: ForgotPasswordRequest): Promise<void> => {
     await api.post('/auth/password_reset/request', data);
   },

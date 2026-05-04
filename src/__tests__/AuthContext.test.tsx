@@ -8,10 +8,11 @@ import { Permission } from '../types';
 // Mocks
 // ---------------------------------------------------------------------------
 
-// Mock authService
+// Mock authService — login + logout (Opc.1 server-side blacklist endpoint)
 vi.mock('../services/authService', () => ({
   authService: {
     login: vi.fn(),
+    logout: vi.fn().mockResolvedValue(undefined),
   },
 }));
 

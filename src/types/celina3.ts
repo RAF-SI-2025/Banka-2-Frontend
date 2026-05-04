@@ -228,6 +228,24 @@ export interface TaxBreakdownResponse {
   items: TaxBreakdownItem[];
 }
 
+/**
+ * Per-listing aggregisani breakdown poreske obaveze (P2.4 BE endpoint).
+ * Razlika od `TaxBreakdownItem`: ova stavka je AGREGAT po listingu (ticker),
+ * dok `TaxBreakdownItem` je per-transaction (orderId-level granularnost).
+ *
+ * BE endpoint: GET /tax/{userId}/{userType}/breakdown (supervizor only)
+ *           ili GET /tax/my/breakdown (autentifikovani user)
+ * Response: List<TaxBreakdownItemDto>, sortirano po taxOwed DESC.
+ */
+export interface TaxBreakdownItemDto {
+  listingId: number;
+  ticker: string;
+  listingCurrency: string;
+  profitNative: number;
+  profitRsd: number;
+  taxOwed: number;
+}
+
 // --- Berze ---
 
 export interface Exchange {

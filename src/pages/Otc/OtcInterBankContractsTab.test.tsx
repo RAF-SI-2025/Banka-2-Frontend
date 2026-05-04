@@ -118,6 +118,12 @@ describe('OtcInterBankContractsTab', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.useRealTimers();
+    // Clear SAGA recovery key — komponente koje cuvaju aktivni SAGA state
+    // u sessionStorage moraju ne curiti taj state izmedju testova jer
+    // recovery useEffect na mount-u inace re-trigger-uje api.get pozive.
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.clear();
+    }
     mockedInterbankOtcService.listMyContracts.mockResolvedValue([
       activeBuyerContract,
       sellerSideContract,

@@ -17,9 +17,10 @@ import type { PieLabelRenderProps } from 'recharts';
 
 import portfolioService from '@/services/portfolioService';
 import listingService from '@/services/listingService';
+import taxService from '@/services/taxService';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/lib/notify';
-import type { PortfolioItem, PortfolioSummary } from '@/types/celina3';
+import type { PortfolioItem, PortfolioSummary, TaxBreakdownItemDto } from '@/types/celina3';
 import { formatAmount, formatDateTime } from '@/utils/formatters';
 import { parseNumber } from '@/utils/numberUtils';
 
@@ -286,7 +287,44 @@ export default function PortfolioPage() {
   const [publicQuantities, setPublicQuantities] = useState<Record<number, string>>({});
   const [savingPublicId, setSavingPublicId] = useState<number | null>(null);
   const [exercisingId, setExercisingId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'holdings' | 'funds'>('holdings');
+  const [activeTab, setActiveTab] = useState<'holdings' | 'funds' | 'tax'>('holdings');
+
+  // P2.4 — per-listing porez breakdown za trenutnog korisnika.
+  // Lazy-loaded: fetcha se prvi put kad user otvori "Porez breakdown" tab.
+  const [taxBreakdown, setTaxBreakdown] = useState<TaxBreakdownItemDto[] | null>(null);
+  const [taxBreakdownLoading, setTaxBreakdownLoading] = useState(false);
+  const [taxBreakdownError, setTaxBreakdownError] = useState<'unavailable' | 'error' | null>(null);
+
+  useEffect(() => {
+    if (activeTab !== 'tax') return;
+    if (taxBreakdown !== null) return; // vec ucitan
+    let cancelled = false;
+    setTaxBreakdownLoading(true);
+    setTaxBreakdownError(null);
+    void taxService
+      .getMyPerListingBreakdown()
+      .then((items) => {
+        if (cancelled) return;
+        setTaxBreakdown(Array.isArray(items) ? items : []);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const httpErr = err as { response?: { status?: number } };
+        const httpStatus = httpErr?.response?.status;
+        if (httpStatus === 404 || httpStatus === 501 || httpStatus === 405) {
+          setTaxBreakdownError('unavailable');
+        } else {
+          setTaxBreakdownError('error');
+        }
+        setTaxBreakdown([]);
+      })
+      .finally(() => {
+        if (!cancelled) setTaxBreakdownLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, taxBreakdown]);
 
   const loadPortfolio = async (showLoadingState = true) => {
     if (showLoadingState) setLoading(true);
@@ -441,6 +479,14 @@ export default function PortfolioPage() {
           onClick={() => setActiveTab('funds')}
         >
           Moji fondovi
+        </button>
+        <button
+          type="button"
+          className={`rounded-md px-3 py-1.5 text-sm ${activeTab === 'tax' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+          onClick={() => setActiveTab('tax')}
+          data-testid="portfolio-tab-tax"
+        >
+          Porez breakdown
         </button>
       </div>
 
@@ -712,8 +758,92 @@ export default function PortfolioPage() {
           </Card>
           </>
         )
-      ) : (
+      ) : activeTab === 'funds' ? (
         <MyFundsTab />
+      ) : (
+        /*
+          P2.4 — Per-listing porez breakdown za trenutnog korisnika.
+          BE endpoint: GET /tax/my/breakdown (vraca List<TaxBreakdownItemDto>
+          sortirano po taxOwed DESC). Spec Celina 3 §516-518.
+        */
+        <Card data-testid="portfolio-tax-breakdown-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-indigo-500" />
+              Porez breakdown po hartiji
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {taxBreakdownLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-10 animate-pulse rounded bg-muted/50" />
+                ))}
+              </div>
+            ) : taxBreakdownError === 'unavailable' ? (
+              <Alert>
+                <AlertDescription>
+                  Per-listing porez breakdown trenutno nije dostupan (BE endpoint nije implementiran).
+                </AlertDescription>
+              </Alert>
+            ) : taxBreakdownError === 'error' ? (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  Greska pri ucitavanju porez breakdown-a. Pokusajte ponovo kasnije.
+                </AlertDescription>
+              </Alert>
+            ) : !taxBreakdown || taxBreakdown.length === 0 ? (
+              <div className="flex flex-col items-center py-12 text-center">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                  <Receipt className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="font-medium">Nemate poreske obaveze po hartijama</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Realizovane SELL transakcije ce se prikazati ovde sa profit/porez breakdownom.
+                </p>
+              </div>
+            ) : (
+              <Table data-testid="portfolio-tax-breakdown-table">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Ticker</TableHead>
+                    <TableHead>Valuta</TableHead>
+                    <TableHead className="text-right">Profit (native)</TableHead>
+                    <TableHead className="text-right">Profit (RSD)</TableHead>
+                    <TableHead className="text-right">Porez (RSD)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {taxBreakdown.map((item) => {
+                    const profitRsd = parseNumber(item.profitRsd);
+                    const isProfitRsdPositive = profitRsd >= 0;
+                    return (
+                      <TableRow key={item.listingId}>
+                        <TableCell className="font-medium">{item.ticker}</TableCell>
+                        <TableCell className="text-muted-foreground">{item.listingCurrency}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums">
+                          {formatAmount(parseNumber(item.profitNative))} {item.listingCurrency}
+                        </TableCell>
+                        <TableCell
+                          className={`text-right font-mono tabular-nums font-semibold ${
+                            isProfitRsdPositive
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}
+                        >
+                          {formatAmount(profitRsd)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono tabular-nums text-red-600 dark:text-red-400">
+                          {formatAmount(parseNumber(item.taxOwed))}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   );

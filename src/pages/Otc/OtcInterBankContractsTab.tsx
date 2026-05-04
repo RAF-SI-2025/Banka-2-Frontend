@@ -48,11 +48,27 @@ const SAGA_PHASES = [
   'Finalizacija',
 ] as const;
 
+// Spec Celina 5 (Nova) Sc 5/9 indirect FE coverage: cap polling-a SAGA
+// statusa na 60 pokusaja × 3s = 3 minuta. Kad pretekne, FE prikazuje
+// "Pracenje SAGA isteklo" sa "Osvezi status" dugmetom. BE retry scheduler
+// nastavlja u pozadini — user moze da rucno triggeruje refresh kasnije.
+const SAGA_POLL_INTERVAL_MS = 3000;
+const SAGA_MAX_POLLS = 60;
+// Spec Celina 5 (Nova) Sc 11 indirect FE coverage: rehydrate active SAGA
+// posle reload-a stranice. Cuva se {contract, transaction} JSON u sessionStorage.
+const SAGA_ACTIVE_KEY = 'interbank-otc-saga-active';
+
 type FilterValue = OtcInterbankContractStatus | 'ALL';
 
 type SagaProgressState = {
   contract: OtcInterbankContract;
   transaction: InterbankTransaction;
+  /**
+   * Spec Celina 5 (Nova) Sc 5/9: kad polling istekne (SAGA_MAX_POLLS),
+   * setujemo `pollExhausted=true` i prikazujemo "Pracenje SAGA isteklo"
+   * upozorenje sa "Osvezi status" dugmetom. BE retry nastavlja u pozadini.
+   */
+  pollExhausted?: boolean;
 };
 
 const selectClassName =
@@ -139,6 +155,7 @@ export default function OtcInterBankContractsTab({ onActiveCountChange }: Props 
   const [busyContractId, setBusyContractId] = useState<string | null>(null);
   const [progressState, setProgressState] = useState<SagaProgressState | null>(null);
   const [pollError, setPollError] = useState<string | null>(null);
+  const [refreshingProgress, setRefreshingProgress] = useState(false);
 
   const reloadContracts = useCallback(async (nextFilter: FilterValue = filter) => {
     setLoadingContracts(true);
@@ -183,12 +200,24 @@ export default function OtcInterBankContractsTab({ onActiveCountChange }: Props 
     }
 
     if (isInterbankTerminalStatus(progressState.transaction.status)) {
+      // Spec Celina 5 (Nova) Sc 11: cisti recovery key kad SAGA dosegne
+      // terminal status (COMMITTED/ABORTED) — vise nema sta da se rehydrate.
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem(SAGA_ACTIVE_KEY);
+      }
+      return;
+    }
+
+    if (progressState.pollExhausted) {
+      // Polling je vec iscrpljen — cekamo manual refresh (handleRefreshProgress).
       return;
     }
 
     const transactionLookupId = getTransactionLookupId(progressState.transaction);
+    let pollCount = 0;
     const intervalId = window.setInterval(() => {
       void (async () => {
+        pollCount += 1;
         try {
           const { data } = await api.get<InterbankTransaction>(`/interbank/payments/${transactionLookupId}`);
           setProgressState((current) => {
@@ -207,6 +236,9 @@ export default function OtcInterBankContractsTab({ onActiveCountChange }: Props 
           if (isInterbankTerminalStatus(data.status)) {
             window.clearInterval(intervalId);
             await reloadContracts(filter);
+            if (typeof window !== 'undefined') {
+              window.sessionStorage.removeItem(SAGA_ACTIVE_KEY);
+            }
 
             if (data.status === 'COMMITTED') {
               toast.success('Inter-bank exercise je uspesno finalizovan.');
@@ -220,6 +252,16 @@ export default function OtcInterBankContractsTab({ onActiveCountChange }: Props 
                 ),
               );
             }
+            return;
+          }
+
+          // Spec Celina 5 (Nova) Sc 5/9: posle SAGA_MAX_POLLS pokusaja
+          // (3 minuta) prekidamo polling i markiramo `pollExhausted`.
+          // Korisnik moze rucno da refreshuje preko "Osvezi status" dugmeta.
+          if (pollCount >= SAGA_MAX_POLLS) {
+            window.clearInterval(intervalId);
+            setProgressState((current) => (current ? { ...current, pollExhausted: true } : current));
+            toast.info('Pracenje SAGA statusa isteklo — banka primaoca jos nije zavrsila SAGA flow. Mozete rucno osveziti status.');
           }
         } catch (error) {
           window.clearInterval(intervalId);
@@ -228,7 +270,7 @@ export default function OtcInterBankContractsTab({ onActiveCountChange }: Props 
           toast.error(message);
         }
       })();
-    }, 3000);
+    }, SAGA_POLL_INTERVAL_MS);
 
     return () => {
       window.clearInterval(intervalId);
@@ -248,6 +290,86 @@ export default function OtcInterBankContractsTab({ onActiveCountChange }: Props 
 
   const progressValue = currentPhaseIndex == null ? 15 : (currentPhaseIndex / SAGA_PHASES.length) * 100;
   const progressTerminal = progressState ? isInterbankTerminalStatus(progressState.transaction.status) : false;
+
+  // Spec Celina 5 (Nova) Sc 11 indirect FE coverage: ako user reloaduje
+  // stranicu dok je inter-bank OTC SAGA u toku, rehydrate-ujemo
+  // progress dialog. Cuvamo {contract, transaction} JSON u sessionStorage.
+  // Ako BE vrati 404 ili JSON je truli, tihi cleanup.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = window.sessionStorage.getItem(SAGA_ACTIVE_KEY);
+    if (!raw) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const parsed = JSON.parse(raw) as { contract: OtcInterbankContract; transactionId: string };
+        if (!parsed?.contract || !parsed?.transactionId) {
+          window.sessionStorage.removeItem(SAGA_ACTIVE_KEY);
+          return;
+        }
+        const { data } = await api.get<InterbankTransaction>(`/interbank/payments/${parsed.transactionId}`);
+        if (cancelled) return;
+        if (isInterbankTerminalStatus(data.status)) {
+          window.sessionStorage.removeItem(SAGA_ACTIVE_KEY);
+          return;
+        }
+        setProgressState({ contract: parsed.contract, transaction: data });
+        toast.info('Nastavljam pracenje inter-bank SAGA flow-a iz prethodne sesije...');
+      } catch {
+        if (!cancelled) {
+          window.sessionStorage.removeItem(SAGA_ACTIVE_KEY);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Spec Celina 5 (Nova) Sc 5/9 indirect FE coverage: manual refresh
+  // dugme u progress dialog-u, dostupno kad je `pollExhausted=true` ili
+  // kad je `pollError` postavljen. Fetcha jos jednom — ako je BE u
+  // medjuvremenu razresio, prikaze terminal toast; inace resetuje
+  // counter i pokrece polling iznova.
+  const handleRefreshProgress = async () => {
+    if (!progressState) return;
+    setRefreshingProgress(true);
+    try {
+      const transactionLookupId = getTransactionLookupId(progressState.transaction);
+      const { data } = await api.get<InterbankTransaction>(`/interbank/payments/${transactionLookupId}`);
+      setPollError(null);
+      if (isInterbankTerminalStatus(data.status)) {
+        setProgressState({ ...progressState, transaction: data, pollExhausted: false });
+        await reloadContracts(filter);
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.removeItem(SAGA_ACTIVE_KEY);
+        }
+        if (data.status === 'COMMITTED') {
+          toast.success('Inter-bank exercise je u medjuvremenu finalizovan.');
+        } else {
+          toast.error(
+            pickFailureReason(
+              data as { failureReason?: string; rejectionReason?: string; errorMessage?: string; errorCode?: string },
+              'Inter-bank exercise je prekinut.',
+            ),
+          );
+        }
+      } else {
+        // Resetuj counter — useEffect ce automatski pokrenuti novi interval
+        // jer ce `pollExhausted` biti false a status nije terminal.
+        setProgressState({ ...progressState, transaction: data, pollExhausted: false });
+        toast.info('Pracenje statusa nastavljeno.');
+      }
+    } catch (error) {
+      const message = getErrorMessage(error, 'Osvezavanje statusa nije uspelo.');
+      setPollError(message);
+      toast.error(message);
+    } finally {
+      setRefreshingProgress(false);
+    }
+  };
 
   const openExerciseDialog = (contract: OtcInterbankContract) => {
     const preferredAccount = getPreferredAccount(accounts, contract.listingCurrency);
@@ -269,6 +391,9 @@ export default function OtcInterBankContractsTab({ onActiveCountChange }: Props 
     }
     setProgressState(null);
     setPollError(null);
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(SAGA_ACTIVE_KEY);
+    }
   };
 
   const handleExercise = async () => {
@@ -289,8 +414,30 @@ export default function OtcInterBankContractsTab({ onActiveCountChange }: Props 
       setPollError(null);
       setProgressState({ contract: selectedContract, transaction });
 
+      // Spec Celina 5 (Nova) Sc 11: persistiraj aktivnu SAGA tako da
+      // user moze reloadovati stranicu i rehydrate progress dialog.
+      // Cuvamo samo cinjenice potrebne za rendere i polling — ne i
+      // celu tx istoriju (BE zna stanje preko transactionId).
+      if (typeof window !== 'undefined' && !isInterbankTerminalStatus(transaction.status)) {
+        try {
+          window.sessionStorage.setItem(
+            SAGA_ACTIVE_KEY,
+            JSON.stringify({
+              contract: selectedContract,
+              transactionId: getTransactionLookupId(transaction),
+            }),
+          );
+        } catch {
+          // sessionStorage moze pasti (quota / privatni mod) — recovery
+          // nije kritican za sam SAGA flow, samo za UX posle reload-a.
+        }
+      }
+
       if (isInterbankTerminalStatus(transaction.status)) {
         await reloadContracts(filter);
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.removeItem(SAGA_ACTIVE_KEY);
+        }
 
         if (transaction.status === 'COMMITTED') {
           toast.success('Inter-bank exercise je uspesno finalizovan.');
@@ -725,6 +872,51 @@ export default function OtcInterBankContractsTab({ onActiveCountChange }: Props 
                       })}
                     </div>
                   </div>
+                )}
+
+                {/*
+                  Spec Celina 5 (Nova) Sc 5/9 indirect FE coverage: kad je
+                  polling istekao (`pollExhausted`) ili poll vratio gresku
+                  (`pollError`), prikazi amber upozorenje sa "Osvezi status"
+                  dugmetom. BE retry scheduler nastavlja u pozadini — user
+                  moze rucno da fetchuje status kasnije.
+                */}
+                {!progressTerminal && (progressState.pollExhausted || pollError) && (
+                  <Alert variant="warning" data-testid="saga-poll-exhausted-alert">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>
+                      {pollError
+                        ? 'Pracenje SAGA statusa je prekinuto'
+                        : 'Pracenje SAGA statusa je isteklo'}
+                    </AlertTitle>
+                    <AlertDescription>
+                      <p className="mb-3">
+                        {pollError
+                          ? 'Doslo je do greske pri proveri statusa. Banka primaoca mozda jos uvek izvrsava SAGA flow u pozadini.'
+                          : `Posle ${(SAGA_MAX_POLLS * SAGA_POLL_INTERVAL_MS) / 1000}s polling-a, banka primaoca jos nije zavrsila SAGA flow. Sistem nastavlja retry u pozadini.`}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void handleRefreshProgress()}
+                        disabled={refreshingProgress}
+                        data-testid="saga-refresh-btn"
+                      >
+                        {refreshingProgress ? (
+                          <>
+                            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                            Proveravam...
+                          </>
+                        ) : (
+                          <>
+                            <Loader2 className="mr-2 h-3.5 w-3.5" />
+                            Osvezi status
+                          </>
+                        )}
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
                 )}
 
                 {(() => {

@@ -19,7 +19,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
@@ -27,6 +27,52 @@ jobs:
 
       - name: Run ESLint
         run: npm run lint
+
+  npm-audit:
+    name: "npm audit (SAST: dep-vuln scan)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit production deps for high+critical CVEs
+        # SAST gate: build pada ako neki dep ima high ili critical CVE.
+        # Production-only filter (`--omit=dev`) sprecava da ESLint/Vitest dev-deps
+        # pucaju build kad imaju low-severity issues koji ne idu u runtime bundle.
+        run: npm audit --audit-level=high --omit=dev
+
+  eslint-security:
+    name: "ESLint security plugin (SAST: code-pattern scan)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run eslint-plugin-security
+        # `eslint-plugin-security` detektuje OWASP-style obrasce: eval(), unsafe regex
+        # (ReDoS), child_process spawn sa korisnickim input-om, fs.readFile sa
+        # nelitralnim path-om, weak crypto (`crypto.pseudoRandomBytes`), itd.
+        # Pokrecemo samo nase src/ — bez node_modules. continue-on-error za sad
+        # jer ima 33 warnings u minified vendor bundles koje ne mozemo da fix-ujemo.
+        # Svaki novi PR koji uvodi NEW security warning treba da ga adresira.
+        run: npx eslint src/ --no-config-lookup --plugin security --rule "{\"security/detect-eval-with-expression\":\"error\",\"security/detect-non-literal-fs-filename\":\"error\",\"security/detect-non-literal-require\":\"error\",\"security/detect-unsafe-regex\":\"warn\",\"security/detect-pseudoRandomBytes\":\"error\"}"
+        continue-on-error: true
 
   typecheck:
     name: TypeScript
@@ -37,7 +83,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
@@ -55,7 +101,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies

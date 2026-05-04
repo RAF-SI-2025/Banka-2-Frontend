@@ -1,14 +1,14 @@
 /**
  * CELINA 4 - Mock E2E Tests (Comprehensive)
  *
- * Covers: OTC Intra-bank (vec implementirano), OTC Inter-bank (TODO),
- *         Investicioni fondovi (TODO), Profit Banke portal (TODO),
- *         Medjubankarska placanja 2PC (TODO).
+ * Covers: OTC Intra-bank (vec implementirano), OTC Inter-bank (Pending),
+ *         Investicioni fondovi (Pending), Profit Banke portal (Pending),
+ *         Medjubankarska placanja 2PC (Pending).
  *
  * Sve API pozive mock-ujemo sa cy.intercept() — ne zahteva backend.
  *
  * ==========================================================================
- *  TODO — CELINA 4 MOCK SUITE (zaduzenja po GitHub Issue-ima #66-79)
+ *  Pending — CELINA 4 MOCK SUITE (zaduzenja po GitHub Issue-ima #66-79)
  * --------------------------------------------------------------------------
  *  Spec referenca: Info o predmetu/Celina 4.txt (linije 1-540)
  *  Distribucija taskova: Info o predmetu/Celina4_Podela_Taskova.md
@@ -319,7 +319,7 @@ const mockAccounts = [
   },
 ];
 
-// TODO(antonije3) — mockFundPositions + mockInterbankPayments za Issue #74/#76
+// Pending(antonije3) — mockFundPositions + mockInterbankPayments za Issue #74/#76
 // Referenca: ClientFundPosition, InterbankPayment
 const mockFundPositions = [
   {
@@ -337,7 +337,7 @@ const mockFundPositions = [
   },
 ];
 
-// TODO(sssmarta) — mockActuaryProfit + mockBankFundPositions za Issue #77
+// Pending(sssmarta) — mockActuaryProfit + mockBankFundPositions za Issue #77
 // Referenca: ActuaryProfit, BankFundPosition
 
 
@@ -496,7 +496,7 @@ describe('Mock C4: Create Fund', () => {
     });
   });
 
-  it('TODO S16: Supervizor popunjava formu i kreira fond', () => {
+  it('[PENDING] S16: Supervizor popunjava formu i kreira fond', () => {
     cy.intercept('POST', '/api/funds', {
       statusCode: 201,
       body: { id: 10, name: 'E2E Mock Fund', description: 'Mock test create fund', minimumContribution: 1500 },
@@ -516,7 +516,7 @@ describe('Mock C4: Create Fund', () => {
     cy.url().should('include', '/funds/10');
   });
 
-  it('TODO S17: Validation - prazan naziv', () => {
+  it('[PENDING] S17: Validation - prazan naziv', () => {
     cy.visit('/funds/create', { onBeforeLoad: setupSupervisorSession });
     cy.get('#name').type('ab');
     cy.get('#minimumContribution').clear().type('1000');
@@ -524,7 +524,7 @@ describe('Mock C4: Create Fund', () => {
     cy.contains('Naziv mora imati najmanje 3 karaktera').should('be.visible');
   });
 
-  it('TODO S18: Validation - minimumContribution <= 0', () => {
+  it('[PENDING] S18: Validation - minimumContribution <= 0', () => {
     cy.visit('/funds/create', { onBeforeLoad: setupSupervisorSession });
     cy.get('#name').type('Mock Valid Name');
     cy.get('#minimumContribution').clear().type('0');
@@ -532,7 +532,7 @@ describe('Mock C4: Create Fund', () => {
     cy.contains('Minimalna uplata mora biti veća od 0').should('be.visible');
   });
 
-  it('TODO S19: Duplikat naziva - server vraca 400, toast error', () => {
+  it('[PENDING] S19: Duplikat naziva - server vraca 400, toast error', () => {
     cy.intercept('POST', '/api/funds', {
       statusCode: 400,
       body: { error: 'Fond sa tim nazivom vec postoji' },
@@ -549,7 +549,7 @@ describe('Mock C4: Create Fund', () => {
     cy.url().should('include', '/funds/create');
   });
 
-  it('TODO S20: Klijent nema pristup /funds/create', () => {
+  it('[PENDING] S20: Klijent nema pristup /funds/create', () => {
     // ProtectedRoute sa supervisorOnly=true preusmerava klijenta na /403.
     // To je tacno ponasanje — klijent nema pravo da kreira fond po Celina 4 spec-u.
     cy.visit('/funds/create', { onBeforeLoad: setupClientSession });
@@ -957,7 +957,7 @@ describe('Mock C4: OTC Inter-bank Discovery', () => {
     cy.wait('@remoteOtcListings');
   };
 
-  it('TODO S36: Tab "Iz drugih banaka" na OtcTrgovinaPage', () => {
+  it('[PENDING] S36: Tab "Iz drugih banaka" na OtcTrgovinaPage', () => {
     openRemoteTab();
 
     cy.contains('[role="tab"]', 'Iz drugih banaka').should('have.attr', 'aria-selected', 'true');
@@ -965,7 +965,7 @@ describe('Mock C4: OTC Inter-bank Discovery', () => {
     cy.get('table tbody tr').should('have.length', mockOtcRemoteListings.length);
   });
 
-  it('TODO S37: Lista prikazuje bankCode i sellerName kolone', () => {
+  it('[PENDING] S37: Lista prikazuje bankCode i sellerName kolone', () => {
     openRemoteTab();
 
     cy.contains('th', 'Banka prodavca').should('be.visible');
@@ -976,7 +976,7 @@ describe('Mock C4: OTC Inter-bank Discovery', () => {
     cy.contains('Partner Seller').should('be.visible');
   });
 
-  it('TODO S38: "Napravi ponudu" otvara formu i salje POST', () => {
+  it('[PENDING] S38: "Napravi ponudu" otvara formu i salje POST', () => {
     openRemoteTab();
 
     cy.contains('button', 'Napravi ponudu').first().click();
@@ -1001,7 +1001,7 @@ describe('Mock C4: OTC Inter-bank Discovery', () => {
     cy.contains('button', 'Posalji ponudu prodavcu').should('not.exist');
   });
 
-  it('TODO S39: Osvezi dugme poziva listRemoteListings', () => {
+  it('[PENDING] S39: Osvezi dugme poziva listRemoteListings', () => {
     openRemoteTab();
 
     cy.contains('button', 'Osvezi').click();
@@ -1433,13 +1433,13 @@ describe('Mock C4: Profit Banke Portal', () => {
     setupSupervisorSession();
   });
 
-  it.skip('TODO S51: Supervizor pristupa /employee/profit-bank', () => {});
-  it.skip('TODO S52: Tab "Profit aktuara" - tabela sa profitom RSD', () => {});
-  it.skip('TODO S53: Sortiranje po profitu desc (default)', () => {});
-  it.skip('TODO S54: Tab "Pozicije u fondovima" - bankine pozicije', () => {});
-  it.skip('TODO S55: "Uplati (banka)" dugme otvara FundInvestDialog supervisor mode', () => {});
-  it.skip('TODO S56: "Povuci (banka)" dugme otvara FundWithdrawDialog supervisor mode', () => {});
-  it.skip('TODO S57: Agent/Klijent NEMAJU pristup portalu (403)', () => {});
+  it.skip('[PENDING] S51: Supervizor pristupa /employee/profit-bank', () => {});
+  it.skip('[PENDING] S52: Tab "Profit aktuara" - tabela sa profitom RSD', () => {});
+  it.skip('[PENDING] S53: Sortiranje po profitu desc (default)', () => {});
+  it.skip('[PENDING] S54: Tab "Pozicije u fondovima" - bankine pozicije', () => {});
+  it.skip('[PENDING] S55: "Uplati (banka)" dugme otvara FundInvestDialog supervisor mode', () => {});
+  it.skip('[PENDING] S56: "Povuci (banka)" dugme otvara FundWithdrawDialog supervisor mode', () => {});
+  it.skip('[PENDING] S57: Agent/Klijent NEMAJU pristup portalu (403)', () => {});
 });
 
 
@@ -1451,11 +1451,11 @@ describe('Mock C4: Admin Fund Reassignment', () => {
     setupAdminSession();
   });
 
-  it.skip('TODO S58: Admin uklanja isSupervisor - dialog se otvara ako user upravlja fondovima', () => {});
-  it.skip('TODO S59: Dialog prikazuje broj i nazive fondova', () => {});
-  it.skip('TODO S60: "Potvrdi" salje PATCH i refreshuje listu', () => {});
-  it.skip('TODO S61: "Otkazi" vraca checkbox u checked stanje', () => {});
-  it.skip('TODO S62: User bez fondova - nema dialog-a (direktno PATCH)', () => {});
+  it.skip('[PENDING] S58: Admin uklanja isSupervisor - dialog se otvara ako user upravlja fondovima', () => {});
+  it.skip('[PENDING] S59: Dialog prikazuje broj i nazive fondova', () => {});
+  it.skip('[PENDING] S60: "Potvrdi" salje PATCH i refreshuje listu', () => {});
+  it.skip('[PENDING] S61: "Otkazi" vraca checkbox u checked stanje', () => {});
+  it.skip('[PENDING] S62: User bez fondova - nema dialog-a (direktno PATCH)', () => {});
 });
 
 
@@ -1855,7 +1855,7 @@ describe('Mock C4: Sidebar C4 Links', () => {
 
 /*
 ================================================================================
-  UKUPNO: 76 TODO scenarija (mock)
+  UKUPNO: 76 pending scenarija (mock)
   Nakon sto feature bude implementiran, zameni `it.skip` sa `it` i popuni body.
   Cilj: do KT3, ceo mock suite da bude zelen.
 ================================================================================

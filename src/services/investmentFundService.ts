@@ -68,6 +68,18 @@ const investmentFundService = {
   },
 
   /**
+   * POST /funds/{id}/reassign-manager — admin only (P1.2 BE endpoint).
+   * Spec Celina 4 §324: dodeljuje fondu novog menadzera. BE validira
+   * da je novi manager SUPERVISOR (400 ako nije, 404 ako fund/employee fali).
+   */
+  async reassignManager(fundId: number, newManagerEmployeeId: number): Promise<InvestmentFundDetail> {
+    const { data } = await api.post<InvestmentFundDetail>(`/funds/${fundId}/reassign-manager`, {
+      newManagerEmployeeId,
+    });
+    return data;
+  },
+
+  /**
    * Vraca fondove kojima upravlja zadat zaposleni. BE jos uvek nema namenski
    * endpoint, pa filtriramo lokalno preko `list()`. Spec Celina 4 (Nova)
    * §3797-3879: kad admin ukloni isSupervisor permisiju supervizoru koji
