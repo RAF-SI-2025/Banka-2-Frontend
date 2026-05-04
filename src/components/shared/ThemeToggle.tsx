@@ -23,7 +23,7 @@ export default function ThemeToggle({ variant = 'compact', className = '' }: The
   const { theme, setTheme } = useTheme();
 
   const Icon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
-  const label = theme === 'light' ? 'Svetla tema' : theme === 'dark' ? 'Tamna tema' : 'Sistemska tema';
+  const label = theme === 'light' ? 'Svetlo' : theme === 'dark' ? 'Tamno' : 'Sistem';
   const ariaLabel = `Trenutna tema: ${label}. Klik za sledecu.`;
 
   const handleClick = () => {

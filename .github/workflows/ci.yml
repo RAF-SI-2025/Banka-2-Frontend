@@ -195,7 +195,19 @@ jobs:
       - name: Pull backend image
         id: pull-backend
         continue-on-error: true
-        run: docker pull ghcr.io/raf-si-2025/banka2-backend:latest
+        # Race condition mitigation: ako se BE i FE push-uju u isto vreme (npr.
+        # multi-repo runa), BE-CD job moze jos uvek da bude u toku kad FE-CI
+        # pokusa da povuce sliku. U tom slucaju imamo schema drift (npr. BE
+        # entity ima novu kolonu, ali GHCR :latest jos uvek upucuje na stariju
+        # sliku bez kolone), pa seed.sql puca na missing column. Dajemo BE-CD-u
+        # 60s da zavrsi push, pa povlacimo opet (force re-pull). Ako jos uvek
+        # nije ready, run continues sa onom slikom koja je dostupna; seed step
+        # ce reproducovati drift i prijaviti smisleni error.
+        run: |
+          docker pull ghcr.io/raf-si-2025/banka2-backend:latest
+          echo "Cekam jos 60s za potencijalno noviji BE-CD push..."
+          sleep 60
+          docker pull ghcr.io/raf-si-2025/banka2-backend:latest || true
 
       - name: Skip if backend image unavailable
         if: steps.pull-backend.outcome == 'failure'

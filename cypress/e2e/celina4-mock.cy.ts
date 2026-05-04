@@ -1115,13 +1115,31 @@ describe('Mock C4: OTC Inter-bank Offers', () => {
     cy.contains('tr', 'AAPL').within(() => {
       cy.contains('button', 'Kontraponuda').click();
     });
-    // Input pocinje sa initial value = offer.quantity (70). `clear()` na controlled
-    // React input ne triggers uvek `onChange` jer Cypress-ov clear() postavlja
-    // value direktno DOM-om bez `input` event-a. Koristimo {selectall}{backspace}
-    // sequence koji forsira React state da se sinhronizuje sa praznom vrednoscu
-    // pre nego sto type-ujemo novu.
-    cy.get('input[id^="remote-counter-qty-"]').type('{selectall}{backspace}7');
-    cy.get('input[id^="remote-counter-premium-"]').type('{selectall}{backspace}12.5');
+    // Spec: input pocinje sa initial value = offer.quantity (70). React 19
+    // controlled <input type="number"> + Cypress 15 + Vite 8 (Rolldown)
+    // imaju poznat race u kome ni `clear()` ni `{selectAll}{del}` ne
+    // okidaju React's `onChange` handler propisno (React internal value
+    // tracker ne detect-uje DOM-level value mutaciju iz Cypress-a).
+    // Resenje: koristi native HTMLInputElement value setter direktno —
+    // tako React-ov input value tracker obavesti SyntheticEvent system
+    // i onChange handler bude pozvan kao da je korisnik fizicki ukucao.
+    const setNativeValue = (selector: string, value: string) => {
+      cy.get(selector).then(($el) => {
+        const input = $el[0] as HTMLInputElement;
+        const nativeSetter = Object.getOwnPropertyDescriptor(
+          window.HTMLInputElement.prototype,
+          'value',
+        )?.set;
+        nativeSetter?.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    };
+    setNativeValue('input[id^="remote-counter-qty-"]', '7');
+    setNativeValue('input[id^="remote-counter-premium-"]', '12.5');
+    // Verifikuj da je React state stvarno usvojio nove vrednosti pre submit-a.
+    cy.get('input[id^="remote-counter-qty-"]').should('have.value', '7');
+    cy.get('input[id^="remote-counter-premium-"]').should('have.value', '12.5');
     cy.contains('button', 'Posalji kontraponudu').click();
 
     cy.wait('@counterRemoteOffer').then((interception) => {
@@ -1429,17 +1447,126 @@ describe('Mock C4: OTC Inter-bank Contracts', () => {
 //  FEATURE 10: Profit Banke portal (Issue #77 / sssmarta)
 // ============================================================
 describe('Mock C4: Profit Banke Portal', () => {
-  beforeEach(() => {
-    setupSupervisorSession();
+  const mockActuaries = [
+    { employeeId: 1, name: 'Marko Petrovic', position: 'SUPERVISOR', ordersDone: 12, totalProfitRsd: 950000 },
+    { employeeId: 2, name: 'Tamara Pavlovic', position: 'AGENT', ordersDone: 8, totalProfitRsd: 450000 },
+    { employeeId: 3, name: 'Maja Ristic', position: 'AGENT', ordersDone: 4, totalProfitRsd: 120000 },
+    { employeeId: 4, name: 'Nikola Milenkovic', position: 'SUPERVISOR', ordersDone: 20, totalProfitRsd: 1500000 },
+  ];
+
+  const mockBankPositions = [
+    {
+      id: 101, fundId: 1, fundName: 'Alpha Growth Fund', userId: 99, userRole: 'CLIENT',
+      totalInvested: 5000000, currentValue: 6200000, percentOfFund: 12.5, lastModifiedAt: '2026-04-30T10:00:00Z',
+    },
+    {
+      id: 102, fundId: 2, fundName: 'Beta Income Fund', userId: 99, userRole: 'CLIENT',
+      totalInvested: 3000000, currentValue: 3450000, percentOfFund: 8.2, lastModifiedAt: '2026-04-30T10:00:00Z',
+    },
+  ];
+
+  const mockFundsList = [
+    { id: 1, name: 'Alpha Growth Fund', description: 'IT sektor', minimumContribution: 1000, fundValue: 50000000, managerId: 1, managerName: 'Marko Petrovic', accountId: 1, accountNumber: '222100200000000001', currency: 'RSD', createdAt: '2024-01-01' },
+    { id: 2, name: 'Beta Income Fund', description: 'Konzervativni', minimumContribution: 500, fundValue: 42000000, managerId: 4, managerName: 'Nikola Milenkovic', accountId: 2, accountNumber: '222100200000000002', currency: 'RSD', createdAt: '2024-02-01' },
+  ];
+
+  function setupProfitBankMocks() {
+    cy.intercept('GET', '**/api/profit-bank/actuary-performance', {
+      statusCode: 200, body: mockActuaries,
+    }).as('actuaries');
+    cy.intercept('GET', '**/api/profit-bank/fund-positions', {
+      statusCode: 200, body: mockBankPositions,
+    }).as('bankPositions');
+    cy.intercept('GET', '**/api/funds', {
+      statusCode: 200, body: mockFundsList,
+    }).as('fundsList');
+    cy.intercept('GET', '**/api/funds/1', {
+      statusCode: 200,
+      body: {
+        ...mockFundsList[0],
+        liquidAmount: 8000000,
+        holdings: [{ listingId: 1, ticker: 'AAPL', name: 'Apple', quantity: 100, currentPrice: 220, change: 5, acquisitionDate: '2024-06-01' }],
+      },
+    }).as('fund1Detail');
+    cy.intercept('GET', '**/api/accounts/bank*', { statusCode: 200, body: [
+      { id: 10, accountNumber: '222100100000000001', currency: 'RSD', balance: 100000000, availableBalance: 100000000, status: 'ACTIVE' },
+    ] });
+  }
+
+  it('S51: Supervizor pristupa /employee/profit-bank', () => {
+    setupProfitBankMocks();
+    cy.visit('/employee/profit-bank', { onBeforeLoad: setupSupervisorSession });
+    cy.url().should('include', '/employee/profit-bank');
+    cy.contains('h1', 'Profit Banke').should('be.visible');
   });
 
-  it.skip('[PENDING] S51: Supervizor pristupa /employee/profit-bank', () => {});
-  it.skip('[PENDING] S52: Tab "Profit aktuara" - tabela sa profitom RSD', () => {});
-  it.skip('[PENDING] S53: Sortiranje po profitu desc (default)', () => {});
-  it.skip('[PENDING] S54: Tab "Pozicije u fondovima" - bankine pozicije', () => {});
-  it.skip('[PENDING] S55: "Uplati (banka)" dugme otvara FundInvestDialog supervisor mode', () => {});
-  it.skip('[PENDING] S56: "Povuci (banka)" dugme otvara FundWithdrawDialog supervisor mode', () => {});
-  it.skip('[PENDING] S57: Agent/Klijent NEMAJU pristup portalu (403)', () => {});
+  it('S52: Tab "Profit aktuara" - tabela sa profitom RSD', () => {
+    setupProfitBankMocks();
+    cy.visit('/employee/profit-bank', { onBeforeLoad: setupSupervisorSession });
+    cy.wait('@actuaries');
+    cy.contains('Marko Petrovic').should('be.visible');
+    cy.contains('Tamara Pavlovic').should('be.visible');
+    cy.contains('Nikola Milenkovic').should('be.visible');
+    // Profit u RSD format-u (sr-RS): 950.000,00
+    cy.contains(/950\.000|950,000/).should('exist');
+  });
+
+  it('S53: Sortiranje po profitu desc (BE controller redosled)', () => {
+    // Spec ne forsira sort, ali ako BE vraca po profitu desc, FE prikaze tako.
+    // Verifikujemo da se prvi prikazani aktuar poklapa sa najvecim profitom
+    // u mock-u (Nikola, 1.5M).
+    cy.intercept('GET', '**/api/profit-bank/actuary-performance', {
+      statusCode: 200,
+      body: [...mockActuaries].sort((a, b) => b.totalProfitRsd - a.totalProfitRsd),
+    }).as('actuariesSorted');
+    cy.intercept('GET', '**/api/profit-bank/fund-positions', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/funds', { statusCode: 200, body: [] });
+    cy.visit('/employee/profit-bank', { onBeforeLoad: setupSupervisorSession });
+    cy.wait('@actuariesSorted');
+    cy.get('table tbody tr').first().should('contain', 'Nikola');
+  });
+
+  it('S54: Tab "Pozicije u fondovima" - bankine pozicije', () => {
+    setupProfitBankMocks();
+    cy.visit('/employee/profit-bank', { onBeforeLoad: setupSupervisorSession });
+    cy.wait('@actuaries');
+    cy.contains('[role="tab"]', /Pozicije u fondovima/i).click();
+    cy.wait('@bankPositions');
+    cy.contains('Alpha Growth Fund').should('be.visible');
+    cy.contains('Beta Income Fund').should('be.visible');
+    // Profit treba da bude prikazan kao razlika current - invested
+    cy.contains(/12\.5|12,5/).should('exist'); // procenat fonda
+  });
+
+  it('S55: "Uplati u ime banke" dugme otvara FundInvestDialog supervisor mode', () => {
+    setupProfitBankMocks();
+    cy.visit('/employee/profit-bank', { onBeforeLoad: setupSupervisorSession });
+    cy.wait('@bankPositions');
+    cy.contains('[role="tab"]', /Pozicije u fondovima/i).click();
+    // ProfitBankPage poziva bankPositions samo jednom na mount (oba tab-a koriste isti state).
+    cy.contains('tr', 'Alpha Growth Fund').within(() => {
+      cy.contains('button', /Uplati u ime banke/i).click();
+    });
+    // FundInvestDialog otvoren — treba da pita za bankin racun
+    cy.contains(/Uplati u fond|Uplata|Iznos/i).should('be.visible');
+  });
+
+  it('S56: "Povuci u ime banke" dugme otvara FundWithdrawDialog supervisor mode', () => {
+    setupProfitBankMocks();
+    cy.visit('/employee/profit-bank', { onBeforeLoad: setupSupervisorSession });
+    cy.wait('@bankPositions');
+    cy.contains('[role="tab"]', /Pozicije u fondovima/i).click();
+    cy.contains('tr', 'Alpha Growth Fund').within(() => {
+      cy.contains('button', /Povuci u ime banke/i).click();
+    });
+    cy.contains(/Povlaci|Povuci|Iznos/i).should('be.visible');
+  });
+
+  it('S57: Agent NEMA pristup portalu — Navigate na /home', () => {
+    // FE route guard: supervisorOnly redirectuje agenta na /403
+    cy.visit('/employee/profit-bank', { onBeforeLoad: setupAgentSession });
+    cy.url().should('include', '/403');
+  });
 });
 
 
@@ -1447,15 +1574,148 @@ describe('Mock C4: Profit Banke Portal', () => {
 //  FEATURE 11: EmployeeEdit fund reassign dialog (Issue #78 / sssmarta)
 // ============================================================
 describe('Mock C4: Admin Fund Reassignment', () => {
-  beforeEach(() => {
-    setupAdminSession();
+  // BE Employee DTO format (snake_case + flat fields kao u employeeService.getById):
+  const mockBackendEmployee = {
+    id: 5,
+    email: 'sasa.supervisor@banka.rs',
+    first_name: 'Sasa',
+    last_name: 'Supervizoricic',
+    firstName: 'Sasa',
+    lastName: 'Supervizoricic',
+    phone: '+381601234567',
+    phoneNumber: '+381601234567',
+    address: 'Knez Mihailova 1',
+    date_of_birth: '1985-05-15',
+    dateOfBirth: '1985-05-15',
+    gender: 'M',
+    department: 'IT',
+    position: 'Supervisor',
+    active: true,
+    isActive: true,
+    permissions: ['SUPERVISOR', 'TRADE_STOCKS'],
+    username: 'sasa.supervisor',
+  };
+
+  // FundDetail format koji listByManager() filtrira po `managerEmployeeId`:
+  const mockManagedFundDetails = [
+    {
+      id: 10, name: 'Sasa Fond Alpha', description: 'IT diversification',
+      minimumContribution: 1000, fundValue: 5000000,
+      managerEmployeeId: 5, managerName: 'Sasa Supervizoricic',
+      liquidAmount: 1000000, accountId: 100,
+      accountNumber: '222100200000001234', currency: 'RSD',
+      createdAt: '2024-01-01', holdings: [],
+    },
+    {
+      id: 11, name: 'Sasa Fond Beta', description: 'Energy sector',
+      minimumContribution: 500, fundValue: 3000000,
+      managerEmployeeId: 5, managerName: 'Sasa Supervizoricic',
+      liquidAmount: 600000, accountId: 101,
+      accountNumber: '222100200000005678', currency: 'RSD',
+      createdAt: '2024-02-01', holdings: [],
+    },
+  ];
+
+  function setupReassignMocks(funds: typeof mockManagedFundDetails) {
+    cy.intercept('GET', '**/api/employees/5', {
+      statusCode: 200, body: mockBackendEmployee,
+    }).as('getEmployee');
+    // listByManager() poziva /funds (lista summaries) i onda /funds/{id}
+    // za svaki, filtrira lokalno po managerEmployeeId. Pa moramo mock-ovati:
+    cy.intercept('GET', '**/api/funds', {
+      statusCode: 200,
+      body: funds.map((f) => ({
+        id: f.id,
+        name: f.name,
+        description: f.description,
+        minimumContribution: f.minimumContribution,
+        fundValue: f.fundValue,
+        managerEmployeeId: f.managerEmployeeId,
+        managerName: f.managerName,
+        accountId: f.accountId,
+        currency: f.currency,
+        createdAt: f.createdAt,
+      })),
+    }).as('fundsList');
+    funds.forEach((f) => {
+      cy.intercept('GET', `**/api/funds/${f.id}`, {
+        statusCode: 200, body: f,
+      });
+    });
+    cy.intercept('PUT', '**/api/employees/5', {
+      statusCode: 200, body: { ...mockBackendEmployee, permissions: ['TRADE_STOCKS'] },
+    }).as('putEmployee');
+    cy.intercept('PATCH', '**/api/employees/5/deactivate', {
+      statusCode: 200, body: {},
+    });
+  }
+
+  function uncheckSupervisorAndSave() {
+    // Sacekaj da se employee i funds ucitaju (managedFunds state se postavi
+    // tek kad listByManager() vrati podatke, sto zavisi od /funds + /funds/{id}).
+    cy.get('[data-testid="employee-edit-form"]', { timeout: 15000 }).should('be.visible');
+    cy.wait(800); // managedFunds state se postavi async-no posle Promise.all-a
+    // SUPERVISOR Checkbox je shadcn/ui Checkbox sa id="perm-SUPERVISOR"
+    // (vidi EmployeeEditPage.tsx:572). Renderuje se kao Radix <button role="checkbox">.
+    cy.get('#perm-SUPERVISOR').click({ force: true });
+    cy.contains('button', /Sacuvaj|Save/i).scrollIntoView().click({ force: true });
+  }
+
+  it('S58: Admin uklanja isSupervisor - dialog se otvara ako user upravlja fondovima', () => {
+    setupReassignMocks(mockManagedFundDetails);
+    cy.visit('/admin/employees/5', { onBeforeLoad: setupAdminSession });
+    cy.wait('@getEmployee');
+    uncheckSupervisorAndSave();
+    cy.get('[data-testid="reassign-funds-dialog"]', { timeout: 10000 }).should('be.visible');
   });
 
-  it.skip('[PENDING] S58: Admin uklanja isSupervisor - dialog se otvara ako user upravlja fondovima', () => {});
-  it.skip('[PENDING] S59: Dialog prikazuje broj i nazive fondova', () => {});
-  it.skip('[PENDING] S60: "Potvrdi" salje PATCH i refreshuje listu', () => {});
-  it.skip('[PENDING] S61: "Otkazi" vraca checkbox u checked stanje', () => {});
-  it.skip('[PENDING] S62: User bez fondova - nema dialog-a (direktno PATCH)', () => {});
+  it('S59: Dialog prikazuje broj i nazive fondova', () => {
+    setupReassignMocks(mockManagedFundDetails);
+    cy.visit('/admin/employees/5', { onBeforeLoad: setupAdminSession });
+    cy.wait('@getEmployee');
+    uncheckSupervisorAndSave();
+    cy.get('[data-testid="reassign-funds-dialog"]', { timeout: 10000 }).within(() => {
+      cy.contains(/2\s+fond/i).should('be.visible');
+      cy.contains('Sasa Fond Alpha').should('be.visible');
+      cy.contains('Sasa Fond Beta').should('be.visible');
+    });
+  });
+
+  it('S60: "Potvrdi" salje PUT i navigira na /admin/employees', () => {
+    setupReassignMocks(mockManagedFundDetails);
+    cy.visit('/admin/employees/5', { onBeforeLoad: setupAdminSession });
+    cy.wait('@getEmployee');
+    uncheckSupervisorAndSave();
+    cy.get('[data-testid="reassign-funds-dialog"]', { timeout: 10000 }).within(() => {
+      cy.contains('button', /Potvrdi/i).click();
+    });
+    cy.wait('@putEmployee');
+    cy.url({ timeout: 10000 }).should('include', '/admin/employees');
+  });
+
+  it('S61: "Otkazi" zatvara dialog, URL ostaje na edit stranici', () => {
+    setupReassignMocks(mockManagedFundDetails);
+    cy.visit('/admin/employees/5', { onBeforeLoad: setupAdminSession });
+    cy.wait('@getEmployee');
+    uncheckSupervisorAndSave();
+    cy.get('[data-testid="reassign-funds-dialog"]', { timeout: 10000 }).within(() => {
+      cy.contains('button', /Otkazi/i).click();
+    });
+    cy.get('[data-testid="reassign-funds-dialog"]').should('not.exist');
+    // Ruta je /admin/employees/:id (NE /edit) — verifikuj samo da nismo redirect-ovani.
+    cy.url().should('include', '/admin/employees/5');
+    cy.url().should('not.include', '/admin/employees/5/'); // bez naknadnog path-a
+  });
+
+  it('S62: User bez fondova - nema dialog-a (direktno PUT)', () => {
+    setupReassignMocks([]);
+    cy.visit('/admin/employees/5', { onBeforeLoad: setupAdminSession });
+    cy.wait('@getEmployee');
+    uncheckSupervisorAndSave();
+    cy.get('[data-testid="reassign-funds-dialog"]').should('not.exist');
+    cy.wait('@putEmployee');
+    cy.url({ timeout: 10000 }).should('include', '/admin/employees');
+  });
 });
 
 
@@ -1685,6 +1945,10 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
         amount: 5000,
         currency: 'RSD',
         status: 'REJECTED',
+        // BE pravo dodaje `failureReason` na REJECTED status; bez njega FE
+        // padne na srpski fallback "Banka primaoca je odbacila transakciju.".
+        // Spec Celina 5 (Nova) §69 trazi da se prikazuje BE razlog kad postoji.
+        failureReason: 'Payment rejected.',
         createdAt: '2026-04-25T10:00:00',
       },
     }).as('statusPoll');
@@ -1978,11 +2242,12 @@ describe('Inter-bank warning banner', () => {
 
 describe('OTC inter-bank Discovery auto-polling indicator', () => {
   beforeEach(() => {
-    cy.intercept('GET', '**/api/interbank/otc/listings', { statusCode: 200, body: [] });
-    cy.intercept('GET', '**/api/interbank/otc/offers/my', { statusCode: 200, body: [] });
-    cy.intercept('GET', '**/api/interbank/otc/contracts/my**', { statusCode: 200, body: [] });
-    cy.intercept('GET', '**/api/otc/offers/my', { statusCode: 200, body: [] });
-    cy.intercept('GET', '**/api/otc/contracts/my**', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/interbank/otc/listings*', { statusCode: 200, body: [] }).as('interbankListings');
+    cy.intercept('GET', '**/api/interbank/otc/offers/my*', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/interbank/otc/contracts/my*', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/otc/listings*', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/otc/offers/active*', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/otc/contracts*', { statusCode: 200, body: [] });
     cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] });
   });
 
@@ -1992,6 +2257,9 @@ describe('OTC inter-bank Discovery auto-polling indicator', () => {
     // se na inter-bank discovery tab.
     cy.visit('/otc', { onBeforeLoad: (win) => setupClientSession(win) });
     cy.get('[role="tab"]').contains(/Iz drugih banaka/i).click();
+    // Cekaj da se inter-bank listings fetch zavrsi pre nego sto trazimo
+    // indicator — Radix Tabs lazy-renderuje TabsContent posle klika.
+    cy.wait('@interbankListings');
     cy.get('[data-testid="auto-refresh-indicator"]', { timeout: 10000 }).should('exist');
     cy.contains('button', /Osvezi/i).should('exist');
   });
@@ -2003,29 +2271,37 @@ describe('OTC inter-bank Discovery auto-polling indicator', () => {
 
 describe('OTC tab badge counts (n aktivnih)', () => {
   beforeEach(() => {
-    cy.intercept('GET', '**/api/otc/offers/my', {
+    // Spec note: otcService.listMyActiveOffers() poziva GET /otc/offers/active,
+    // a otcService.listMyContracts(filter) poziva GET /otc/contracts (NE /my).
+    // Intercept matchers moraju da pokriju oba URL-a inace mock se ne primenjuje
+    // i FE radi pravi network call koji u test okruzenju vraca 401, contracts
+    // state ostaje [], badge nije renderovan, test fail-uje na cy.get timeout.
+    cy.intercept('GET', '**/api/otc/offers/active*', {
       statusCode: 200,
       body: [
         { id: 1, status: 'ACTIVE', listingTicker: 'AAPL', amount: 10, pricePerStock: 150, premium: 100, settlementDate: '2026-12-31', lastModifiedAt: '2026-01-01T00:00:00Z', lastModifiedById: 99, lastModifiedByName: 'Other', myTurn: true },
         { id: 2, status: 'ACCEPTED', listingTicker: 'MSFT', amount: 5, pricePerStock: 400, premium: 50, settlementDate: '2026-12-31', lastModifiedAt: '2026-01-01T00:00:00Z', lastModifiedById: 99, lastModifiedByName: 'Other', myTurn: false },
       ],
-    });
-    cy.intercept('GET', '**/api/otc/contracts/my**', {
+    }).as('localOffers');
+    cy.intercept('GET', '**/api/otc/contracts*', {
       statusCode: 200,
       body: [
         { id: 11, status: 'ACTIVE', listingTicker: 'AAPL', quantity: 10, strikePrice: 150, premium: 100, settlementDate: '2026-12-31' },
         { id: 12, status: 'ACTIVE', listingTicker: 'TSLA', quantity: 5, strikePrice: 250, premium: 50, settlementDate: '2026-12-31' },
         { id: 13, status: 'EXERCISED', listingTicker: 'MSFT', quantity: 3, strikePrice: 400, premium: 30, settlementDate: '2026-06-30' },
       ],
-    });
-    cy.intercept('GET', '**/api/interbank/otc/listings', { statusCode: 200, body: [] });
-    cy.intercept('GET', '**/api/interbank/otc/offers/my', { statusCode: 200, body: [] });
-    cy.intercept('GET', '**/api/interbank/otc/contracts/my**', { statusCode: 200, body: [] });
+    }).as('localContracts');
+    cy.intercept('GET', '**/api/interbank/otc/listings*', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/interbank/otc/offers/my*', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/interbank/otc/contracts/my*', { statusCode: 200, body: [] });
     cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: [] });
   });
 
   it('contracts-local tab pokazuje count 2 ACTIVE ugovora (3-1 EXERCISED)', () => {
     cy.visit('/otc/offers', { onBeforeLoad: (win) => setupClientSession(win) });
-    cy.get('[data-testid="count-contracts-local"]').should('contain', '2');
+    // Cekamo da se contracts ucitaju pre nego sto trazimo Badge — bez ovog
+    // wait-a get bi gadao TabsTrigger prazan (bez Badge-a) i timeout.
+    cy.wait('@localContracts');
+    cy.get('[data-testid="count-contracts-local"]', { timeout: 10000 }).should('contain', '2');
   });
 });

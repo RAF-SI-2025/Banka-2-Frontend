@@ -21,7 +21,7 @@ describe('ThemeToggle', () => {
     const btn = screen.getByTestId('theme-toggle');
     expect(btn).toBeInTheDocument();
     expect(btn).toHaveAttribute('aria-label');
-    expect(btn.getAttribute('aria-label')).toMatch(/Sistemska tema/i);
+    expect(btn.getAttribute('aria-label')).toMatch(/Sistem/i);
   });
 
   it('cycles theme: system -> light -> dark -> system', async () => {
@@ -49,20 +49,20 @@ describe('ThemeToggle', () => {
   it('shows full variant with text label', () => {
     mockUseTheme.mockReturnValue({ theme: 'dark', setTheme: mockSetTheme });
     render(<ThemeToggle variant="full" />);
-    expect(screen.getByText(/Tamna tema/i)).toBeInTheDocument();
+    expect(screen.getByText('Tamno')).toBeInTheDocument();
   });
 
   it('shows correct icon and label for each theme state', () => {
     mockUseTheme.mockReturnValue({ theme: 'light', setTheme: mockSetTheme });
     const { rerender } = render(<ThemeToggle variant="full" />);
-    expect(screen.getByText(/Svetla tema/i)).toBeInTheDocument();
+    expect(screen.getByText('Svetlo')).toBeInTheDocument();
 
     mockUseTheme.mockReturnValue({ theme: 'dark', setTheme: mockSetTheme });
     rerender(<ThemeToggle variant="full" />);
-    expect(screen.getByText(/Tamna tema/i)).toBeInTheDocument();
+    expect(screen.getByText('Tamno')).toBeInTheDocument();
 
     mockUseTheme.mockReturnValue({ theme: 'system', setTheme: mockSetTheme });
     rerender(<ThemeToggle variant="full" />);
-    expect(screen.getByText(/Sistemska tema/i)).toBeInTheDocument();
+    expect(screen.getByText('Sistem')).toBeInTheDocument();
   });
 });

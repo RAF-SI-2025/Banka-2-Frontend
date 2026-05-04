@@ -16,9 +16,6 @@ import {
   ShieldCheck,
   Users,
   LogOut,
-  Sun,
-  Moon,
-  Monitor,
   TrendingUp,
   Briefcase,
   ShoppingCart,
@@ -30,16 +27,10 @@ import {
   PiggyBank,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../ui/button';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { cn } from '@/lib/utils';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
+import ThemeToggle from './ThemeToggle';
 
 interface SidebarItem {
   label: string;
@@ -49,7 +40,6 @@ interface SidebarItem {
 
 export default function ClientSidebar() {
   const { user, logout, isAdmin, isSupervisor } = useAuth();
-  const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
 
   const role = String(
@@ -308,30 +298,14 @@ export default function ClientSidebar() {
         </nav>
 
         <div className="shrink-0 space-y-2 border-t pt-4 mt-auto">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-foreground">
-                {theme === 'light' && <Sun className="mr-2 h-4 w-4" />}
-                {theme === 'dark' && <Moon className="mr-2 h-4 w-4" />}
-                {theme === 'system' && <Monitor className="mr-2 h-4 w-4" />}
-                <span className="text-xs">{theme === 'system' ? 'Sistem' : theme === 'light' ? 'Svetlo' : 'Tamno'}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => setTheme('light')}>
-                <Sun className="mr-2 h-4 w-4" />
-                Svetlo
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('dark')}>
-                <Moon className="mr-2 h-4 w-4" />
-                Tamno
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('system')}>
-                <Monitor className="mr-2 h-4 w-4" />
-                Sistem
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/*
+            Theme toggle: 3-state cycle button (System -> Light -> Dark -> ...).
+            Single click cycle umesto dropdown-a — UX consistency sa testovima
+            koji eksplicitno verifikuju ciklus, plus to je standardni pattern u
+            ostatku app-a (vidi ThemeToggle.tsx). data-testid="theme-toggle" je
+            inline u komponenti.
+          */}
+          <ThemeToggle variant="full" className="w-full justify-start" />
 
           <Button
             variant="ghost"
