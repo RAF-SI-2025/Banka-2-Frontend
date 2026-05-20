@@ -40,27 +40,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import AddToWatchlistButton from '@/components/watchlist/AddToWatchlistButton';
+import PriceAlertTrigger from '@/components/pricealert/PriceAlertTrigger';
 
-/*
- * TODO [FE2 - Watchlist + cenovni alarmi | Developer: Antonije Ilic]
- *
- * Na detaljnom prikazu hartije dodati:
- *
- *  1. Dugme "Dodaj na watchlist" (komponenta AddToWatchlistButton) u header sekciji
- *     pored naziva/tickera hartije:
- *     - poziva watchlistService.addToWatchlist(listing.id);
- *     - pri mount-u proverava da li je hartija vec pracena
- *       (watchlistService.isWatched(listing.id)) i odrazava stanje u UI-u;
- *     - toggle logika: dodaj ako nije pracena, ukloni ako jeste.
- *
- *  2. Dugme / akcija za kreiranje cenovnog alarma (komponenta PriceAlertDialog)
- *     takodjer u header sekciji:
- *     - popunjava listingId i predlaze currentPrice kao pocetnu vrednost;
- *     - polja: tip alarma (ABOVE / BELOW), ciljna cena, opcionalna napomena;
- *     - poziva priceAlertService.createAlert({...}) i prikazuje toast.
- *
- *  Koristiti iste komponente iz src/components/securities/ kao u SecuritiesListPage.
- */
+function listingCurrency(listing: Listing): string {
+  return listing.quoteCurrency ?? listing.baseCurrency ?? 'USD';
+}
 
 const PERIODS = [
   { key: 'DAY', label: '1D', days: 1 },
@@ -351,6 +336,14 @@ export default function SecuritiesDetailsPage() {
             <Badge variant="secondary" className="font-mono text-xs">
               {listing.exchangeAcronym}
             </Badge>
+            <AddToWatchlistButton listingId={listing.id} ticker={listing.ticker} variant="full" />
+            <PriceAlertTrigger
+              listingId={listing.id}
+              ticker={listing.ticker}
+              currentPrice={listing.price}
+              currency={listingCurrency(listing)}
+              variant="full"
+            />
           </div>
           <p className="text-muted-foreground text-sm">{listing.name}</p>
         </div>

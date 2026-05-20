@@ -1,40 +1,41 @@
-// ============================================================
-// TODO [FE2 - Watchlist + cenovni alarmi | Developer: Antonije Ilic]
-//
-// Servis za CRUD operacije nad cenovnim alarmima.
-// Koristiti `api` klijent iz './api' (axios instanca sa JWT interceptorima).
-// Importovati sve tipove iz '../types/priceAlert'.
-//
-// IMPLEMENTIRATI (export const priceAlertService = { ... }):
-//
-//   listMy(): Promise<PriceAlertDto[]>
-//     GET /price-alerts/my
-//     Vraca sve alarme trenutno ulogovanog korisnika (svi statusi).
-//
-//   getById(id: number): Promise<PriceAlertDto>
-//     GET /price-alerts/:id
-//     Vraca jedan alarm. BE vraca 403 ako alarm nije vlasnistvo korisnika.
-//
-//   create(dto: CreatePriceAlertRequest): Promise<PriceAlertDto>
-//     POST /price-alerts
-//     Kreira novi alarm. BE vraca 400 ako threshold <= 0.
-//
-//   update(id: number, dto: UpdatePriceAlertRequest): Promise<PriceAlertDto>
-//     PATCH /price-alerts/:id
-//     Azurira uslov, prag ili napomenu alarma; takodje sluzi za
-//     rucno onemogucavanje (status: 'DISABLED') ili reaktivaciju (status: 'ACTIVE').
-//
-//   remove(id: number): Promise<void>
-//     DELETE /price-alerts/:id
-//     Brise alarm.
-//
-//   listByListing(listingId: number): Promise<PriceAlertDto[]>
-//     GET /price-alerts?listingId=:listingId
-//     Vraca sve ACTIVE alarme za datu hartiju (korisno za PriceAlertDialog
-//     da prikaze vec postavljene alarme pre kreiranja novog).
-//
-// Konvencija: pratiti postojecu `Savings` feature celinu kao sablon.
-// Spec: Zadaci_Frontend.pdf, FE2.
-// ============================================================
+import api from './api';
+import type {
+  PriceAlertDto,
+  CreatePriceAlertRequest,
+  UpdatePriceAlertRequest,
+} from '../types/priceAlert';
 
-export {};
+export const priceAlertService = {
+  listMy: async (): Promise<PriceAlertDto[]> => {
+    const { data } = await api.get<PriceAlertDto[]>('/price-alerts/my');
+    return data;
+  },
+
+  getById: async (id: number): Promise<PriceAlertDto> => {
+    const { data } = await api.get<PriceAlertDto>(`/price-alerts/${id}`);
+    return data;
+  },
+
+  create: async (dto: CreatePriceAlertRequest): Promise<PriceAlertDto> => {
+    const { data } = await api.post<PriceAlertDto>('/price-alerts', dto);
+    return data;
+  },
+
+  update: async (id: number, dto: UpdatePriceAlertRequest): Promise<PriceAlertDto> => {
+    const { data } = await api.patch<PriceAlertDto>(`/price-alerts/${id}`, dto);
+    return data;
+  },
+
+  remove: async (id: number): Promise<void> => {
+    await api.delete(`/price-alerts/${id}`);
+  },
+
+  listByListing: async (listingId: number): Promise<PriceAlertDto[]> => {
+    const { data } = await api.get<PriceAlertDto[]>('/price-alerts', {
+      params: { listingId },
+    });
+    return data;
+  },
+};
+
+export default priceAlertService;

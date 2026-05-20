@@ -44,28 +44,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import AddToWatchlistButton from '@/components/watchlist/AddToWatchlistButton';
+import PriceAlertTrigger from '@/components/pricealert/PriceAlertTrigger';
 
-/*
- * TODO [FE2 - Watchlist + cenovni alarmi | Developer: Antonije Ilic]
- *
- * U svakom redu/kartici hartije u ovoj listi dodati:
- *
- *  1. Dugme "Dodaj na watchlist" (komponenta AddToWatchlistButton):
- *     - poziva watchlistService.addToWatchlist(listingId) pri kliku;
- *     - ako je hartija vec na watchlist-u, dugme prikazuje stanje "Pracena"
- *       i nudi opciju uklanjanja (removeFromWatchlist);
- *     - stanje watchlist-a fetchovati pri mount-u i cuvati u lokalnom state-u
- *       kako bi se ikonica ispravno prikazala bez dodatnih zahteva.
- *
- *  2. Ulaz za kreiranje cenovnog alarma (komponenta PriceAlertDialog):
- *     - Dialog/modal sa poljima: tip (iznad/ispod), ciljana cena, napomena;
- *     - poziva priceAlertService.createAlert({ listingId, direction, targetPrice });
- *     - validacija: targetPrice mora biti pozitivan broj razlicit od 0;
- *     - toast potvrda pri uspesnom kreiranju alarma.
- *
- *  Komponente AddToWatchlistButton i PriceAlertDialog kreirati u
- *  src/components/securities/ i uvesti ovde.
- */
+function listingCurrency(listing: Listing): string {
+  return listing.quoteCurrency ?? listing.baseCurrency ?? 'USD';
+}
 
 type ListingTab = 'STOCK' | 'FUTURES' | 'FOREX';
 
@@ -813,6 +797,8 @@ export default function SecuritiesListPage() {
                     </TableHead>
                     {activeTab === 'FUTURES' && <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Istek</TableHead>}
                     {activeTab === 'FOREX' && <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Par</TableHead>}
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 w-12 text-center">WL</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 w-12 text-center" title="Cenovni alarm">AL</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -907,6 +893,17 @@ export default function SecuritiesListPage() {
                             </span>
                           </TableCell>
                         )}
+                        <TableCell className="py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <AddToWatchlistButton listingId={listing.id} ticker={listing.ticker} />
+                        </TableCell>
+                        <TableCell className="py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <PriceAlertTrigger
+                            listingId={listing.id}
+                            ticker={listing.ticker}
+                            currentPrice={listing.price}
+                            currency={listingCurrency(listing)}
+                          />
+                        </TableCell>
                       </TableRow>
                     );
                   })}

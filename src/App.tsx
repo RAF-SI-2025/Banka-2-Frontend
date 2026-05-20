@@ -78,6 +78,8 @@ import SavingsNewDepositPage from './pages/Savings/SavingsNewDepositPage';
 import SavingsDetailsPage from './pages/Savings/SavingsDetailsPage';
 import AdminSavingsDepositsPage from './pages/Savings/AdminSavingsDepositsPage';
 import AdminSavingsRatesPage from './pages/Savings/AdminSavingsRatesPage';
+import WatchlistPage from './pages/Watchlist/WatchlistPage';
+import PriceAlertsPage from './pages/PriceAlerts/PriceAlertsPage';
 
 // Celina 6 - Arbitro AI asistent (web only). Phase 5 optimizacija:
 // React.lazy + Suspense — Arbitro modul (~250KB sa Liquid Glass CSS-om)
@@ -98,10 +100,7 @@ const ArbitroOverlay = lazy(() =>
  *   <Route path="/notifications" element={<NotificationsPage />} />
  *   Smestiti unutar <ProtectedRoute> (nije noAgentOnly ni employeeOnly).
  *
- * [FE2] WatchlistPage i PriceAlertsPage — authenticated, preporuceno noAgentOnly
- *       (klijenti i supervizori koji trguju; finalne cuvare odredjuje FE lead):
- *   <Route path="/watchlist" element={<WatchlistPage />} />
- *   <Route path="/price-alerts" element={<PriceAlertsPage />} />
+ * [FE2] Watchlist + cenovni alarmi: /watchlist, /price-alerts
  *
  * [FE3] RecurringOrdersPage — authenticated, noAgentOnly (kao ostale trgovinske rute):
  *   <Route element={<ProtectedRoute noAgentOnly />}>
@@ -194,6 +193,8 @@ export default function App() {
           <Route path="/orders/new" element={<CreateOrderPage />} />
           <Route path="/orders/my" element={<MyOrdersPage />} />
           <Route path="/portfolio" element={<PortfolioPage />} />
+          <Route path="/watchlist" element={<WatchlistPage />} />
+          <Route path="/price-alerts" element={<PriceAlertsPage />} />
 
           {/* OTC trgovina (Celina 4 intra+inter-bank) — agenti nemaju pristup po §137-141 */}
           <Route element={<ProtectedRoute noAgentOnly />}>
