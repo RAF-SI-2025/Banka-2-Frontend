@@ -4,6 +4,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import MainLayout from '../components/layout/MainLayout';
 
 // ---------------------------------------------------------------------------
+// Mock Header (FE1 - Marta Suljagic)
+// ---------------------------------------------------------------------------
+vi.mock('../components/layout/Header', () => ({
+  default: () => <header data-testid="app-header">Header</header>,
+}));
+
+// ---------------------------------------------------------------------------
 // Mock ClientSidebar
 // ---------------------------------------------------------------------------
 vi.mock('../components/shared/ClientSidebar', () => ({
@@ -63,12 +70,17 @@ describe('MainLayout', () => {
     vi.clearAllMocks();
   });
 
-  it('renders the sidebar', () => {
+  it('montira Header komponentu (FE1 - Marta Suljagic)', () => {
+    renderLayout();
+    expect(screen.getByTestId('app-header')).toBeInTheDocument();
+  });
+
+  it('renderuje sidebar', () => {
     renderLayout();
     expect(screen.getByTestId('client-sidebar')).toBeInTheDocument();
   });
 
-  it('renders child route content via Outlet', () => {
+  it('renderuje child route content via Outlet', () => {
     renderLayout();
     expect(screen.getByTestId('child-page')).toBeInTheDocument();
     expect(screen.getByText('Dashboard Content')).toBeInTheDocument();
@@ -82,20 +94,27 @@ describe('MainLayout', () => {
     expect(errorBoundary).toContainElement(screen.getByTestId('child-page'));
   });
 
-  it('renders main element with responsive left margin class', () => {
+  it('renderuje main element sa pt-14 padding-top (ispod header-a)', () => {
+    renderLayout();
+    const main = document.querySelector('main');
+    expect(main).not.toBeNull();
+    expect(main!.className).toContain('pt-14');
+  });
+
+  it('renderuje main element sa responsive left margin class', () => {
     renderLayout();
     const main = document.querySelector('main');
     expect(main).not.toBeNull();
     expect(main!.className).toContain('md:ml-64');
   });
 
-  it('renders main with min-h-screen for full viewport height', () => {
+  it('renderuje main sa min-h-screen za full viewport height', () => {
     renderLayout();
     const main = document.querySelector('main');
     expect(main!.className).toContain('min-h-screen');
   });
 
-  it('renders a content container inside main with proper padding', () => {
+  it('renderuje content container sa proper padding', () => {
     renderLayout();
     const container = document.querySelector('main > div');
     expect(container).not.toBeNull();
@@ -103,7 +122,7 @@ describe('MainLayout', () => {
     expect(container!.className).toContain('max-w-screen-2xl');
   });
 
-  it('renders different child routes based on path', () => {
+  it('renderuje different child routes based on path', () => {
     renderLayout('/accounts');
     expect(screen.getByTestId('accounts-page')).toBeInTheDocument();
     expect(screen.getByText('Accounts Content')).toBeInTheDocument();
