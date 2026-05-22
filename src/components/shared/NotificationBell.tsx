@@ -1,33 +1,75 @@
 // ============================================================
-// TODO [FE1 - In-app notifikacije + zaglavlje | Developer: Marta Suljagic]
-//
-// Zvono za notifikacije sa bedz-om broja neprocitanih. Komponenta se
-// montira u Header.tsx i pokrece polling na svakih ~30s.
-//
-// IMPLEMENTIRATI:
-//   - Props interfejs NotificationBellProps: nema obaveznih prop-a
-//     (sve stanje je interno ili se uzima iz AuthContext-a)
-//   - Stanje: unreadCount: number (default 0), pollingInterval: number (30_000 ms)
-//   - Polling: useEffect sa setInterval koji zove notificationService.getUnreadCount()
-//     svakih 30s dok je korisnik prijavljen (ocisti interval u cleanup). Paritet sa
-//     auto-refresh periodom u SecuritiesListPage (30s interval, silent fetch).
-//   - Prikaz: Lucide `Bell` ikona u Button variant="ghost" size="icon".
-//     Ako unreadCount > 0 — prikazati mali crveni rounded-full bedz sa brojem
-//     (pozicionirati apsolutno gornje-desno na dugmetu, tekst "9+" ako > 9).
-//   - Klik: navigate('/notifications') (React Router useNavigate)
-//   - data-testid="notification-bell" na dugmetu
-//   - data-testid="notification-badge" na bedzu (renderovati samo ako count > 0)
-//   - aria-label: "Notifikacije, {N} neprocitanih" kad count > 0;
-//     "Notifikacije" kad count === 0
-//   - Ne prikazivati komponetu ako korisnik nije prijavljen (proveriti useAuth())
-//
-// Konvencija: koristiti shadcn/ui Button iz '@/components/ui/button',
-//   Lucide Bell ikonu iz 'lucide-react', useNavigate iz 'react-router-dom',
-//   useAuth iz '@/context/AuthContext'. Videti ThemeToggle.tsx kao primer
-//   kompaktnog shared-component obrasca.
-// Spec: Zadaci_Frontend.pdf, FE1.
+// FE1 - In-app notifikacije + zaglavlje | Developer: Marta Suljagic
+// Zvono za notifikacije sa bedž-om broja nepročitanih
 // ============================================================
 
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Bell } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/context/AuthContext';
+import { notificationService } from '@/services/notificationService';
+
+const POLLING_INTERVAL = 30_000; // 30 sekundi
+
 export default function NotificationBell() {
-  return <div data-testid="notification-bell" />;
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    // Ne polling ako korisnik nije prijavljen
+    if (!isAuthenticated) return;
+
+    // Inicijalni fetch
+    const fetchUnreadCount = async () => {
+      try {
+        const result = await notificationService.getUnreadCount();
+        setUnreadCount(result.count);
+      } catch (error) {
+        console.error('Failed to fetch unread count:', error);
+      }
+    };
+
+    fetchUnreadCount();
+
+    // Polling svakih 30s
+    const intervalId = setInterval(fetchUnreadCount, POLLING_INTERVAL);
+
+    return () => clearInterval(intervalId);
+  }, [isAuthenticated]);
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  const displayCount = unreadCount > 9 ? '9+' : unreadCount;
+  const ariaLabel = unreadCount > 0 
+    ? `Notifikacije, ${unreadCount} nepročitanih` 
+    : 'Notifikacije';
+
+  return (
+    <div className="relative">
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => navigate('/notifications')}
+        data-testid="notification-bell"
+        aria-label={ariaLabel}
+        title={ariaLabel}
+        className="relative"
+      >
+        <Bell className="h-4 w-4" />
+      </Button>
+      
+      {unreadCount > 0 && (
+        <div
+          data-testid="notification-badge"
+          className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-semibold text-white"
+        >
+          {displayCount}
+        </div>
+      )}
+    </div>
+  );
 }
