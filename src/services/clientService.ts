@@ -32,6 +32,17 @@ export const clientService = {
     return mapClientFromBE(response.data);
   },
 
+  /**
+   * Self-lookup za prijavljenog klijenta. CLIENT moze (vraca svoj zapis po JWT
+   * email). Koristi se u AuthContext da resolve klijentov numericki id koji
+   * JWT ne nosi. ADMIN/EMPLOYEE ovaj endpoint ne moraju koristiti — oni imaju
+   * pristup /clients (listing) ili /clients/{id}.
+   */
+  getMe: async (): Promise<Client> => {
+    const response = await api.get<Record<string, unknown>>('/clients/me');
+    return mapClientFromBE(response.data);
+  },
+
   create: async (data: Partial<Client> & { password?: string }): Promise<Client> => {
     // Map phoneNumber -> phone for BE
     const payload = {

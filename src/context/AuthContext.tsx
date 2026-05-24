@@ -87,22 +87,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else if (payload.role === 'CLIENT') {
       // BuyerId/sellerId u OTC ugovorima/pregovorima poredi se sa user.id,
       // pa klijentu moramo razresiti pravi id (JWT nema id claim).
+      // Koristimo /clients/me (self-lookup, authenticated) umesto /clients?email=
+      // koji zahteva ADMIN/EMPLOYEE role.
       try {
-        const clientsResponse = await clientService.getAll({ email: payload.sub, page: 0, limit: 1 });
-        const clients = clientsResponse.content;
-        if (clients.length > 0) {
-          const cli = clients[0];
-          userId = cli.id;
-          firstName = cli.firstName || firstName;
-          lastName = cli.lastName || lastName;
-          // T4A-017: ako BE javi canTradeStocks, dodaj TRADE_STOCKS u permissions.
-          // Stari klijenti (bez polja) tretiraju se kao true radi backwards-compat.
-          const canTrade = (cli as unknown as { canTradeStocks?: boolean }).canTradeStocks;
-          if (canTrade !== false) {
-            permissions.push(Permission.TRADE_STOCKS);
-          }
-        } else {
-          // Ako nismo uspeli da resolve-ujemo klijenta, ostavi TRADE_STOCKS (default true)
+        const cli = await clientService.getMe();
+        userId = cli.id;
+        firstName = cli.firstName || firstName;
+        lastName = cli.lastName || lastName;
+        // T4A-017: ako BE javi canTradeStocks, dodaj TRADE_STOCKS u permissions.
+        // Stari klijenti (bez polja) tretiraju se kao true radi backwards-compat.
+        const canTrade = (cli as unknown as { canTradeStocks?: boolean }).canTradeStocks;
+        if (canTrade !== false) {
           permissions.push(Permission.TRADE_STOCKS);
         }
       } catch {
