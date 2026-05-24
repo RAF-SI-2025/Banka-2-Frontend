@@ -1,37 +1,42 @@
 // ============================================================
-// TODO [FE1 - In-app notifikacije + zaglavlje | Developer: Marta Suljagic]
-//
-// HTTP klijent za rad sa /notifications endpoint-ima na BE-u.
-// Izvozi named export `notificationService` (objekat sa metodama),
-// isti pattern kao savingsService u src/services/savingsService.ts.
-//
-// IMPLEMENTIRATI (sve metode koriste `import api from './api'`):
-//
-//   listNotifications(params: { read?: boolean; page?: number; size?: number })
-//     : Promise<NotificationPageDto<NotificationDto>>
-//     — GET /notifications
-//     — params: { read?: boolean, page?: number (default 0), size?: number (default 20) }
-//     — vraca stranicu notifikacija; BE sortira po createdAt DESC
-//
-//   getUnreadCount(): Promise<UnreadCountDto>
-//     — GET /notifications/unread-count
-//     — vraca { count: number }; koristi se za polling u NotificationBell
-//
-//   markAsRead(id: number): Promise<void>
-//     — PATCH /notifications/{id}/read
-//     — oznacava jednu notifikaciju kao procitanu; nema tela zahteva
-//
-//   markAllAsRead(): Promise<void>
-//     — PATCH /notifications/read-all
-//     — oznacava SVE neprocitane notifikacije korisnika kao procitane
-//
-// Tipove (NotificationDto, NotificationPageDto, UnreadCountDto) uvesti iz
-// '../types/notification' (kada developer implementira types/notification.ts).
-//
-// Konvencija: pratiti src/services/savingsService.ts — named export,
-//   const objekt sa async arrow funkcijama, destrukturisanje `{ data }` iz
-//   axios odgovora, nikakav try/catch (greske propagiraju ka pozivaocu).
-// Spec: Zadaci_Frontend.pdf, FE1.
+// FE1 - In-app notifikacije + zaglavlje | Developer: Marta Suljagic
+// HTTP klijent za /notifications endpoint-e
 // ============================================================
 
-export {};
+import api from './api';
+import type {
+  NotificationDto,
+  NotificationPageDto,
+  UnreadCountDto,
+} from '../types/notification';
+
+interface ListNotificationParams {
+  read?: boolean;
+  page?: number;
+  size?: number;
+}
+
+export const notificationService = {
+  listNotifications: async (
+    params: ListNotificationParams = {}
+  ): Promise<NotificationPageDto<NotificationDto>> => {
+    const { data } = await api.get<NotificationPageDto<NotificationDto>>(
+      '/notifications',
+      { params }
+    );
+    return data;
+  },
+
+  getUnreadCount: async (): Promise<UnreadCountDto> => {
+    const { data } = await api.get<UnreadCountDto>('/notifications/unread-count');
+    return data;
+  },
+
+  markAsRead: async (id: number): Promise<void> => {
+    await api.patch(`/notifications/${id}/read`);
+  },
+
+  markAllAsRead: async (): Promise<void> => {
+    await api.patch('/notifications/read-all');
+  },
+};

@@ -1,4 +1,11 @@
+// ============================================================
+// FE1 - In-app notifikacije + zaglavlje | Developer: Marta Suljagic
+// FE2 - Watchlist quick access | Developer: Antonije Ilic
+// Horizontalna traka zaglavlja aplikacije (topbar)
+// ============================================================
+
 import NotificationBell from '../shared/NotificationBell';
+import ThemeToggle from '../shared/ThemeToggle';
 import WatchlistQuickAccess from '../watchlist/WatchlistQuickAccess';
 
 export default function Header() {
@@ -11,6 +18,7 @@ export default function Header() {
         <WatchlistQuickAccess />
       </div>
       <NotificationBell />
+      <ThemeToggle variant="compact" />
     </header>
   );
 }
