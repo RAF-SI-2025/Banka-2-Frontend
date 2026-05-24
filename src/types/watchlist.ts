@@ -1,51 +1,57 @@
-// ============================================================
-// TODO [FE2 - Watchlist + cenovni alarmi | Developer: Antonije Ilic]
-//
-// Tipovi za Watchlist feature: liste pracenja i njihove stavke sa trzisnim podacima.
-//
-// IMPLEMENTIRATI:
-//
-//   WatchlistDto — lista pracenja:
-//     id: number
-//     name: string                  // korisnicki naziv liste
-//     description?: string
-//     createdAt: string             // ISO-8601
-//     updatedAt: string
-//     itemCount: number             // ukupan broj hartija u listi
-//
-//   WatchlistItemDto — jedna stavka u listi (hartija + trzisni podaci):
-//     id: number
-//     watchlistId: number
-//     listingId: number
-//     ticker: string
-//     name: string                  // puno ime hartije
-//     exchange: string              // akronim berze
-//     listingType: string           // 'STOCK' | 'FUTURE' | 'OPTION' | 'FOREX'
-//     currentPrice: number | null
-//     priceChange: number | null    // apsolutna promena u odnosu na prethodni dan
-//     priceChangePct: number | null // % promena
-//     volume: number | null
-//     currency: string
-//     addedAt: string               // ISO-8601
-//
-//   CreateWatchlistRequest — payload za POST /watchlists:
-//     name: string
-//     description?: string
-//
-//   RenameWatchlistRequest — payload za PATCH /watchlists/:id:
-//     name: string
-//
-//   AddToWatchlistRequest — payload za POST /watchlists/:id/items:
-//     listingId: number
-//
-//   WatchlistFilterType — union za filter dropdowns:
-//     'ALL' | 'STOCK' | 'FUTURE' | 'OPTION' | 'FOREX'
-//
-//   WATCHLIST_FILTER_LABELS — Record<WatchlistFilterType, string> mapa srpskih naziva
-//     npr. { ALL: 'Sve', STOCK: 'Akcije', FUTURE: 'Fjucersi', OPTION: 'Opcije', FOREX: 'Valute' }
-//
-// Konvencija: pratiti postojecu `Savings` feature celinu kao sablon.
-// Spec: Zadaci_Frontend.pdf, FE2.
-// ============================================================
+export interface WatchlistDto {
+  id: number;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+  itemCount: number;
+}
 
-export {};
+export interface WatchlistItemDto {
+  id: number;
+  watchlistId: number;
+  listingId: number;
+  ticker: string;
+  name: string;
+  exchange: string;
+  listingType: string;
+  currentPrice: number | null;
+  priceChange: number | null;
+  priceChangePct: number | null;
+  volume: number | null;
+  currency: string;
+  addedAt: string;
+}
+
+export interface CreateWatchlistRequest {
+  name: string;
+  description?: string;
+}
+
+export interface RenameWatchlistRequest {
+  name: string;
+}
+
+export interface AddToWatchlistRequest {
+  listingId: number;
+}
+
+export type WatchlistFilterType = 'ALL' | 'STOCK' | 'FUTURE' | 'OPTION' | 'FOREX';
+
+export const WATCHLIST_FILTER_LABELS: Record<WatchlistFilterType, string> = {
+  ALL: 'Sve',
+  STOCK: 'Akcije',
+  FUTURE: 'Fjucersi',
+  OPTION: 'Opcije',
+  FOREX: 'Valute',
+};
+
+export function matchesWatchlistFilter(listingType: string, filter: WatchlistFilterType): boolean {
+  if (filter === 'ALL') return true;
+  const t = listingType.toUpperCase();
+  if (filter === 'STOCK') return t === 'STOCK';
+  if (filter === 'FUTURE') return t === 'FUTURE' || t === 'FUTURES';
+  if (filter === 'OPTION') return t === 'OPTION' || t === 'OPTIONS';
+  if (filter === 'FOREX') return t === 'FOREX';
+  return true;
+}
