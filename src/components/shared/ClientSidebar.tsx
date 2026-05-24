@@ -28,6 +28,8 @@ import {
   Percent,
   MapPin,
   Gamepad2,
+  Bookmark,
+  BellRing,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../ui/button';
@@ -46,12 +48,6 @@ interface SidebarItem {
  *
  * Dodati sledece linkove u odgovarajuce sekcije prateCI postojeci SidebarItem obrazac
  * ({ label, path, icon }). Svaki link zahteva import odgovarajuce Lucide ikone.
- *
- * [FE2] "Watchlist" i "Cenovni alarmi" — klijentska/trgovinska sekcija
- *       (dodati u `clientLinks` niz ili u zaseban `tradingLinks` niz za klijente
- *        koji imaju TRADE_STOCKS permisiju, slicno canAccessOtc logiCI):
- *   { label: 'Watchlist',        path: '/watchlist',     icon: <Bookmark ... /> }
- *   { label: 'Cenovni alarmi',   path: '/price-alerts',  icon: <BellRing  ... /> }
  *
  * [FE3] "Trajni nalozi" — trgovinska sekcija (noAgentOnly klijenti i supervizori):
  *   { label: 'Trajni nalozi', path: '/recurring-orders', icon: <Repeat ... /> }
@@ -133,6 +129,8 @@ export default function ClientSidebar() {
     () => {
       const base: SidebarItem[] = [
         { label: 'Berza', path: '/securities', icon: <TrendingUp className="h-4 w-4" /> },
+        { label: 'Watchlist', path: '/watchlist', icon: <Bookmark className="h-4 w-4" /> },
+        { label: 'Cenovni alarmi', path: '/price-alerts', icon: <BellRing className="h-4 w-4" /> },
         { label: 'Portfolio', path: '/portfolio', icon: <Briefcase className="h-4 w-4" /> },
         { label: 'Moji orderi', path: '/orders/my', icon: <ShoppingCart className="h-4 w-4" /> },
       ];
