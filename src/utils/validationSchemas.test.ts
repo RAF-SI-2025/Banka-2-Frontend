@@ -3,6 +3,7 @@ import {
   passwordSchema,
   phoneSchema,
   nameSchema,
+  birthDateSchema,
   loginSchema,
   createEmployeeSchema,
   editEmployeeSchema,
@@ -62,13 +63,25 @@ describe('passwordSchema', () => {
   });
 });
 
-describe('phoneSchema', () => {
-  it('accepts a valid phone number', () => {
-    expect(phoneSchema.safeParse('+381 64 1234567').success).toBe(true);
+describe('phoneSchema (FE1 - E.164 format)', () => {
+  it('accepts valid phone with + prefix and exactly 6 digits', () => {
+    expect(phoneSchema.safeParse('+381641').success).toBe(true);
   });
 
-  it('accepts phone without +', () => {
-    expect(phoneSchema.safeParse('064-1234567').success).toBe(true);
+  it('accepts valid phone with + prefix and 15 digits', () => {
+    expect(phoneSchema.safeParse('+381641234567890').success).toBe(true);
+  });
+
+  it('accepts valid phone without + prefix', () => {
+    expect(phoneSchema.safeParse('381641234567').success).toBe(true);
+  });
+
+  it('rejects phone with spaces (E.164 strict)', () => {
+    expect(phoneSchema.safeParse('+381 64 1234567').success).toBe(false);
+  });
+
+  it('rejects phone with dashes (E.164 strict)', () => {
+    expect(phoneSchema.safeParse('064-1234567').success).toBe(false);
   });
 
   it('rejects empty string', () => {
@@ -79,8 +92,45 @@ describe('phoneSchema', () => {
     expect(phoneSchema.safeParse('abc123').success).toBe(false);
   });
 
-  it('rejects too short phone', () => {
-    expect(phoneSchema.safeParse('123').success).toBe(false);
+  it('rejects phone with less than 6 digits', () => {
+    expect(phoneSchema.safeParse('+12345').success).toBe(false);
+  });
+
+  it('rejects phone with more than 15 digits', () => {
+    expect(phoneSchema.safeParse('+3816412345678901').success).toBe(false);
+  });
+});
+
+describe('birthDateSchema (FE1 - mora biti u prošlosti)', () => {
+  it('accepts valid past date', () => {
+    const pastDate = new Date();
+    pastDate.setFullYear(pastDate.getFullYear() - 30);
+    const dateStr = pastDate.toISOString().split('T')[0];
+    expect(birthDateSchema.safeParse(dateStr).success).toBe(true);
+  });
+
+  it('rejects today as birth date', () => {
+    const today = new Date().toISOString().split('T')[0];
+    expect(birthDateSchema.safeParse(today).success).toBe(false);
+  });
+
+  it('rejects future date', () => {
+    const future = new Date();
+    future.setFullYear(future.getFullYear() + 1);
+    const dateStr = future.toISOString().split('T')[0];
+    expect(birthDateSchema.safeParse(dateStr).success).toBe(false);
+  });
+
+  it('rejects empty string', () => {
+    expect(birthDateSchema.safeParse('').success).toBe(false);
+  });
+
+  it('rejects invalid date format', () => {
+    expect(birthDateSchema.safeParse('not-a-date').success).toBe(false);
+  });
+
+  it('accepts very old date', () => {
+    expect(birthDateSchema.safeParse('1900-01-01').success).toBe(true);
   });
 });
 
@@ -121,7 +171,7 @@ describe('loginSchema', () => {
   });
 });
 
-describe('createEmployeeSchema', () => {
+describe('createEmployeeSchema (FE1 - ojačane validacije)', () => {
   const validEmployee = {
     firstName: 'Marko',
     lastName: 'Petrovic',
@@ -156,12 +206,19 @@ describe('createEmployeeSchema', () => {
     expect(createEmployeeSchema.safeParse({ ...validEmployee, department: '' }).success).toBe(false);
   });
 
-  it('rejects invalid phone', () => {
+  it('rejects invalid phone (FE1)', () => {
     expect(createEmployeeSchema.safeParse({ ...validEmployee, phoneNumber: 'abc' }).success).toBe(false);
+  });
+
+  it('rejects future dateOfBirth (FE1)', () => {
+    const future = new Date();
+    future.setFullYear(future.getFullYear() + 1);
+    const dateStr = future.toISOString().split('T')[0];
+    expect(createEmployeeSchema.safeParse({ ...validEmployee, dateOfBirth: dateStr }).success).toBe(false);
   });
 });
 
-describe('editEmployeeSchema', () => {
+describe('editEmployeeSchema (FE1 - ojačane validacije)', () => {
   const validEdit = {
     firstName: 'Marko',
     lastName: 'Petrovic',
@@ -181,6 +238,17 @@ describe('editEmployeeSchema', () => {
 
   it('rejects missing lastName', () => {
     expect(editEmployeeSchema.safeParse({ ...validEdit, lastName: '' }).success).toBe(false);
+  });
+
+  it('rejects invalid phone (FE1)', () => {
+    expect(editEmployeeSchema.safeParse({ ...validEdit, phoneNumber: 'invalid' }).success).toBe(false);
+  });
+
+  it('rejects future dateOfBirth (FE1)', () => {
+    const future = new Date();
+    future.setFullYear(future.getFullYear() + 2);
+    const dateStr = future.toISOString().split('T')[0];
+    expect(editEmployeeSchema.safeParse({ ...validEdit, dateOfBirth: dateStr }).success).toBe(false);
   });
 });
 

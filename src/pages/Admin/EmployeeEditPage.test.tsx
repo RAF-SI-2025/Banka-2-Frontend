@@ -50,7 +50,7 @@ const mockEmployee: Employee = {
   username: 'marko.petrovic',
   email: 'marko.petrovic@banka.rs',
   position: 'Software Developer',
-  phoneNumber: '+381 60 1234567',
+  phoneNumber: '+381601234567',
   isActive: true,
   permissions: [Permission.TRADE_STOCKS, Permission.VIEW_STOCKS],
   address: 'Bulevar Mihajla Pupina 10, Beograd',
@@ -106,7 +106,7 @@ describe('EmployeeEditPage', () => {
     expect(screen.getByLabelText(/^email/i)).toHaveValue('marko.petrovic@banka.rs');
     expect(screen.getByLabelText(/^email/i)).toBeDisabled();
     expect(screen.getByTestId('employee-edit-email-disabled')).toBeInTheDocument();
-    expect(screen.getByLabelText(/^broj telefona$/i)).toHaveValue('+381 60 1234567');
+    expect(screen.getByLabelText(/^broj telefona$/i)).toHaveValue('+381601234567');
     expect(screen.getByLabelText(/^adresa$/i)).toHaveValue('Bulevar Mihajla Pupina 10, Beograd');
 
     // Username should be displayed but disabled

@@ -48,7 +48,7 @@ function makeEmployee(overrides: Partial<Employee> = {}): Employee {
     username: 'marko.petrovic',
     email: 'marko.petrovic@banka.rs',
     position: 'Software Developer',
-    phoneNumber: '+381 60 1234567',
+    phoneNumber: '+381601234567',
     isActive: true,
     permissions: [],
     address: 'Beograd',
