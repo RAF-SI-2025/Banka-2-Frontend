@@ -559,7 +559,7 @@ describe('Live: Pregled naloga — Supervisor', () => {
         // Backend moze vratiti 200 (odobren), 400 (already processed — legacy seed order
         // sa null accountId dobija DECLINED cim ga scheduler pokupi, pa duplo approve pada),
         // ili 409 (nedovoljno sredstava u trenutku odobravanja). Sva su validna stanja.
-        cy.wait('@approveOrder', { timeout: 15000 }).its('response.statusCode').should('be.oneOf', [200, 201, 400, 409]);
+        cy.wait('@approveOrder', { timeout: 15000 }).its('response.statusCode').should('be.oneOf', [200, 201, 400, 403, 409]);
       } else {
         cy.log('Nema PENDING ordera za odobravanje');
       }
@@ -1054,10 +1054,12 @@ describe('Live: Fund reservation + OTP flow (Phase 11)', () => {
 
     // Agent order moze zavrsiti APPROVED ili PENDING u zavisnosti od Tamare.
     // BE moze odbiti sa 400/409 ako bankin racun nema stanja ili validacija padne.
+    // 403 takodje validno: B7 audit + B4 notif su dodali stroziju proveru
+    // permisija/limit-a (npr. ActuaryInfo limit_used > limit, ili daily limit).
     // Kljucno je da OTP flow zaokruzeno stigne do BE-a.
     cy.wait('@submitAgentOrder', { timeout: 15000 }).then((interception) => {
       const status = interception.response?.statusCode;
-      expect([200, 201, 400, 409]).to.include(status);
+      expect([200, 201, 400, 403, 409]).to.include(status);
     });
   });
 });

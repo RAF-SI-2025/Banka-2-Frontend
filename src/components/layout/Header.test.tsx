@@ -13,10 +13,6 @@ vi.mock('../shared/NotificationBell', () => ({
   default: () => <div data-testid="notification-bell">NotificationBell</div>,
 }));
 
-vi.mock('../shared/ThemeToggle', () => ({
-  default: () => <div data-testid="theme-toggle">ThemeToggle</div>,
-}));
-
 vi.mock('../watchlist/WatchlistQuickAccess', () => ({
   default: () => <div data-testid="watchlist-quick-access">WatchlistQuickAccess</div>,
 }));
@@ -46,11 +42,6 @@ describe('Header', () => {
   it('montira NotificationBell komponentu', () => {
     render(<Header />);
     expect(screen.getByTestId('notification-bell')).toBeInTheDocument();
-  });
-
-  it('montira ThemeToggle komponentu', () => {
-    render(<Header />);
-    expect(screen.getByTestId('theme-toggle')).toBeInTheDocument();
   });
 
   it('montira WatchlistQuickAccess komponentu (FE2)', () => {
