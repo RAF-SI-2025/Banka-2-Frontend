@@ -376,8 +376,9 @@ describe('Feature 2: Kreiranje zaposlenog', () => {
     cy.get('[role="option"]').contains('IT').click();
     cy.get('#phoneNumber').type('+381641234567');
     cy.get('#address').type('Kralja Petra 5, Beograd');
-    // Date of birth (DateInput component)
-    cy.get('#dateOfBirth').type('1990-05-15');
+    // DateInput koristi dd/mm/yyyy UI format sa auto-insert / na pos 2 i 5.
+    // Tip-ujemo cisto 8 cifara, komponenta sama formira `15/05/1990`.
+    cy.get('#dateOfBirth').type('15051990');
     // Gender
     cy.contains('Izaberite pol').click();
     cy.get('[role="option"]').contains('Muski').click();
@@ -402,7 +403,7 @@ describe('Feature 2: Kreiranje zaposlenog', () => {
     cy.get('[role="option"]').first().click();
     cy.get('#phoneNumber').type('+381649999999');
     cy.get('#address').type('Test adresa');
-    cy.get('#dateOfBirth').type('1990-01-01');
+    cy.get('#dateOfBirth').type('01011990');
     cy.contains('Izaberite pol').click();
     cy.get('[role="option"]').first().click();
 
