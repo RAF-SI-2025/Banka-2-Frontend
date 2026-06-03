@@ -117,21 +117,21 @@ const mockExchangeRates = [
 
 const mockCards: Array<Record<string, unknown>> = [
   {
-    id: 101, cardNumber: '4222001234567890', cardType: 'VISA', cardName: 'Visa Debit',
+    id: 101, cardNumber: '4222********7890', cardType: 'VISA', cardName: 'Visa Debit',
     accountId: 1, accountNumber: '222000112345678911',
     ownerName: 'STEFAN JOVANOVIC', holderName: 'STEFAN JOVANOVIC',
     expirationDate: '2028-06-30', status: 'ACTIVE',
     cardLimit: 200000, limit: 200000, createdAt: '2025-01-15',
   },
   {
-    id: 102, cardNumber: '4222009876543210', cardType: 'VISA', cardName: 'Visa Gold',
+    id: 102, cardNumber: '4222********3210', cardType: 'VISA', cardName: 'Visa Gold',
     accountId: 3, accountNumber: '222000121345678921',
     ownerName: 'STEFAN JOVANOVIC', holderName: 'STEFAN JOVANOVIC',
     expirationDate: '2027-12-31', status: 'BLOCKED',
     cardLimit: 100000, limit: 100000, createdAt: '2025-02-20',
   },
   {
-    id: 103, cardNumber: '5500001111222233', cardType: 'MASTERCARD', cardName: 'MasterCard',
+    id: 103, cardNumber: '5500********2233', cardType: 'MASTERCARD', cardName: 'MasterCard',
     accountId: 1, accountNumber: '222000112345678911',
     ownerName: 'STEFAN JOVANOVIC', holderName: 'STEFAN JOVANOVIC',
     expirationDate: '2026-03-31', status: 'DEACTIVATED',
@@ -1657,18 +1657,24 @@ describe('OTP Verifikacija - Detaljni testovi', () => {
     cy.get('body').type('{esc}');
   });
 
-  it('Promena limita - full OTP flow', () => {
+  it('Promena limita - direktna primena (bez OTP)', () => {
+    // 03.06: OTP uklonjen sa promene limita (AccountDetailsPage.saveLimits).
+    // Flow je sada direktan: klik "Promeni limit" -> inline forma -> "Sacuvaj limite"
+    // -> PATCH /accounts/1/limits -> success toast + refetch racuna. Nema OTP modala.
     cy.intercept('GET', '**/api/accounts/1', { statusCode: 200, body: mockAccounts[0] });
     cy.intercept('PATCH', '**/api/accounts/1/limits', { statusCode: 200, body: mockAccounts[0] }).as('changeLimit');
-    cy.intercept('POST', '**/api/payments/request-otp', { statusCode: 200, body: { sent: true } });
 
     cy.visit('/accounts/1', { onBeforeLoad: setupClientSession });
     cy.contains('Promeni limit').click();
     cy.get('#dailyLimit').clear().type('600000');
     cy.get('#monthlyLimit').clear().type('2500000');
     cy.contains('button', 'Sacuvaj limite').click();
-    // OTP modal should appear
-    cy.contains(/verifikacij|kod/i).should('exist');
+    // Direktan PATCH se salje, bez verifikacionog modala
+    cy.wait('@changeLimit');
+    cy.get('@changeLimit').its('request.body').should('deep.include', {
+      dailyLimit: 600000,
+      monthlyLimit: 2500000,
+    });
   });
 });
 

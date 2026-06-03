@@ -303,7 +303,10 @@ describe('Feature: Upravljanje aktuarima', () => {
     }).as('resetLimit');
 
     cy.visit('/employee/actuaries', { onBeforeLoad: setupSupervisorSession });
-    cy.contains(/reset/i).first().click();
+    // Klik na "Resetuj limit" u redu otvara ConfirmDialog (R1 561 zamenio
+    // native window.confirm). Tek klik na potvrdno dugme salje PATCH.
+    cy.contains('button', 'Resetuj limit').first().click();
+    cy.get('[data-testid="confirm-dialog-confirm"]').click();
     cy.wait('@resetLimit');
   });
 
@@ -896,7 +899,10 @@ describe('Feature: Porez tracking', () => {
   it('S79: Dugme za obracun poreza', () => {
     cy.intercept('POST', '**/api/tax/calculate', { statusCode: 200 }).as('calcTax');
     cy.visit('/employee/tax', { onBeforeLoad: setupSupervisorSession });
-    cy.contains('Izracunaj porez').click();
+    // "Izracunaj porez" otvara ConfirmDialog (R1 561 zamenio native confirm);
+    // POST /tax/calculate ide tek na potvrdu "Pokreni".
+    cy.contains('button', 'Izracunaj porez').click();
+    cy.contains('button', 'Pokreni').click();
     cy.wait('@calcTax');
   });
 
@@ -1123,14 +1129,17 @@ describe('Order approval logika', () => {
   });
 
   it('S50: Agentov order prelazi limit - Pending', () => {
-    // When agent exceeds daily limit, order goes to PENDING
+    // When agent exceeds daily limit, order goes to PENDING.
+    // setupMocks() mora ici PRVI — definise catch-all `**/api/**`. Specificni
+    // `/orders/my` intercept mora biti registrovan POSLE njega da bi Cypress
+    // (last-defined wins) vratio PENDING order umesto praznog catch-all body-ja.
+    setupMocks();
     cy.intercept('GET', '**/api/orders/my*', {
       statusCode: 200, body: {
         content: [{ ...mockOrders.content[1], status: 'PENDING', userName: 'Agent' }],
         totalElements: 1, totalPages: 1,
       },
     });
-    setupMocks();
     cy.visit('/orders/my', { onBeforeLoad: setupAgentSession });
     cy.contains('Na cekanju').should('exist');
   });
@@ -1386,8 +1395,11 @@ describe('Actuary/Tax - Detaljni testovi', () => {
       req.reply({ statusCode: 200, delay: 2000 });
     });
     cy.visit('/employee/tax', { onBeforeLoad: setupSupervisorSession });
-    cy.on('window:confirm', () => true);
-    cy.contains('Izracunaj porez').click();
+    // "Izracunaj porez" otvara ConfirmDialog (R1 561 zamenio native confirm,
+    // pa stari cy.on('window:confirm') vise nije potreban). Tek klik na
+    // "Pokreni" pokrece POST sa delay-om, kad dugme prelazi u "Obracun u toku...".
+    cy.contains('button', 'Izracunaj porez').click();
+    cy.contains('button', 'Pokreni').click();
     cy.contains(/Obracun u toku|obrada/i).should('exist');
   });
 

@@ -352,14 +352,19 @@ const mockFundPositions = [
 // ============================================================
 //  FEATURE: Statistika fondova (FE4 — zadatak 7.2 / jkrunic)
 // ============================================================
+// VAZNO: fundStatisticsService.getFundStatistics mapira SIROVI BE odgovor
+// (FundStatisticsRawDto: `annualizedReturn`/`volatility`/`maxDrawdown`/
+// `rewardToVariability`) u FE-friendly `*Percent`/`*Ratio` polja. Mock telo
+// MORA koristiti sirove BE kljuceve — inace `raw.annualizedReturn` je undefined
+// pa sve metrike padaju na `null` i vrednost (npr. "12,34%") se nikad ne render-uje.
 const mockFundStats = {
   fundId: 1,
   fundName: 'Alpha Growth Fund',
   snapshotCount: 90,
-  annualizedReturnPercent: 12.34,
-  volatilityPercent: 4.2,
-  maxDrawdownPercent: -8.5,
-  rewardToVariabilityRatio: 2.94,
+  annualizedReturn: 12.34,
+  volatility: 4.2,
+  maxDrawdown: -8.5,
+  rewardToVariability: 2.94,
   sufficientHistory: true,
 };
 
@@ -790,7 +795,9 @@ describe('Mock C4: Fund Invest/Withdraw', () => {
 
   it('S26: Supervizor nema klijentske akcije Uplati/Povuci u MyFundsTab', () => {
     setupPortfolioBase();
-    cy.intercept('GET', '/api/funds', { statusCode: 200, body: mockFunds }).as('funds');
+    // MyFundsTab.loadSupervisorData salje GET /funds?managerEmployeeId=<id>
+    // (BE-side manager filter, R1-852) — intercept mora imati `*` da uhvati query.
+    cy.intercept('GET', '/api/funds*', { statusCode: 200, body: mockFunds }).as('funds');
     cy.intercept('GET', '/api/funds/1', { statusCode: 200, body: { ...mockFundDetail, managerEmployeeId: 1 } }).as('fund1');
     cy.intercept('GET', '/api/funds/2', { statusCode: 200, body: { ...mockFundDetail, id: 2, name: 'Beta Income Fund', managerEmployeeId: 3 } }).as('fund2');
     cy.intercept('GET', '/api/funds/3', { statusCode: 200, body: { ...mockFundDetail, id: 3, name: 'Gamma Balanced Fund', managerEmployeeId: 5 } }).as('fund3');
@@ -871,7 +878,9 @@ describe('Mock C4: MyFundsTab', () => {
 
   it('S31: Supervizor vidi fondove kojima upravlja', () => {
     setupPortfolioBase();
-    cy.intercept('GET', '/api/funds', { statusCode: 200, body: mockFunds }).as('funds');
+    // MyFundsTab.loadSupervisorData salje GET /funds?managerEmployeeId=<id>
+    // (BE-side manager filter, R1-852) — intercept mora imati `*` da uhvati query.
+    cy.intercept('GET', '/api/funds*', { statusCode: 200, body: mockFunds }).as('funds');
     cy.intercept('GET', '/api/funds/1', { statusCode: 200, body: { ...mockFundDetail, managerEmployeeId: 1 } });
     cy.intercept('GET', '/api/funds/2', { statusCode: 200, body: { ...mockFundDetail, id: 2, name: 'Beta Income Fund', managerEmployeeId: 3 } });
     cy.intercept('GET', '/api/funds/3', { statusCode: 200, body: { ...mockFundDetail, id: 3, name: 'Gamma Balanced Fund', managerEmployeeId: 5 } });
@@ -996,9 +1005,10 @@ describe('Mock C4: CreateOrder Fund Selector', () => {
       });
       cy.get('body').then(($afterSubmit) => {
         if ($afterSubmit.text().includes('Potvrda naloga')) {
+          // OTP je uklonjen sa berza/order forme (CreateOrderPage.handleConfirmOrder
+          // salje POST /orders DIREKTNO iz potvrdnog dijaloga, bez VerificationModal-a).
+          // Klik na "confirm-order" odmah okida createOrderWithFund POST.
           cy.get('[data-cy="confirm-order"]').click({ force: true });
-          cy.get('#otp').type('123456');
-          cy.contains('button', 'Potvrdi').last().click();
           cy.wait('@createOrderWithFund');
         }
       });
@@ -2297,7 +2307,11 @@ describe('Mock C4: Inter-bank Payment Routing', () => {
     cy.contains('button', 'Potvrdi i nastavi').click();
     // VerificationModal heading promenjen u "Verifikacija (TOTP)" sa 26.05 TOTP migration.
     cy.contains(/^Verifikacija/).should('be.visible');
-    cy.contains('button', 'Popuni').click({ force: true });
+    // Dev "Popuni" (autofill) dugme se render-uje SAMO kad je import.meta.env.DEV
+    // (VerificationModal `devOtp` blok) — u CI prod build-u ga NEMA. Kucamo kod
+    // rucno u #otp input; placanje/verify POST je intercept-ovan pa bilo koji
+    // 6-cifreni kod prolazi.
+    cy.get('#otp').type('123456');
     cy.contains('button', 'Potvrdi').last().click({ force: true });
   }
 
