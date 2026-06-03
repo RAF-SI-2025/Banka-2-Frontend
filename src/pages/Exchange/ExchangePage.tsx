@@ -64,6 +64,25 @@ function normalizeExchangeRates(rates: ExchangeRate[]): ExchangeRate[] {
     (SUPPORTED_CURRENCIES as readonly string[]).includes(rate.currency),
   );
 
+  // R1-553: ne odbacuj tiho nepoznate valute — surface schema drift. Ako BE
+  // pocne da vraca valutu koju FE Currency enum ne poznaje, korisnik bi je
+  // inace samo "nestao" iz tabele bez ikakvog traga. Logujemo upozorenje da
+  // drift bude vidljiv (i da se Currency enum azurira).
+  if (filteredRates.length !== safeRates.length) {
+    const dropped = Array.from(
+      new Set(
+        safeRates
+          .filter((rate) => !(SUPPORTED_CURRENCIES as readonly string[]).includes(rate.currency))
+          .map((rate) => rate.currency),
+      ),
+    );
+    if (dropped.length > 0) {
+      console.warn(
+        `[ExchangePage] Odbacene nepodrzane valute iz kursne liste (azuriraj Currency enum): ${dropped.join(', ')}`,
+      );
+    }
+  }
+
   const hasRsd = filteredRates.some((rate) => rate.currency === 'RSD');
   const fallbackDate = filteredRates[0]?.date ?? new Date().toISOString();
 

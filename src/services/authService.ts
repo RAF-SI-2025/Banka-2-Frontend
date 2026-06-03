@@ -60,4 +60,14 @@ export const authService = {
     }>(`/auth-employee/activation-token/${encodeURIComponent(token)}/status`);
     return response.data;
   },
+
+  /**
+   * Spec Celina 1 Sc 9: kad je aktivacioni token istekao, posalji novi
+   * aktivacioni link. Prosledjujemo stari (istekli) token koji BE koristi da
+   * identifikuje zaposlenog. Endpoint je javan i anti-enumeration — BE uvek
+   * vraca isti generic 200 odgovor (ne otkriva da li nalog postoji / je aktivan).
+   */
+  resendActivation: async (token: string): Promise<void> => {
+    await api.post('/auth-employee/resend-activation', { token });
+  },
 };

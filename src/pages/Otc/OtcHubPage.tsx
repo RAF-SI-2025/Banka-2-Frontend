@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import OtcHubCard from '@/components/otc/OtcHubCard';
 import { useAuth } from '@/context/AuthContext';
 import { formatAmount, formatDate } from '@/utils/formatters';
+import { createIsMeMatcher } from '@/pages/Otc/otcUtils';
 import type { OtcContract, OtcListing, OtcOffer } from '@/types/celina3';
 
 interface InterContract { foreignId?: string; status: string; settlementDate?: string; strikePrice?: number; premium?: number; quantity?: number; buyerId?: number; sellerId?: number; }
@@ -104,24 +105,33 @@ export default function OtcHubPage() {
 
   // KPI calculations
   const kpi = useMemo(() => {
-    const myId = user?.id ?? -1;
+    // R1 568: identitet razresavamo preko deljenog fail-closed matchera
+    // (userId>0 && userId===partyId) umesto sirovog `buyerId === myId`.
+    const isMe = createIsMeMatcher(user);
     const activeContracts = data.localContracts.filter(c => c.status === 'ACTIVE');
     const exercisedContracts = data.localContracts.filter(c => c.status === 'EXERCISED');
     const expiredContracts = data.localContracts.filter(c => c.status === 'EXPIRED');
 
-    // Premija placena / primljena (samo lokalni, RSD)
-    let premiumPaid = 0;
-    let premiumReceived = 0;
+    const currencyOf = (c: OtcContract): string => c.listingCurrency || 'RSD';
+
+    // R1 567: premija i notional se NE smeju sabirati preko razlicitih valuta
+    // bez konverzije. Grupisemo po valuti (Record<valuta, iznos>); UI prikazuje
+    // dominantnu valutu kao glavni broj + breakdown ako ima vise valuta.
+    const premiumPaidByCcy: Record<string, number> = {};
+    const premiumReceivedByCcy: Record<string, number> = {};
     data.localContracts.forEach(c => {
-      const isBuyer = c.buyerId === myId;
-      const isSeller = c.sellerId === myId;
-      if (isBuyer) premiumPaid += (c.premium ?? 0);
-      if (isSeller) premiumReceived += (c.premium ?? 0);
+      const ccy = currencyOf(c);
+      if (isMe(c.buyerId, c.buyerName)) {
+        premiumPaidByCcy[ccy] = (premiumPaidByCcy[ccy] ?? 0) + (c.premium ?? 0);
+      }
+      if (isMe(c.sellerId, c.sellerName)) {
+        premiumReceivedByCcy[ccy] = (premiumReceivedByCcy[ccy] ?? 0) + (c.premium ?? 0);
+      }
     });
 
     // ITM (current > strike, sa buyer perspektive) na ACTIVE kao kupac
     const itmCount = activeContracts.filter(c =>
-      c.buyerId === myId && (c.currentPrice ?? 0) > (c.strikePrice ?? 0)
+      isMe(c.buyerId, c.buyerName) && (c.currentPrice ?? 0) > (c.strikePrice ?? 0)
     ).length;
 
     // Settlement do 7 dana
@@ -135,12 +145,34 @@ export default function OtcHubPage() {
     const myTurnInter = data.interOffers.filter(o => o.status === 'ACTIVE' && o.myTurn).length;
     const myTurnTotal = myTurnLocal + myTurnInter;
 
-    // Notional vrednost aktivnih (strike * qty u RSD pretpostavka)
-    const notional = activeContracts.reduce((s, c) => s + ((c.strikePrice ?? 0) * (c.quantity ?? 0)), 0);
+    // Notional vrednost aktivnih (strike * qty), grupisano po valuti (R1 567).
+    const notionalByCcy: Record<string, number> = {};
+    activeContracts.forEach(c => {
+      const ccy = currencyOf(c);
+      notionalByCcy[ccy] = (notionalByCcy[ccy] ?? 0) + (c.strikePrice ?? 0) * (c.quantity ?? 0);
+    });
 
-    // Bank count (jedinstveni partneri)
+    // Dominantna valuta = valuta sa najvecim notional-om (za glavni KPI broj).
+    const notionalEntries = Object.entries(notionalByCcy).sort((a, b) => b[1] - a[1]);
+    const primaryCurrency = notionalEntries[0]?.[0] ?? 'RSD';
+    const multiCurrency =
+      new Set([
+        ...Object.keys(notionalByCcy),
+        ...Object.keys(premiumPaidByCcy),
+        ...Object.keys(premiumReceivedByCcy),
+      ]).size > 1;
+
+    const premiumPaid = premiumPaidByCcy[primaryCurrency] ?? 0;
+    const premiumReceived = premiumReceivedByCcy[primaryCurrency] ?? 0;
+    const notional = notionalByCcy[primaryCurrency] ?? 0;
+
+    // R1 855: "iz X banaka" mora brojati BANKE, ne prodavce. Lokalni listinzi
+    // imaju `sellerName` = ime OSOBE (klijent/supervizor nase banke), pa njihovo
+    // brojanje kao razlicitih banaka je bilo pogresno. Sve lokalne hartije pripadaju
+    // nasoj banci → doprinose tacno 1. Inter-bank listinzi nose ime partnerske
+    // banke u `sellerName` → broji distinktne partnere.
     const bankSet = new Set<string>();
-    data.listingsAll.forEach(l => bankSet.add(l.sellerName ?? 'Banka 2'));
+    if (data.listingsAll.length > 0) bankSet.add('Banka 2');
     data.interListings.forEach(l => bankSet.add(l.sellerName ?? 'partner'));
 
     // Total discovery
@@ -157,6 +189,11 @@ export default function OtcHubPage() {
       premiumReceived,
       premiumNet: premiumReceived - premiumPaid,
       notional,
+      primaryCurrency,
+      multiCurrency,
+      premiumPaidByCcy,
+      premiumReceivedByCcy,
+      notionalByCcy,
       bankCount: bankSet.size,
       discoveryAll,
       activeOffersCount: data.localOffers.filter(o => o.status === 'ACTIVE').length + data.interOffers.filter(o => o.status === 'ACTIVE').length,
@@ -291,9 +328,11 @@ export default function OtcHubPage() {
               <ArrowDownRight className="h-4 w-4 text-emerald-500" />
             </div>
             <div className="mt-1 text-xl font-bold font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
-              +{formatAmount(kpi.premiumReceived, 2)}
+              +{formatAmount(kpi.premiumReceived, 2)} {kpi.primaryCurrency}
             </div>
-            <div className="text-[10px] text-muted-foreground">kao prodavac</div>
+            <div className="text-[10px] text-muted-foreground">
+              kao prodavac{kpi.multiCurrency ? ' · vise valuta' : ''}
+            </div>
           </CardContent>
         </Card>
 
@@ -305,9 +344,11 @@ export default function OtcHubPage() {
               <ArrowUpRight className="h-4 w-4 text-red-500" />
             </div>
             <div className="mt-1 text-xl font-bold font-mono tabular-nums text-red-600 dark:text-red-400">
-              -{formatAmount(kpi.premiumPaid, 2)}
+              -{formatAmount(kpi.premiumPaid, 2)} {kpi.primaryCurrency}
             </div>
-            <div className="text-[10px] text-muted-foreground">kao kupac</div>
+            <div className="text-[10px] text-muted-foreground">
+              kao kupac{kpi.multiCurrency ? ' · vise valuta' : ''}
+            </div>
           </CardContent>
         </Card>
 
@@ -583,13 +624,22 @@ export default function OtcHubPage() {
                     {kpi.premiumNet >= 0 ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs font-medium text-muted-foreground">Notional aktivnih ugovora</p>
-                    <p className="text-lg font-bold font-mono tabular-nums">{formatAmount(kpi.notional, 0)}</p>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Notional aktivnih ugovora{kpi.multiCurrency ? ` (${kpi.primaryCurrency})` : ''}
+                    </p>
+                    <p className="text-lg font-bold font-mono tabular-nums">
+                      {formatAmount(kpi.notional, 0)} {kpi.primaryCurrency}
+                    </p>
                     <p className="text-[10px] text-muted-foreground">
                       Neto premija: <span className={kpi.premiumNet >= 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-red-600 dark:text-red-400 font-semibold'}>
-                        {kpi.premiumNet >= 0 ? '+' : ''}{formatAmount(kpi.premiumNet, 2)}
+                        {kpi.premiumNet >= 0 ? '+' : ''}{formatAmount(kpi.premiumNet, 2)} {kpi.primaryCurrency}
                       </span>
                     </p>
+                    {kpi.multiCurrency && (
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                        * Postoje ugovori u vise valuta — iznosi se ne sabiraju preko valuta.
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>

@@ -51,11 +51,17 @@ export const Currency = {
 } as const;
 export type Currency = (typeof Currency)[keyof typeof Currency];
 
+// R1-333: poravnato sa BE PaymentStatus enum-om (PENDING/PROCESSING/COMPLETED/
+// REJECTED/CANCELLED/ABORTED). Pre fix-a FE je imao samo 4 vrednosti pa su
+// PROCESSING (placanje u obradi) i ABORTED (otkazano posle 3 neuspela OTP) padali
+// kroz statusLabel kao sirov enum string.
 export const TransactionStatus = {
   PENDING: 'PENDING',
+  PROCESSING: 'PROCESSING',
   COMPLETED: 'COMPLETED',
   REJECTED: 'REJECTED',
   CANCELLED: 'CANCELLED',
+  ABORTED: 'ABORTED',
 } as const;
 export type TransactionStatus = (typeof TransactionStatus)[keyof typeof TransactionStatus];
 
@@ -132,10 +138,6 @@ export interface Account {
   expirationDate?: string;
   employeeId?: number;           // Zaposleni koji je kreirao racun
   name?: string;                 // Korisnikov naziv za racun
-}
-
-export interface BusinessAccount extends Account {
-  firm: Firm;
 }
 
 export interface Firm {
@@ -308,7 +310,8 @@ export interface ExchangeRequest {
   fromCurrency: Currency;
   toCurrency: Currency;
   amount: number;
-  accountNumber?: string;
+  // R1-671: `accountNumber` uklonjen — nikad se nije slao u currencyService.convert
+  // ni citao (kalkulator menjacnice radi samo nad iznosom + parom valuta).
 }
 
 export interface NewCardRequest {
@@ -329,6 +332,11 @@ export interface LoanApplicationRequest {
   monthlyIncome?: number;
   permanentEmployment?: boolean;
   employmentPeriod?: number;
+  /**
+   * P1-fe-contracts-1: BE LoanServiceImpl.createLoanRequest radi OTP gate
+   * (verifyOtp) — bez koda apply uvek vraca 403. Salje se u body-ju kao `otpCode`.
+   */
+  otpCode?: string;
 }
 
 export interface CreateAccountRequest {

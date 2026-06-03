@@ -23,10 +23,29 @@ vi.mock('./OtcInterBankDiscoveryTab', () => ({
   default: () => <div data-testid="inter-bank-discovery">[InterBank Discovery]</div>,
 }));
 
+const mockToastError = vi.fn();
+vi.mock('@/lib/notify', () => ({
+  toast: {
+    error: (...a: unknown[]) => mockToastError(...a),
+    success: vi.fn(),
+    info: vi.fn(),
+  },
+}));
+
+function pastDateISO(daysAgo: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 beforeEach(() => {
   mockNavigate.mockClear();
   mockListDiscovery.mockReset();
   mockCreateOffer.mockReset();
+  mockToastError.mockClear();
   mockListDiscovery.mockResolvedValue([
     {
       portfolioId: 1, listingId: 1, listingTicker: 'AAPL', listingName: 'Apple Inc.',
@@ -61,5 +80,22 @@ describe('OtcDiscoveryPage', () => {
     await waitFor(() => screen.getByText('AAPL'));
     fireEvent.click(screen.getByRole('button', { name: /Napravi ponudu/i }));
     expect(screen.getByLabelText(/Kolicina akcija/i)).toBeInTheDocument();
+  });
+
+  // R1 860: settlement u proslosti se odbija pre slanja (HTML `min` nije dovoljan).
+  it('rejects offer with a past settlement date and does not call createOffer', async () => {
+    render(<MemoryRouter><OtcDiscoveryPage /></MemoryRouter>);
+    await waitFor(() => screen.getByText('AAPL'));
+    fireEvent.click(screen.getByRole('button', { name: /Napravi ponudu/i }));
+
+    fireEvent.change(screen.getByLabelText(/Kolicina akcija/i), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText(/Cena po akciji/i), { target: { value: '190' } });
+    fireEvent.change(screen.getByLabelText(/Premija/i), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText(/Datum dospeca/i), { target: { value: pastDateISO(3) } });
+
+    fireEvent.click(screen.getByRole('button', { name: /Posalji ponudu prodavcu/i }));
+
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith('Datum dospeca mora biti u buducnosti.'));
+    expect(mockCreateOffer).not.toHaveBeenCalled();
   });
 });

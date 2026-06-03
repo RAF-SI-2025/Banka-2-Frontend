@@ -25,6 +25,9 @@ vi.mock('@/services/creditService', () => ({
   },
 }));
 
+// ACCEPTED-DEVIATION (user-directed 03.06): zahtev za kredit se podnosi direktno,
+// bez OTP modala. OTP ostaje samo na placanju/transferu.
+
 import { accountService } from '@/services/accountService';
 import { creditService } from '@/services/creditService';
 
@@ -209,9 +212,13 @@ describe('LoanApplicationPage', () => {
     const submitBtn = screen.getByRole('button', { name: /Posalji zahtev/i });
     await user.click(submitBtn);
 
+    // ACCEPTED-DEVIATION (user-directed 03.06): submit poziva apply direktno, bez OTP.
     await waitFor(() => {
       expect(mockCreditService.apply).toHaveBeenCalled();
     });
+    expect(mockCreditService.apply).toHaveBeenCalledWith(
+      expect.not.objectContaining({ otpCode: expect.anything() })
+    );
   });
 
   it('shows loan calculation preview', async () => {
@@ -232,5 +239,74 @@ describe('LoanApplicationPage', () => {
       const calcTexts = screen.queryAllByText(/kamatna stopa|Ukupno|EKS|Kalkulacija/i);
       expect(calcTexts.length).toBeGreaterThan(0);
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // R1-254 / TEST-fe-banking-10: FE kalkulator (efektivna stopa, mesecna rata,
+  // ukupno) je ORIJENTACIONA procena — NIJE obavezujuca ponuda. BE je merodavan
+  // pri odobravanju. Dva invarijanta koja pinemo:
+  //   1) disclaimer ("orijentaciona procena") MORA biti vidljiv da izmisljeni
+  //      brojevi ne izgledaju kao stvarni uslovi (Luka pref "ne lazni podaci");
+  //   2) FE-procenjena stopa/rata se NE salju u BE apply payload — BE racuna
+  //      svoje uslove; salju se samo sirova polja forme (bez OTP — uklonjen 03.06).
+  // ---------------------------------------------------------------------------
+
+  it('renders the "orijentaciona procena" disclaimer (estimate is informative, not binding)', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Iznos')).toBeInTheDocument();
+    });
+
+    // Disclaimer mora biti prisutan u kalkulator kartici.
+    expect(
+      screen.getByText(/orijentaciona procena/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Konacne uslove\s+kredita utvrdjuje banka/i)
+    ).toBeInTheDocument();
+  });
+
+  it('does NOT send FE-estimated rate/monthlyPayment/total in the apply payload (BE authoritative)', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Iznos')).toBeInTheDocument();
+    });
+
+    const amountInput = screen.getByLabelText('Iznos');
+    await user.clear(amountInput);
+    await user.type(amountInput, '500000');
+
+    await user.type(screen.getByLabelText('Svrha kredita'), 'Kupovina opreme');
+    await user.type(screen.getByLabelText('Kontakt telefon'), '0611234567');
+
+    await user.click(screen.getByRole('button', { name: /Posalji zahtev/i }));
+
+    await waitFor(() => {
+      expect(mockCreditService.apply).toHaveBeenCalled();
+    });
+
+    const payload = mockCreditService.apply.mock.calls[0][0] as Record<string, unknown>;
+
+    // BE-merodavni: FE procene (annualRate / effectiveRate / monthlyPayment /
+    // totalRepayment / totalInterest) NE smeju da procure u apply payload —
+    // klijent ne sme "ponuditi" sopstvenu kamatnu stopu.
+    expect(payload).not.toHaveProperty('annualRate');
+    expect(payload).not.toHaveProperty('effectiveRate');
+    expect(payload).not.toHaveProperty('nominalRate');
+    expect(payload).not.toHaveProperty('interestRate');
+    expect(payload).not.toHaveProperty('monthlyPayment');
+    expect(payload).not.toHaveProperty('totalRepayment');
+    expect(payload).not.toHaveProperty('totalInterest');
+
+    // Sirova polja forme JESU poslata (BE racuna ostalo). OTP se vise ne salje.
+    expect(payload).toMatchObject({
+      loanType: 'GOTOVINSKI',
+      amount: 500000,
+      currency: 'RSD',
+    });
+    expect(payload).not.toHaveProperty('otpCode');
   });
 });

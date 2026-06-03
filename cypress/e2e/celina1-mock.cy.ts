@@ -135,17 +135,24 @@ describe('Feature 1: Autentifikacija korisnika', () => {
   });
 
   // --- S5: Neuspesno logovanje - neaktivan zaposleni ---
+  // Real BE: deaktivirani login baca AuthenticationFailedException("Nalog je
+  // deaktiviran.") -> GlobalExceptionHandler mapira na 401 (NE 403). Vidi
+  // AuthService.login + komentar "Spec Sc 14 — login deaktiviranog naloga
+  // vraca 401, ne 400". Mock sad match-uje real status + poruku, a LoginPage
+  // prikazuje BE poruku iz response.data.message (ne branch-uje na status).
   it('S5: Neuspesno logovanje - neaktivan zaposleni', () => {
     cy.intercept('POST', '**/api/auth/login', {
-      statusCode: 403,
-      body: { message: 'Account is deactivated' },
+      statusCode: 401,
+      body: { message: 'Nalog je deaktiviran.' },
     }).as('loginInactive');
 
     cy.get('#email').type('vuk.obradovic@banka.rs');
     cy.get('#password').type('Zaposleni12');
     cy.contains('button', 'Prijavi se').click();
-    cy.wait('@loginInactive');
+    cy.wait('@loginInactive').its('response.statusCode').should('eq', 401);
     cy.url().should('include', '/login');
+    // FE mora prikazati BE poruku deaktiviranog naloga (message-based, ne status-based).
+    cy.contains('Nalog je deaktiviran.').should('be.visible');
   });
 
   // --- Elementi login stranice ---
@@ -276,6 +283,20 @@ describe('Feature 1b: Reset lozinke', () => {
 // ====================================================================
 
 describe('Feature 1c: Aktivacija naloga', () => {
+  // Bug fix: ActivateAccountPage radi pre-check tokena pri mount-u kroz
+  // GET /api/auth-employee/activation-token/{token}/status (authService.ts:60).
+  // Bez ovog intercept-a, globalni mock catch-all vraca `[]` pa `result.status`
+  // bude undefined i forma se ne renderuje pouzdano. Mock-ujemo status=VALID
+  // (mirror celina1-live.cy.ts:863) da bi password forma bila prikazana i
+  // S8/S10/validation testovi mogli da je vezbaju. Per-test override (npr.
+  // "bez tokena") i dalje ima prioritet jer ne ucitava token uopste.
+  beforeEach(() => {
+    cy.intercept('GET', '**/auth-employee/activation-token/*/status', {
+      statusCode: 200,
+      body: { status: 'VALID', email: 'novi.zaposleni@banka.rs', expiresAt: '2099-01-01T00:00:00Z' },
+    }).as('tokenStatus');
+  });
+
   it('S8: Uspesna aktivacija naloga', () => {
     cy.intercept('POST', '**/api/auth-employee/activate', {
       statusCode: 200,
@@ -283,6 +304,7 @@ describe('Feature 1c: Aktivacija naloga', () => {
     }).as('activate');
 
     cy.visit('/activate-account?token=valid-activation-token');
+    cy.wait('@tokenStatus');
     cy.get('input[type="password"]').first().type('NoviPassword12');
     cy.get('input[type="password"]').last().type('NoviPassword12');
     cy.contains('button', /Aktiviraj nalog|Aktivacija/i).click();
@@ -297,6 +319,7 @@ describe('Feature 1c: Aktivacija naloga', () => {
     }).as('activateFail');
 
     cy.visit('/activate-account?token=expired-token');
+    cy.wait('@tokenStatus');
     cy.get('input[type="password"]').first().type('ValidPass12');
     cy.get('input[type="password"]').last().type('ValidPass12');
     cy.contains('button', /Aktiviraj nalog|Aktivacija/i).click();
@@ -305,6 +328,7 @@ describe('Feature 1c: Aktivacija naloga', () => {
 
   it('S10: Aktivacija - slaba lozinka (bez brojeva)', () => {
     cy.visit('/activate-account?token=valid-token');
+    cy.wait('@tokenStatus');
     cy.get('input[type="password"]').first().type('SamoBezBrojeva');
     cy.get('input[type="password"]').last().type('SamoBezBrojeva');
     cy.contains('button', /Aktiviraj nalog|Aktivacija/i).click();
@@ -319,12 +343,14 @@ describe('Feature 1c: Aktivacija naloga', () => {
 
   it('Aktivacija - prikazuje password strength indicator', () => {
     cy.visit('/activate-account?token=valid-token');
+    cy.wait('@tokenStatus');
     cy.get('input[type="password"]').first().type('Abc12345');
     cy.get('[class*="progress"], [role="progressbar"], [class*="strength"]').should('exist');
   });
 
   it('Aktivacija - lozinke se ne poklapaju', () => {
     cy.visit('/activate-account?token=valid-token');
+    cy.wait('@tokenStatus');
     cy.get('input[type="password"]').first().type('ValidPass12');
     cy.get('input[type="password"]').last().type('DrugaPass34');
     cy.contains('button', /Aktiviraj nalog|Aktivacija/i).click();
@@ -333,6 +359,7 @@ describe('Feature 1c: Aktivacija naloga', () => {
 
   it('Aktivacija - lozinka bez velikog slova', () => {
     cy.visit('/activate-account?token=valid-token');
+    cy.wait('@tokenStatus');
     cy.get('input[type="password"]').first().type('bezvlikogslova12');
     cy.get('input[type="password"]').last().type('bezvlikogslova12');
     cy.contains('button', /Aktiviraj nalog|Aktivacija/i).click();
@@ -341,6 +368,7 @@ describe('Feature 1c: Aktivacija naloga', () => {
 
   it('Aktivacija - lozinka bez malog slova', () => {
     cy.visit('/activate-account?token=valid-token');
+    cy.wait('@tokenStatus');
     cy.get('input[type="password"]').first().type('BEZMALOGSLOVA12');
     cy.get('input[type="password"]').last().type('BEZMALOGSLOVA12');
     cy.contains('button', /Aktiviraj nalog|Aktivacija/i).click();
@@ -387,9 +415,16 @@ describe('Feature 2: Kreiranje zaposlenog', () => {
   });
 
   it('S7: Kreiranje zaposlenog sa duplikatom email-a', () => {
+    // Real BE: EmployeeServiceImpl.createEmployee baca
+    // IllegalArgumentException("An employee with this email already exists.")
+    // -> GlobalExceptionHandler(@ExceptionHandler IllegalArgumentException)
+    // mapira na 400 BAD_REQUEST (NE 409). Mock sad match-uje real status +
+    // poruku; EmployeeCreatePage detektuje poruku koja sadrzi "email" i
+    // prikazuje "Korisnik sa ovim email-om vec postoji." (message-based,
+    // ne branch-uje na status).
     cy.intercept('POST', '**/api/employees', {
-      statusCode: 409,
-      body: { message: 'Email already exists' },
+      statusCode: 400,
+      body: { message: 'An employee with this email already exists.' },
     }).as('createDuplicate');
 
     cy.get('input[name="firstName"]').type('Test');
@@ -407,9 +442,10 @@ describe('Feature 2: Kreiranje zaposlenog', () => {
     cy.get('[role="option"]').first().click();
 
     cy.get('[data-cy="createBtn"]').click();
-    cy.wait('@createDuplicate');
-    // Should stay on form and show error
+    cy.wait('@createDuplicate').its('response.statusCode').should('eq', 400);
+    // Should stay on form and show the dup-email error
     cy.url().should('include', '/new');
+    cy.contains('Korisnik sa ovim email-om vec postoji.').should('be.visible');
   });
 
   it('Kreiranje - validacija obaveznih polja', () => {

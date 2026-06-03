@@ -28,10 +28,6 @@ import {
   TRANSACTION_STATUS_LABELS,
   TRANSACTION_STATUS_BADGE_VARIANT,
 } from '@/utils/transactionLabels';
-import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  LineChart, Line,
-} from 'recharts';
 
 // ────────────────────────────────────────────────────────────────────
 // Helpers
@@ -43,45 +39,10 @@ function formatTime(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('sr-RS', { hour: '2-digit', minute: '2-digit' });
 }
 
-/** Generate fake balance history data for a chart */
-function generateBalanceHistory(currentBalance: number, days: number): { date: string; balance: number }[] {
-  const data: { date: string; balance: number }[] = [];
-  let balance = currentBalance * (0.75 + Math.random() * 0.15);
-  const dailyDelta = (currentBalance - balance) / days;
-  const now = new Date();
-
-  for (let i = days; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const noise = (Math.random() - 0.45) * currentBalance * 0.04;
-    balance += dailyDelta + noise;
-    balance = Math.max(balance, currentBalance * 0.3);
-    data.push({
-      date: d.toLocaleDateString('sr-RS', { day: '2-digit', month: 'short' }),
-      balance: Math.round(balance),
-    });
-  }
-  // last point = actual balance
-  if (data.length > 0) data[data.length - 1].balance = Math.round(currentBalance);
-  return data;
-}
-
-/** Generate tiny sparkline data (7 points) */
-function generateSparkline(endValue: number): number[] {
-  const pts: number[] = [];
-  let v = endValue * (0.85 + Math.random() * 0.1);
-  for (let i = 0; i < 7; i++) {
-    v += (endValue - v) * 0.25 + (Math.random() - 0.45) * endValue * 0.05;
-    pts.push(Math.round(v));
-  }
-  pts[6] = Math.round(endValue);
-  return pts;
-}
-
 import {
-  CURRENCY_GRADIENTS as currencyGradients,
-  CURRENCY_SYMBOLS as currencySymbols,
-  CURRENCY_FLAGS as currencyFlags,
+  getCurrencyGradient,
+  getCurrencySymbol,
+  getCurrencyFlag,
 } from '@/utils/currencyMaps';
 
 interface AdminCard {
@@ -130,13 +91,6 @@ function getQuickCards(isAdmin: boolean, isSupervisor: boolean, isAgent: boolean
   return cards;
 }
 
-const periodOptions = [
-  { label: '1N', days: 7 },
-  { label: '1M', days: 30 },
-  { label: '3M', days: 90 },
-  { label: '1G', days: 365 },
-];
-
 // ────────────────────────────────────────────────────────────────────
 // Animated counter hook
 // ────────────────────────────────────────────────────────────────────
@@ -163,19 +117,6 @@ function useCountUp(target: number, duration = 1200): number {
 }
 
 // ────────────────────────────────────────────────────────────────────
-// Custom chart tooltip
-// ────────────────────────────────────────────────────────────────────
-function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-xl border bg-background/95 backdrop-blur-sm px-4 py-2.5 shadow-xl">
-      <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
-      <p className="text-sm font-bold font-mono tabular-nums">{formatAmount(payload[0].value)} RSD</p>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────
 // Skeletons
 // ────────────────────────────────────────────────────────────────────
 function HeroSkeleton() {
@@ -190,39 +131,9 @@ function HeroSkeleton() {
   );
 }
 
-function ChartSkeleton() {
-  return (
-    <div className="rounded-2xl border bg-card p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="h-5 w-32 animate-pulse rounded bg-muted" />
-        <div className="flex gap-2">
-          {[1, 2, 3, 4].map(i => <div key={i} className="h-8 w-10 animate-pulse rounded-full bg-muted" />)}
-        </div>
-      </div>
-      <div className="h-[220px] animate-pulse rounded-xl bg-muted/50" />
-    </div>
-  );
-}
-
 function AccountCardSkeleton() {
   return (
     <div className="flex-shrink-0 w-72 h-44 rounded-2xl bg-gradient-to-br from-muted to-muted/50 animate-pulse" />
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────
-// MiniSparkline for account cards
-// ────────────────────────────────────────────────────────────────────
-function MiniSparkline({ data, color = '#ffffff' }: { data: number[]; color?: string }) {
-  const chartData = data.map((v, i) => ({ i, v }));
-  return (
-    <div className="h-8 w-20">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData}>
-          <Line type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} dot={false} strokeOpacity={0.6} />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
   );
 }
 
@@ -240,7 +151,6 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [adminStats, setAdminStats] = useState({ employees: 0, active: 0, loans: 0, loading: true });
-  const [chartPeriod, setChartPeriod] = useState(30);
   const [portfolioSummary, setPortfolioSummary] = useState<PortfolioSummary | null>(null);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [employeeLoading, setEmployeeLoading] = useState(true);
@@ -381,26 +291,6 @@ export default function HomePage() {
   const activeDepositCount = useMemo(() =>
     deposits.filter(d => d.status === 'ACTIVE').length, [deposits]);
 
-  // Chart data (memoized to avoid regenerating random data on every render)
-  const balanceHistory = useMemo(() => generateBalanceHistory(totalRSD || 250000, chartPeriod), [totalRSD, chartPeriod]);
-
-  // Sparkline data per account (stable via useRef)
-  const sparklineRef = useRef<Map<number, number[]>>(new Map());
-  accounts.forEach(a => {
-    if (!sparklineRef.current.has(a.id)) {
-      sparklineRef.current.set(a.id, generateSparkline(a.balance ?? 0));
-    }
-  });
-
-  // Exchange rate sparklines
-  const rateSparkRef = useRef<Map<string, number[]>>(new Map());
-  exchangeRates.forEach(r => {
-    if (!rateSparkRef.current.has(r.currency)) {
-      const mid = r.middleRate && r.middleRate > 0 ? 1 / r.middleRate : 100;
-      rateSparkRef.current.set(r.currency, generateSparkline(mid));
-    }
-  });
-
   const greeting = (() => {
     const h = new Date().getHours();
     if (h < 6) return 'Dobra noc';
@@ -538,62 +428,6 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Balance History Chart */}
-      {loading ? <ChartSkeleton /> : (
-        <Card className="rounded-2xl border shadow-sm overflow-hidden">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-base font-semibold flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-indigo-500" />
-                  Istorija stanja
-                </h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Kretanje ukupnog stanja</p>
-              </div>
-              <div className="flex gap-1 rounded-full bg-muted/60 p-1">
-                {periodOptions.map(p => (
-                  <button
-                    key={p.label}
-                    onClick={() => setChartPeriod(p.days)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-all duration-200 ${
-                      chartPeriod === p.days
-                        ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="h-[220px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={balanceHistory} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="date" hide />
-                  <YAxis hide domain={['dataMin - 5000', 'dataMax + 5000']} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                  <Area
-                    type="monotone"
-                    dataKey="balance"
-                    stroke="#10b981"
-                    strokeWidth={2.5}
-                    fill="url(#balanceGradient)"
-                    animationDuration={1200}
-                    animationEasing="ease-out"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Account Cards - Horizontal scroll */}
       <section>
         <div className="flex items-center justify-between mb-4">
@@ -622,9 +456,8 @@ export default function HomePage() {
         ) : (
           <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-thin">
             {accounts.map((account, idx) => {
-              const grad = currencyGradients[account.currency] || 'from-slate-500 to-slate-700';
-              const sym = currencySymbols[account.currency] || account.currency;
-              const sparkData = sparklineRef.current.get(account.id) || [];
+              const grad = getCurrencyGradient(account.currency);
+              const sym = getCurrencySymbol(account.currency);
               return (
                 <div
                   key={account.id}
@@ -648,16 +481,11 @@ export default function HomePage() {
                       </div>
                       <p className="mt-1 text-xs text-white/50 font-mono">{account.accountNumber}</p>
 
-                      <div className="mt-3 flex items-end justify-between">
-                        <div>
-                          <p className="text-xs text-white/60 uppercase tracking-wider">Stanje</p>
-                          <p className="mt-0.5 text-2xl font-bold font-mono tabular-nums tracking-tight">
-                            {balanceVisible ? formatAmount(account.balance) : '\u2022\u2022\u2022\u2022'} <span className="text-base font-semibold text-white/70">{sym}</span>
-                          </p>
-                        </div>
-                        {sparkData.length > 0 && (
-                          <MiniSparkline data={sparkData} color="rgba(255,255,255,0.5)" />
-                        )}
+                      <div className="mt-3">
+                        <p className="text-xs text-white/60 uppercase tracking-wider">Stanje</p>
+                        <p className="mt-0.5 text-2xl font-bold font-mono tabular-nums tracking-tight">
+                          {balanceVisible ? formatAmount(account.balance) : '\u2022\u2022\u2022\u2022'} <span className="text-base font-semibold text-white/70">{sym}</span>
+                        </p>
                       </div>
 
                       <div className="mt-2 flex items-center justify-between text-xs text-white/60">
@@ -874,7 +702,6 @@ export default function HomePage() {
             <div className="space-y-2.5">
               {exchangeRates.map((rate, idx) => {
                 const rsdPerUnit = rate.middleRate && rate.middleRate > 0 ? (1 / rate.middleRate) : 0;
-                const sparkData = rateSparkRef.current.get(rate.currency) || [];
                 return (
                   <Card
                     key={rate.currency}
@@ -883,28 +710,17 @@ export default function HomePage() {
                   >
                     <CardContent className="flex items-center justify-between py-3.5 px-4">
                       <div className="flex items-center gap-3">
-                        <span className="text-2xl">{currencyFlags[rate.currency] || '\ud83c\udfe6'}</span>
+                        <span className="text-2xl">{getCurrencyFlag(rate.currency)}</span>
                         <div>
                           <p className="text-sm font-bold">{rate.currency}</p>
                           <p className="text-[11px] text-muted-foreground">1 {rate.currency}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        {sparkData.length > 0 && (
-                          <div className="h-6 w-14 opacity-60">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <LineChart data={sparkData.map((v, i) => ({ i, v }))}>
-                                <Line type="monotone" dataKey="v" stroke="#6366f1" strokeWidth={1.5} dot={false} />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </div>
-                        )}
-                        <div className="text-right">
-                          <p className="text-sm font-bold font-mono tabular-nums">{formatAmount(rsdPerUnit, 2)} RSD</p>
-                          <p className="text-[11px] text-muted-foreground font-mono tabular-nums">
-                            {formatAmount(rate.sellRate ? (1 / rate.sellRate) : 0, 2)} / {formatAmount(rate.buyRate ? (1 / rate.buyRate) : 0, 2)}
-                          </p>
-                        </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold font-mono tabular-nums">{formatAmount(rsdPerUnit, 2)} RSD</p>
+                        <p className="text-[11px] text-muted-foreground font-mono tabular-nums">
+                          {formatAmount(rate.sellRate ? (1 / rate.sellRate) : 0, 2)} / {formatAmount(rate.buyRate ? (1 / rate.buyRate) : 0, 2)}
+                        </p>
                       </div>
                     </CardContent>
                   </Card>

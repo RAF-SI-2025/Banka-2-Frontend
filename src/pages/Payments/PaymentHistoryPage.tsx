@@ -9,22 +9,26 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { History, Inbox, ArrowUpRight, ArrowDownLeft, TrendingDown, TrendingUp, Receipt, ChevronDown, ChevronUp, Download, X, Search } from 'lucide-react';
 import { asArray, formatAmount, formatDateTime, formatDateShort } from '@/utils/formatters';
+import { normalizeTransaction } from '@/utils/transactionUtils';
 
 type SortField = 'date' | 'amount' | 'status';
 type SortDirection = 'asc' | 'desc';
 
 function statusBadgeVariant(status: TransactionStatus) {
   if (status === 'COMPLETED') return 'success' as const;
-  if (status === 'PENDING') return 'warning' as const;
-  if (status === 'REJECTED') return 'destructive' as const;
+  if (status === 'PENDING' || status === 'PROCESSING') return 'warning' as const;
+  if (status === 'REJECTED' || status === 'ABORTED') return 'destructive' as const;
   return 'secondary' as const;
 }
 
 function statusLabel(status: TransactionStatus): string {
   if (status === 'COMPLETED') return 'Zavrseno';
   if (status === 'PENDING') return 'Na cekanju';
+  // R1-333: PROCESSING/ABORTED su BE statusi koje FE ranije nije mapirao.
+  if (status === 'PROCESSING') return 'U obradi';
   if (status === 'REJECTED') return 'Odbijeno';
   if (status === 'CANCELLED') return 'Otkazano';
+  if (status === 'ABORTED') return 'Prekinuto';
   return status;
 }
 
@@ -41,9 +45,11 @@ function compareStrings(a: string | null | undefined, b: string | null | undefin
 const STATUS_OPTIONS = [
   { value: '', label: 'Sve' },
   { value: 'COMPLETED', label: 'Zavrsene' },
+  { value: 'PROCESSING', label: 'U obradi' },
   { value: 'PENDING', label: 'Na cekanju' },
   { value: 'REJECTED', label: 'Odbijene' },
   { value: 'CANCELLED', label: 'Otkazane' },
+  { value: 'ABORTED', label: 'Prekinute' },
 ] as const;
 
 export default function PaymentHistoryPage() {
@@ -118,17 +124,9 @@ export default function PaymentHistoryPage() {
           limit,
         });
 
-        const normalized = asArray<Transaction>(response.content).map((tx) => {
-          const t = tx as unknown as Record<string, unknown>;
-          return {
-            ...tx,
-            fromAccountNumber: tx.fromAccountNumber || (t.fromAccount as string) || '',
-            toAccountNumber: tx.toAccountNumber || (t.toAccount as string) || '',
-            paymentPurpose: tx.paymentPurpose || (t.description as string) || '',
-            currency: tx.currency || (t.currency as string) || (t.fromCurrency as string) || '',
-            amount: typeof tx.amount === 'number' ? tx.amount : Number(tx.amount),
-          } as Transaction;
-        });
+        const normalized = asArray<Transaction>(response.content).map((tx) =>
+          normalizeTransaction(tx),
+        );
 
         setTransactions(normalized);
         setTotalPages(Math.max(1, response.totalPages ?? 1));

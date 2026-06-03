@@ -133,5 +133,24 @@ describe('taxService', () => {
       mockedApi.get.mockRejectedValue(new Error('Not implemented'));
       await expect(taxService.getTaxBreakdown(10, 'CLIENT')).rejects.toThrow('Not implemented');
     });
+
+    // TEST-fe-xcut-3 (TaxDetailDialog missing-endpoint grana): servis NE guta
+    // 404/501 — propagira HTTP gresku sa netaknutim `response.status`, tako da
+    // TaxDetailDialog moze da razlikuje "unavailable" (404/501/405) od "error".
+    it('propagates the HTTP error object with response.status intact (404)', async () => {
+      const httpErr = { response: { status: 404 }, message: 'Not Found' };
+      mockedApi.get.mockRejectedValue(httpErr);
+      await expect(taxService.getTaxBreakdown(10, 'CLIENT')).rejects.toMatchObject({
+        response: { status: 404 },
+      });
+    });
+
+    it('propagates the HTTP error object with response.status intact (501)', async () => {
+      const httpErr = { response: { status: 501 }, message: 'Not Implemented' };
+      mockedApi.get.mockRejectedValue(httpErr);
+      await expect(taxService.getTaxBreakdown(10, 'EMPLOYEE')).rejects.toMatchObject({
+        response: { status: 501 },
+      });
+    });
   });
 });

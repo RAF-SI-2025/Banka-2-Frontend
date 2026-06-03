@@ -40,6 +40,14 @@ describe('getOrderCommission', () => {
     // 24% * 40 = 9.6, ispod cap-a 12
     expect(getOrderCommission(OrderType.LIMIT, 40, false)).toBeCloseTo(9.6);
   });
+
+  it('R1-844: cap je denominiran u valuti listinga, ne konvertuje se po valuti', () => {
+    // Cap ($7/$12) se primenjuje na cenu BEZ obzira na valutu listinga —
+    // pretpostavka je da je cena vec u listing valuti (spec: USD). Ovaj test
+    // fiksira to dokumentovano ponasanje: visoka cena uvek udari u isti cap.
+    expect(getOrderCommission(OrderType.MARKET, 999999, false)).toBe(7);
+    expect(getOrderCommission(OrderType.LIMIT, 999999, false)).toBe(12);
+  });
 });
 
 describe('getOrderCommissionBreakdown', () => {

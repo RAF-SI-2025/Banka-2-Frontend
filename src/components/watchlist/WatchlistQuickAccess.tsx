@@ -139,10 +139,10 @@ export default function WatchlistQuickAccess() {
                       : navigate(`/securities`)
                   }
                   data-testid={`quick-access-item-${item.listingTicker}`}
-                  className="w-full grid grid-cols-[1fr_auto_auto] items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-accent transition-colors"
+                  className="w-full grid grid-cols-[minmax(3.5rem,1fr)_auto_auto] items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-accent transition-colors"
                   title={item.listingName ?? item.listingTicker}
                 >
-                  <span className="font-mono font-semibold truncate text-left">
+                  <span className="font-mono font-semibold text-left whitespace-nowrap">
                     {item.listingTicker}
                   </span>
                   <span

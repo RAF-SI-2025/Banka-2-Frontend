@@ -140,7 +140,20 @@ export default function AdminSavingsRatesPage() {
                                 <Edit className="w-3 h-3 opacity-50" />
                               </button>
                             ) : (
-                              <span className="text-muted-foreground">-</span>
+                              // R1-358: prazna celija je sada klikabilna — otvara isti
+                              // upsert dijalog sa pocetnom stopom 0 da admin moze
+                              // DEFINISATI stopu za (valuta, rok) kombinaciju koja jos
+                              // ne postoji (pre fix-a "-" je bio mrtav, bez nacina dodavanja).
+                              <button
+                                type="button"
+                                onClick={() => openEdit(code, t, 0)}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                                data-testid={`add-rate-${code}-${t}`}
+                                title="Dodaj stopu"
+                              >
+                                <span>-</span>
+                                <Edit className="w-3 h-3 opacity-50" />
+                              </button>
                             )}
                           </TableCell>
                         );

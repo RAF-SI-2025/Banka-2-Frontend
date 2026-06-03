@@ -96,4 +96,38 @@ describe('OtcHubPage', () => {
     fireEvent.click(screen.getByTestId('hub-my-public'));
     expect(mockNavigate).toHaveBeenCalledWith('/otc/moje');
   });
+
+  // R1 855: dva LOKALNA listinga (razliciti prodavci-osobe) pripadaju ISTOJ
+  // banci → "iz 1 banke", a ne "iz 2 banaka" (raniji bug je brojao prodavce).
+  it('broji lokalne listinge kao jednu banku (ne po imenu prodavca)', async () => {
+    render(<MemoryRouter><OtcHubPage /></MemoryRouter>);
+    await waitFor(() => {
+      expect(screen.getByTestId('hub-discovery')).toBeInTheDocument();
+    });
+    expect(screen.getAllByText(/iz 1 banke/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/iz 2 banaka/i)).toBeNull();
+  });
+
+  // R1 567: premija/notional se grupisu po valuti, ne sabiraju slepo u RSD.
+  it('grupise premiju/notional po valuti i upozorava na vise valuta', async () => {
+    const otcService = (await import('@/services/otcService')).default;
+    vi.mocked(otcService.listMyContracts).mockResolvedValueOnce([
+      // user.id === 1; kao kupac u USD ugovoru
+      { id: 10, status: 'ACTIVE', buyerId: 1, sellerId: 2, buyerName: 'Test User', sellerName: 'X',
+        listingCurrency: 'USD', premium: 100, strikePrice: 50, quantity: 10, currentPrice: 60,
+        listingTicker: 'AAPL', listingName: 'Apple', settlementDate: '2030-01-01', createdAt: '2026-01-01' },
+      // kao kupac u EUR ugovoru
+      { id: 11, status: 'ACTIVE', buyerId: 1, sellerId: 3, buyerName: 'Test User', sellerName: 'Y',
+        listingCurrency: 'EUR', premium: 80, strikePrice: 40, quantity: 5, currentPrice: 45,
+        listingTicker: 'SAP', listingName: 'SAP', settlementDate: '2030-01-01', createdAt: '2026-01-01' },
+    ] as never);
+
+    render(<MemoryRouter><OtcHubPage /></MemoryRouter>);
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/vise valuta/i).length).toBeGreaterThan(0);
+    });
+    // Notional dominantne valute prikazan sa kodom valute (USD notional 50*10=500 > EUR 40*5=200).
+    expect(screen.getByText(/iznosi se ne sabiraju preko valuta/i)).toBeInTheDocument();
+  });
 });

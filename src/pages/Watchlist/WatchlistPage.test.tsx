@@ -11,6 +11,15 @@ import WatchlistPage from './WatchlistPage';
 import { watchlistService } from '../../services/watchlistService';
 import type { WatchlistDto, WatchlistItemDto } from '../../types/watchlist';
 
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
 vi.mock('../../services/watchlistService', () => ({
   watchlistService: {
     listMyWatchlists: vi.fn(),
@@ -178,7 +187,26 @@ describe('WatchlistPage', () => {
     });
     await user.click(screen.getByTestId('remove-item-10'));
     await waitFor(() => {
-      expect(mockRemoveItem).toHaveBeenCalledWith(1, 10);
+      // P1-fe-contracts-1: BE brise po listingId (100), ne po item PK (10).
+      expect(mockRemoveItem).toHaveBeenCalledWith(1, 100);
+    });
+  });
+
+  // R1 854: badge `itemCount` se optimisticki dekrementira posle uklanjanja
+  // (1 stavka -> 0 stavki), bez refetch-a cele liste.
+  it('optimisticki azurira itemCount badge posle uklanjanja stavke', async () => {
+    const user = userEvent.setup();
+    mockListAll.mockResolvedValue([{ ...sampleList, itemCount: 1 }]);
+    mockListItems.mockResolvedValue([sampleItemStock]);
+    mockRemoveItem.mockResolvedValue(undefined);
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByTestId('remove-item-10')).toBeTruthy();
+    });
+    expect(screen.getByText(/1 stavka/i)).toBeTruthy();
+    await user.click(screen.getByTestId('remove-item-10'));
+    await waitFor(() => {
+      expect(screen.getByText(/0 stavki/i)).toBeTruthy();
     });
   });
 
@@ -220,5 +248,56 @@ describe('WatchlistPage', () => {
     await waitFor(() => {
       expect(mockRename).toHaveBeenCalledWith(1, { name: 'Novo ime' });
     });
+  });
+
+  // ===========================================================================
+  // TEST-fe-xcut-1 (R1-234/235): item.id-as-listingId contract kroz UI.
+  // BE ruta `/watchlists/{id}/items/{listingId}` brise po listingId, NE po item
+  // PK. Trgovina takodje koristi listingId. Sa item gde id != listingId pinujemo
+  // da UI nigde ne meša ta dva polja (regresija bi npr. slala item.id na BE).
+  // ===========================================================================
+
+  // item gde id (PK) i listingId namerno DIVERGIRAJU radi otkrivanja zamene.
+  const itemWithDistinctIds: WatchlistItemDto = {
+    id: 999, // item PK
+    watchlistId: 1,
+    listingId: 333, // listing id (razlicit)
+    listingTicker: 'TSLA',
+    listingType: 'STOCK',
+    currentPrice: 250,
+    dailyChangePercent: -0.5,
+    volume: 5_000_000,
+    addedAt: '2026-05-25T10:00:00Z',
+  };
+
+  it('remove uses item.listingId (not the item PK) even when they differ', async () => {
+    const user = userEvent.setup();
+    mockListAll.mockResolvedValue([sampleList]);
+    mockListItems.mockResolvedValue([itemWithDistinctIds]);
+    mockRemoveItem.mockResolvedValue(undefined);
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByTestId('remove-item-999')).toBeTruthy();
+    });
+    await user.click(screen.getByTestId('remove-item-999'));
+    await waitFor(() => {
+      // listingId (333), ne item PK (999).
+      expect(mockRemoveItem).toHaveBeenCalledWith(1, 333);
+    });
+    expect(mockRemoveItem).not.toHaveBeenCalledWith(1, 999);
+  });
+
+  it('Trguj navigates to order page using item.listingId (not the item PK)', async () => {
+    const user = userEvent.setup();
+    mockListAll.mockResolvedValue([sampleList]);
+    mockListItems.mockResolvedValue([itemWithDistinctIds]);
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Trguj TSLA')).toBeTruthy();
+    });
+    await user.click(screen.getByLabelText('Trguj TSLA'));
+    // /orders/new?listingId=333 — listingId, ne item PK.
+    expect(mockNavigate).toHaveBeenCalledWith('/orders/new?listingId=333');
+    expect(mockNavigate).not.toHaveBeenCalledWith('/orders/new?listingId=999');
   });
 });

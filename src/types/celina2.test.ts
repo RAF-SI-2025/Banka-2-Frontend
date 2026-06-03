@@ -85,13 +85,16 @@ describe('celina2 enums', () => {
   describe('TransactionStatus', () => {
     it('contains all statuses', () => {
       expect(TransactionStatus.PENDING).toBe('PENDING');
+      // R1-333: poravnato sa BE PaymentStatus enum-om.
+      expect(TransactionStatus.PROCESSING).toBe('PROCESSING');
       expect(TransactionStatus.COMPLETED).toBe('COMPLETED');
       expect(TransactionStatus.REJECTED).toBe('REJECTED');
       expect(TransactionStatus.CANCELLED).toBe('CANCELLED');
+      expect(TransactionStatus.ABORTED).toBe('ABORTED');
     });
 
-    it('has exactly 4 values', () => {
-      expect(Object.keys(TransactionStatus)).toHaveLength(4);
+    it('has exactly 6 values (R1-333: + PROCESSING + ABORTED)', () => {
+      expect(Object.keys(TransactionStatus)).toHaveLength(6);
     });
   });
 

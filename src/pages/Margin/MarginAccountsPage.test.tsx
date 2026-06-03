@@ -13,44 +13,50 @@ vi.mock('@/services/marginService', () => ({
     withdraw: vi.fn(),
     getTransactions: vi.fn(),
   },
+  MARGIN_CURRENCY: 'RSD',
 }));
 
 import marginService from '@/services/marginService';
 const mockMarginService = vi.mocked(marginService);
 
+// P1-fe-contracts-1: BE MarginAccountDto shape (accountId/userId/companyId).
+// R1-258: BE salje bankParticipation kao ODNOS 0..1 (0.50 = 50%), ne procenat.
 const activeAccount: MarginAccount = {
   id: 1,
-  accountNumber: 'MA-001',
-  linkedAccountId: 100,
-  linkedAccountNumber: '265000000000000001',
+  accountId: 100,
+  accountNumber: '265000000000000001',
+  userId: 42,
+  companyId: null,
   status: 'ACTIVE',
   initialMargin: 50000,
   loanValue: 200000,
   maintenanceMargin: 30000,
-  bankParticipation: 25,
-  currency: 'RSD',
+  bankParticipation: 0.25,
+  createdAt: '2026-03-01T10:00:00',
 };
 
 const blockedAccount: MarginAccount = {
   id: 2,
-  accountNumber: 'MA-002',
-  linkedAccountId: 101,
-  linkedAccountNumber: '265000000000000002',
+  accountId: 101,
+  accountNumber: '265000000000000002',
+  userId: 43,
+  companyId: null,
   status: 'BLOCKED',
   initialMargin: 10000,
   loanValue: 50000,
   maintenanceMargin: 8000,
-  bankParticipation: 30,
-  currency: 'EUR',
+  bankParticipation: 0.30,
+  createdAt: '2026-03-02T10:00:00',
 };
 
+// R1-259: BE MarginTransactionDto.type moze biti BUY/SELL (ne samo DEPOSIT/
+// WITHDRAWAL) i NEMA currency polje. SELL = priliv (+), BUY = odliv (−).
 const transactions: MarginTransaction[] = [
   {
     id: 1,
     marginAccountId: 1,
     type: 'DEPOSIT',
     amount: 25000,
-    currency: 'RSD',
     createdAt: '2026-03-15T10:00:00Z',
   },
   {
@@ -58,8 +64,21 @@ const transactions: MarginTransaction[] = [
     marginAccountId: 1,
     type: 'WITHDRAWAL',
     amount: 5000,
-    currency: 'RSD',
     createdAt: '2026-03-16T14:00:00Z',
+  },
+  {
+    id: 3,
+    marginAccountId: 1,
+    type: 'BUY',
+    amount: 12000,
+    createdAt: '2026-03-17T09:00:00Z',
+  },
+  {
+    id: 4,
+    marginAccountId: 1,
+    type: 'SELL',
+    amount: 8000,
+    createdAt: '2026-03-18T09:00:00Z',
   },
 ];
 
@@ -97,18 +116,20 @@ describe('MarginAccountsPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('MA-001')).toBeInTheDocument();
+      expect(screen.getByText('265000000000000001')).toBeInTheDocument();
     });
-    expect(screen.getByText('MA-002')).toBeInTheDocument();
+    expect(screen.getByText('265000000000000002')).toBeInTheDocument();
   });
 
-  it('shows linked account numbers', async () => {
+  it('shows account numbers and account-type labels', async () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText(/265000000000000001/)).toBeInTheDocument();
+      expect(screen.getByText('265000000000000001')).toBeInTheDocument();
     });
-    expect(screen.getByText(/265000000000000002/)).toBeInTheDocument();
+    expect(screen.getByText('265000000000000002')).toBeInTheDocument();
+    // companyId == null → licni marzni racun (oba racuna)
+    expect(screen.getAllByText(/Licni marzni racun/).length).toBe(2);
   });
 
   it('shows AKTIVAN badge for active account', async () => {
@@ -171,7 +192,7 @@ describe('MarginAccountsPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('MA-002')).toBeInTheDocument();
+      expect(screen.getByText('265000000000000002')).toBeInTheDocument();
     });
 
     const withdrawButtons = screen.getAllByRole('button', { name: /Isplati/i });
@@ -185,7 +206,7 @@ describe('MarginAccountsPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('MA-001')).toBeInTheDocument();
+      expect(screen.getByText('265000000000000001')).toBeInTheDocument();
     });
 
     const historyButtons = screen.getAllByText('Istorija transakcija');
@@ -197,13 +218,69 @@ describe('MarginAccountsPage', () => {
     });
   });
 
+  // R1-258: bankParticipation 0.25 (odnos) → mora se prikazati kao 25%, ne 0.25%.
+  it('renders bankParticipation ratio as a percentage (×100)', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('265000000000000001')).toBeInTheDocument();
+    });
+
+    // 0.25 → "25", 0.30 → "30" (a NE "0,25"/"0,30") — broj i "%" su zasebni cvorovi.
+    const participationCells = screen.getAllByText((_content, el) => {
+      const txt = el?.textContent?.replace(/\s/g, '') ?? '';
+      return el?.classList.contains('font-mono') === true && /^\d+(,\d+)?%$/.test(txt);
+    });
+    const texts = participationCells.map((el) => el.textContent?.replace(/\s/g, ''));
+    expect(texts).toContain('25%');
+    expect(texts).toContain('30%');
+    expect(texts).not.toContain('0,25%');
+    expect(texts).not.toContain('0,30%');
+  });
+
+  // R1-259: BUY/SELL transakcije se prikazuju sa pravim labelama i predznakom,
+  // ne kao "Isplata" sa minusom.
+  it('renders BUY/SELL margin transactions with correct labels and signs', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('265000000000000001')).toBeInTheDocument();
+    });
+
+    const historyButtons = screen.getAllByText('Istorija transakcija');
+    await user.click(historyButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText('Kupovina')).toBeInTheDocument();
+    });
+    // BUY = odliv (−, crveno), SELL = priliv (+, zeleno)
+    expect(screen.getByText('Prodaja')).toBeInTheDocument();
+
+    // Iznosi se renderuju u <span class="font-mono ..."> sa zasebnim tekst-cvorovima
+    // za predznak/iznos/valutu — citamo concat textContent svakog amount span-a.
+    const amountSpans = Array.from(
+      document.querySelectorAll('span.font-mono.font-semibold'),
+    ) as HTMLElement[];
+    const buyAmount = amountSpans.find((el) =>
+      (el.textContent?.replace(/\s/g, '') ?? '').includes('-12.000,00RSD'),
+    );
+    const sellAmount = amountSpans.find((el) =>
+      (el.textContent?.replace(/\s/g, '') ?? '').includes('+8.000,00RSD'),
+    );
+    expect(buyAmount).toBeTruthy();
+    expect(buyAmount).toHaveClass('text-red-600');
+    expect(sellAmount).toBeTruthy();
+    expect(sellAmount).toHaveClass('text-emerald-600');
+  });
+
   it('shows empty transaction message when no transactions', async () => {
     mockMarginService.getTransactions.mockResolvedValue([]);
     const user = userEvent.setup();
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('MA-001')).toBeInTheDocument();
+      expect(screen.getByText('265000000000000001')).toBeInTheDocument();
     });
 
     const historyButtons = screen.getAllByText('Istorija transakcija');
@@ -219,7 +296,7 @@ describe('MarginAccountsPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('MA-001')).toBeInTheDocument();
+      expect(screen.getByText('265000000000000001')).toBeInTheDocument();
     });
 
     const depositButtons = screen.getAllByRole('button', { name: /Uplati/i });
@@ -235,7 +312,7 @@ describe('MarginAccountsPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('MA-001')).toBeInTheDocument();
+      expect(screen.getByText('265000000000000001')).toBeInTheDocument();
     });
 
     const withdrawButtons = screen.getAllByRole('button', { name: /Isplati/i });
@@ -251,7 +328,7 @@ describe('MarginAccountsPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('MA-001')).toBeInTheDocument();
+      expect(screen.getByText('265000000000000001')).toBeInTheDocument();
     });
 
     const depositButtons = screen.getAllByRole('button', { name: /Uplati/i });

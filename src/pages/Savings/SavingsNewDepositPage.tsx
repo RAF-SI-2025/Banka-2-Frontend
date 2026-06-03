@@ -99,6 +99,13 @@ export default function SavingsNewDepositPage() {
       toast.error(`Minimalan iznos u ${currencyCode} je ${minAmount}`);
       return;
     }
+    // R4-1796: balance-check PRE OTP-a. Glavnica se skida sa izvornog racuna pa
+    // ako prelazi raspolozivo stanje, BE bi ionako odbio — ali tek posle potrosenog
+    // OTP pokusaja. Proveravamo lokalno da korisnik ne gubi OTP na ocekivanu gresku.
+    if (sourceAccount && data.principalAmount > Number(sourceAccount.availableBalance ?? 0)) {
+      toast.error('Nedovoljno sredstava na izvornom racunu za zeljenu glavnicu.');
+      return;
+    }
     // FIX FE-FND-01: snapshot validated form data u ref pa otvori OTP.
     // Ref se cita u handleOtpVerified umesto `watch()` (anti-stale guard).
     pendingDataRef.current = data;
@@ -136,7 +143,27 @@ export default function SavingsNewDepositPage() {
     }
   };
 
-  const sameAccountOptions = accounts.filter(a => a.currency === currencyCode);
+  const sameAccountOptions = useMemo(
+    () => accounts.filter(a => a.currency === currencyCode),
+    [accounts, currencyCode]
+  );
+
+  // R7-2035: kad se promeni valuta izvornog racuna, povezani racun (gde idu kamate)
+  // mora biti u istoj valuti. Ako prethodno izabrani linkedAccountId vise nije u
+  // dozvoljenom skupu (sameAccountOptions), resetuj ga na izvorni racun — inace
+  // forma drzi stale id druge valute koji BE odbije. Dropdown bi vizuelno pokazao
+  // "-- Izaberi --" ali bi form state i dalje slao staru vrednost.
+  useEffect(() => {
+    if (linkedAccountId == null) return;
+    const stillValid = sameAccountOptions.some(a => a.id === linkedAccountId);
+    if (!stillValid) {
+      if (sourceAccountId != null && sameAccountOptions.some(a => a.id === sourceAccountId)) {
+        setValue('linkedAccountId', sourceAccountId);
+      } else {
+        setValue('linkedAccountId', undefined as unknown as number);
+      }
+    }
+  }, [sameAccountOptions, linkedAccountId, sourceAccountId, setValue]);
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">

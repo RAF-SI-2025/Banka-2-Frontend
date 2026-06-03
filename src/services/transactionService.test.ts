@@ -247,39 +247,8 @@ describe('transactionService', () => {
     });
   });
 
-  // ==================== createFxTransfer ====================
-
-  describe('createFxTransfer', () => {
-    const transferData = {
-      fromAccountNumber: '111111111111111111',
-      toAccountNumber: '222222222222222222',
-      amount: 500,
-    };
-
-    it('should call /transfers/fx endpoint', async () => {
-      const mockResponse = {
-        id: 10, fromAccountNumber: '111', toAccountNumber: '222',
-        amount: 500, fromCurrency: 'EUR', toCurrency: 'USD',
-        exchangeRate: 1.08, toAmount: 540, status: 'COMPLETED', createdAt: '2026-03-20',
-      };
-      mockedApi.post.mockResolvedValue({ data: mockResponse });
-
-      const result = await transactionService.createFxTransfer(transferData, '111111');
-
-      expect(mockedApi.post).toHaveBeenCalledWith('/transfers/fx', { ...transferData, otpCode: '111111' });
-      expect(result.convertedAmount).toBe(540);
-    });
-
-    it('should default otpCode to empty string', async () => {
-      mockedApi.post.mockResolvedValue({
-        data: { id: 1, fromAccountNumber: '1', toAccountNumber: '2', amount: 100, status: 'COMPLETED', createdAt: '' },
-      });
-
-      await transactionService.createFxTransfer(transferData);
-
-      expect(mockedApi.post).toHaveBeenCalledWith('/transfers/fx', { ...transferData, otpCode: '' });
-    });
-  });
+  // R1 339: createFxTransfer uklonjen iz transactionService (mrtav iz UI-ja) —
+  // pripadajuci testovi takodje uklonjeni. FX ide kroz createTransfer (/transfers/internal).
 
   // ==================== getTransfers ====================
 

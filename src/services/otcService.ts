@@ -4,6 +4,7 @@ import type {
   OtcOffer,
   OtcContract,
   OtcContractStatus,
+  OtcExerciseResult,
   CreateOtcOfferRequest,
   CounterOtcOfferRequest,
 } from '../types/celina3';
@@ -78,9 +79,14 @@ const otcService = {
     return data;
   },
 
-  /** Iskoriscavanje opcije — kupac placa strike * qty i dobija akcije. */
-  exerciseContract: async (contractId: number, buyerAccountId?: number): Promise<OtcContract> => {
-    const { data } = await api.post<OtcContract>(`/otc/contracts/${contractId}/exercise`, null, {
+  /**
+   * Iskoriscavanje opcije — kupac placa strike * qty i dobija akcije.
+   * BE sprovodi exercise kroz Model-B SAGA orkestrator i vraca terminalni
+   * ishod (`OtcExerciseResult`), a NE pun `OtcContract`. UI svejedno re-fetch-uje
+   * ugovore posle poziva da prikaze sveze stanje.
+   */
+  exerciseContract: async (contractId: number, buyerAccountId?: number): Promise<OtcExerciseResult> => {
+    const { data } = await api.post<OtcExerciseResult>(`/otc/contracts/${contractId}/exercise`, null, {
       params: buyerAccountId != null ? { buyerAccountId } : undefined,
     });
     return data;

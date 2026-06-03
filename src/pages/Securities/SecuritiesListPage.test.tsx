@@ -82,9 +82,11 @@ vi.mock('../../services/listingService', () => ({
   },
 }));
 
-// Mock recharts to avoid SVG rendering issues in jsdom
+// R1 425: SecuritiesListPage vise NE koristi recharts (fake sparkline uklonjen,
+// zamenjen stvarnim trend indikatorom po changePercent). Mock zadrzan no-op
+// radi otpornosti ako se nesto opet uveze.
 vi.mock('recharts', () => ({
-  LineChart: ({ children }: { children: React.ReactNode }) => <div data-testid="line-chart">{children}</div>,
+  LineChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Line: () => null,
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
@@ -124,6 +126,18 @@ describe('SecuritiesListPage', () => {
     expect(screen.getAllByText('MSFT').length).toBeGreaterThan(0);
     expect(screen.getByText('Apple Inc.')).toBeInTheDocument();
     expect(screen.getByText('Microsoft Corp.')).toBeInTheDocument();
+  });
+
+  // R1 425: kolona "Trend" prikazuje STVARNU dnevnu promenu (changePercent),
+  // bez izmisljenog seeded sparkline-a.
+  it('prikazuje stvarni trend (changePercent), bez fake sparkline-a', async () => {
+    renderWithProviders(<SecuritiesListPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('AAPL').length).toBeGreaterThan(0);
+    });
+    // AAPL changePercent 1.31 -> "+1.31%" (prikazuje se i u Trend koloni i u badge-u).
+    expect(screen.getAllByText(/\+1\.31%/).length).toBeGreaterThan(0);
   });
 
   it('renders search input', async () => {

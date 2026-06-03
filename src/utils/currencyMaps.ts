@@ -2,10 +2,14 @@
  * Mapiranja oznaka valute na UI elemente — gradijenti za kartice racuna,
  * simboli za prikaz iznosa, zastavice za kursnu listu. Prebaceno iz
  * HomePage/AccountListPage/AccountDetailsPage/ExchangePage gde su bile
- * duplirane (3-4× ista mapa). Sve mape imaju safe fallback van helpera.
+ * duplirane (3-4× ista mapa).
+ *
+ * Mape su MODULE-PRIVATE: pristup ide ISKLJUCIVO preko `getCurrency*` helpera
+ * koji centralizuju safe fallback (slate gradient / kod valute / 🏦). Tako se
+ * fallback ne duplira po pozivnim mestima.
  */
 
-export const CURRENCY_GRADIENTS: Record<string, string> = {
+const CURRENCY_GRADIENTS: Record<string, string> = {
   RSD: 'from-blue-500 to-blue-700',
   EUR: 'from-indigo-500 to-violet-700',
   USD: 'from-emerald-500 to-green-700',
@@ -16,7 +20,7 @@ export const CURRENCY_GRADIENTS: Record<string, string> = {
   AUD: 'from-teal-500 to-cyan-700',
 };
 
-export const CURRENCY_SYMBOLS: Record<string, string> = {
+const CURRENCY_SYMBOLS: Record<string, string> = {
   RSD: 'RSD',
   EUR: '€',
   USD: '$',
@@ -27,7 +31,7 @@ export const CURRENCY_SYMBOLS: Record<string, string> = {
   AUD: 'A$',
 };
 
-export const CURRENCY_FLAGS: Record<string, string> = {
+const CURRENCY_FLAGS: Record<string, string> = {
   RSD: '🇷🇸',
   EUR: '🇪🇺',
   USD: '🇺🇸',

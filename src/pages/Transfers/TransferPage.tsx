@@ -171,11 +171,6 @@ export default function TransferPage() {
     };
   }, [amount, fromAccountData, toAccountData]);
 
-  const insufficientFunds = useMemo(() => {
-    if (!fromAccountData) return false;
-    return amount > 0 && Number(fromAccountData.availableBalance ?? 0) < Number(amount);
-  }, [fromAccountData, amount]);
-
   const commission = useMemo(() => {
     if (!amount || amount <= 0) return 0;
     if (fromAccountData?.currency === toAccountData?.currency) return 0;
@@ -185,6 +180,14 @@ export default function TransferPage() {
   const totalDebit = useMemo(() => {
     return amount > 0 ? amount + commission : 0;
   }, [amount, commission]);
+
+  // R3-1593: poredimo raspolozivo stanje sa UKUPNIM odlivom (iznos + 0.5%
+  // provizija za cross-currency), ne sa golim iznosom. Inace korisnik sa
+  // stanjem == iznos prodje FE validaciju, potrosi OTP pokusaj, pa ga BE odbije.
+  const insufficientFunds = useMemo(() => {
+    if (!fromAccountData) return false;
+    return amount > 0 && Number(fromAccountData.availableBalance ?? 0) < totalDebit;
+  }, [fromAccountData, amount, totalDebit]);
 
   const onSubmit = async (data: TransferFormData) => {
     if (!fromAccountData) {
@@ -224,6 +227,12 @@ export default function TransferPage() {
 
   const executeTransferWithOtp = async (otpCode: string) => {
     if (!submittedData) throw new Error('Nema podataka za prenos');
+    // R1-554: guard protiv duplog submit-a / duplog OTP-a. `isSubmitting` se ranije
+    // nikad nije setovao na true (samo `false` u finally), pa su dugmad ostajala
+    // omogucena tokom poziva → dupli klik = dupli transfer. Re-entry tiho ignorisemo
+    // (NE throw — to nije OTP greska, ne sme da trosi pokusaj ni da prikaze toast).
+    if (isSubmitting) return;
+    setIsSubmitting(true);
 
     try {
       await transactionService.createTransfer({

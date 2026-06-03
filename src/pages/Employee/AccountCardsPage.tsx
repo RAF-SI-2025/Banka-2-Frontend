@@ -19,7 +19,7 @@ import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { cardService } from '@/services/cardService';
 import type { Account, CardType, Card as BankCard } from '@/types/celina2';
-import { formatDate, formatBalance, formatAccountNumber, maskCardNumber } from '@/utils/formatters';
+import { formatDate, formatBalance, formatAccountNumber } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -441,7 +441,8 @@ export default function AccountCardsPage() {
                       <CreditCardIcon className="h-5 w-5 text-white/40" />
                     </div>
                     <p className="text-lg font-mono font-bold tracking-widest">
-                      {maskCardNumber(card.cardNumber)}
+                      {/* BE vec vraca maskiran broj (5798********5571) — ne re-maskiramo. */}
+                      {card.cardNumber || '—'}
                     </p>
                     <div className="flex items-center justify-between text-xs text-white/60">
                       <span>{card.ownerName || card.holderName || '-'}</span>

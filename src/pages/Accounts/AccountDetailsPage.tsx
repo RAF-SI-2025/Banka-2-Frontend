@@ -1,6 +1,6 @@
 // FE2-03a: Detaljan prikaz licnog racuna (tekuci/devizni)
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -17,13 +17,12 @@ import { transactionService } from '@/services/transactionService';
 import type { Account, Transaction } from '@/types/celina2';
 import { formatBalance, formatAccountNumber } from '@/utils/formatters';
 import { parseNumber } from '@/utils/numberUtils';
+import { normalizeTransaction } from '@/utils/transactionUtils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ResponsiveContainer, LineChart, Line } from 'recharts';
-import VerificationModal from '@/components/shared/VerificationModal';
 
 import { ACCOUNT_TYPE_LABELS as accountTypeLabels } from '@/utils/accountTypeLabels';
 
@@ -34,7 +33,7 @@ import {
   TRANSACTION_STATUS_BADGE_VARIANT as txStatusVariant,
 } from '@/utils/transactionLabels';
 
-import { CURRENCY_SYMBOLS as currencySymbols } from '@/utils/currencyMaps';
+import { getCurrencySymbol } from '@/utils/currencyMaps';
 
 function formatDateGroup(dateStr: string): string {
   const date = new Date(dateStr);
@@ -47,18 +46,6 @@ function formatDateGroup(dateStr: string): string {
   if (txDay.getTime() === today.getTime()) return 'Danas';
   if (txDay.getTime() === yesterday.getTime()) return 'Juce';
   return date.toLocaleDateString('sr-RS', { day: 'numeric', month: 'long' });
-}
-
-/** Generate fake 7-day sparkline data */
-function generateSparkline(endValue: number): number[] {
-  const pts: number[] = [];
-  let v = endValue * (0.88 + Math.random() * 0.08);
-  for (let i = 0; i < 7; i++) {
-    v += (endValue - v) * 0.25 + (Math.random() - 0.45) * endValue * 0.03;
-    pts.push(Math.round(v));
-  }
-  pts[6] = Math.round(endValue);
-  return pts;
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -102,30 +89,6 @@ function LimitRing({ spent, limit, currency, label, size = 100 }: { spent: numbe
   );
 }
 
-// ────────────────────────────────────────────────────────────────────
-// Mini Sparkline
-// ────────────────────────────────────────────────────────────────────
-function MiniSparkline({ data }: { data: number[] }) {
-  const chartData = data.map((v, i) => ({ i, v }));
-  const isUp = data.length >= 2 && data[data.length - 1] >= data[0];
-  return (
-    <div className="h-10 w-24">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData}>
-          <Line
-            type="monotone"
-            dataKey="v"
-            stroke={isUp ? '#10b981' : '#ef4444'}
-            strokeWidth={2}
-            dot={false}
-            strokeOpacity={0.7}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
 export default function AccountDetailsPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -139,10 +102,6 @@ export default function AccountDetailsPage() {
   const [isSavingLimits, setIsSavingLimits] = useState(false);
   const [showLimits, setShowLimits] = useState(false);
   const [showRename, setShowRename] = useState(false);
-  const [showVerification, setShowVerification] = useState(false);
-
-  // Stable sparkline data
-  const sparklineRef = useRef<number[] | null>(null);
 
   useEffect(() => {
     const accountId = Number(id);
@@ -173,26 +132,13 @@ export default function AccountDetailsPage() {
         setDailyLimit(String(accountData.dailyLimit));
         setMonthlyLimit(String(accountData.monthlyLimit));
 
-        if (!sparklineRef.current) {
-          sparklineRef.current = generateSparkline(accountData.balance);
-        }
-
         const transactionsResponse = await transactionService.getAll({
           accountNumber: accountData.accountNumber,
           page: 0,
           limit: 10,
         });
         const rawTx = Array.isArray(transactionsResponse.content) ? transactionsResponse.content : [];
-        setTransactions(rawTx.map((tx) => {
-          const t = tx as unknown as Record<string, unknown>;
-          return {
-            ...tx,
-            fromAccountNumber: tx.fromAccountNumber || (t.fromAccount as string) || '',
-            toAccountNumber: tx.toAccountNumber || (t.toAccount as string) || '',
-            paymentPurpose: tx.paymentPurpose || (t.description as string) || '',
-            currency: tx.currency || (t.currency as string) || 'RSD',
-          };
-        }));
+        setTransactions(rawTx.map((tx) => normalizeTransaction(tx, 'RSD')));
       } catch {
         toast.error('Greska pri ucitavanju detalja racuna.');
       } finally {
@@ -203,11 +149,46 @@ export default function AccountDetailsPage() {
     loadData();
   }, [id]);
 
+  // R1-550: posle uspesne promene limita ponovo povuci racun sa BE-a da
+  // dailySpending/monthlySpending (i bilo koja BE-side normalizacija limita)
+  // ne ostanu stale. Lokalni `setAccount(...spread...)` je ranije gazio
+  // stvarne BE vrednosti optimisticki.
+  const refreshAccount = useCallback(async () => {
+    if (!account) return;
+    try {
+      const raw = await accountService.getById(account.id);
+      const rawAny = raw as unknown as Record<string, unknown>;
+      const accountData = {
+        ...raw,
+        currency: raw.currency || (rawAny.currencyCode as string) || 'RSD',
+        availableBalance: parseNumber(raw.availableBalance),
+        balance: parseNumber(raw.balance),
+        reservedBalance: parseNumber(raw.reservedBalance) || parseNumber(rawAny.reservedFunds),
+        dailyLimit: parseNumber(raw.dailyLimit),
+        monthlyLimit: parseNumber(raw.monthlyLimit),
+        dailySpending: parseNumber(raw.dailySpending),
+        monthlySpending: parseNumber(raw.monthlySpending),
+        maintenanceFee: parseNumber(raw.maintenanceFee),
+      } as Account;
+      setAccount(accountData);
+      setDailyLimit(String(accountData.dailyLimit));
+      setMonthlyLimit(String(accountData.monthlyLimit));
+    } catch {
+      // ne-fatalno: prikazane vrednosti ostaju, ali bez svezeg dailySpending-a
+    }
+  }, [account]);
+
   const saveName = async () => {
     if (!account) return;
     const newName = renameValue.trim();
     if (!newName) {
       toast.error('Naziv racuna ne sme biti prazan.');
+      return;
+    }
+    // R1-309: poravnato sa BE (@Size(max=64) + DB kolona length=64) — bez ovoga
+    // korisnik unosom >64 karaktera dobija 400 tek od BE-a.
+    if (newName.length > 64) {
+      toast.error('Naziv racuna moze imati najvise 64 karaktera.');
       return;
     }
 
@@ -224,7 +205,9 @@ export default function AccountDetailsPage() {
     }
   };
 
-  const saveLimits = () => {
+  // ACCEPTED-DEVIATION (user-directed 03.06): promena limita se primenjuje direktno,
+  // bez OTP verifikacije. OTP ostaje SAMO na placanju i transferu.
+  const saveLimits = async () => {
     if (!account) return;
     const parsedDaily = Number(dailyLimit);
     const parsedMonthly = Number(monthlyLimit);
@@ -232,26 +215,27 @@ export default function AccountDetailsPage() {
       toast.error('Limiti moraju biti nenegativni brojevi.');
       return;
     }
-    // Validation passed — open OTP verification modal
-    setShowVerification(true);
-  };
-
-  const handleLimitVerified = async (otpCode: string) => {
-    if (!account) return;
-    const parsedDaily = Number(dailyLimit);
-    const parsedMonthly = Number(monthlyLimit);
+    // R1-549: dnevni limit ne sme biti veci od mesecnog (paritet sa
+    // createAccountSchema superRefine). Pre fix-a je nevalidna kombinacija
+    // (npr. dnevni 1M > mesecni 100k) prolazila FE i padala tek na BE-u.
+    if (parsedDaily > parsedMonthly) {
+      toast.error('Dnevni limit ne moze biti veci od mesecnog limita.');
+      return;
+    }
 
     setIsSavingLimits(true);
     try {
       await accountService.changeLimit(account.id, {
         dailyLimit: parsedDaily,
         monthlyLimit: parsedMonthly,
-        otpCode,
       });
-      setAccount({ ...account, dailyLimit: parsedDaily, monthlyLimit: parsedMonthly });
       toast.success('Limiti su uspesno sacuvani.');
-      setShowVerification(false);
       setShowLimits(false);
+      // R1-550: re-fetch da dailySpending/monthlySpending budu sveži (umesto
+      // optimistickog spread-a koji je gazio BE vrednosti).
+      await refreshAccount();
+    } catch {
+      toast.error('Cuvanje limita nije uspelo.');
     } finally {
       setIsSavingLimits(false);
     }
@@ -306,7 +290,7 @@ export default function AccountDetailsPage() {
     );
   }
 
-  const sym = currencySymbols[account.currency] || account.currency;
+  const sym = getCurrencySymbol(account.currency);
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -345,11 +329,6 @@ export default function AccountDetailsPage() {
                   <span className="text-xl font-semibold text-indigo-200 ml-2">{sym}</span>
                 </p>
               </div>
-              {sparklineRef.current && (
-                <div className="mb-2">
-                  <MiniSparkline data={sparklineRef.current} />
-                </div>
-              )}
             </div>
 
             <p className="mt-2 text-sm text-indigo-200">
@@ -560,13 +539,6 @@ export default function AccountDetailsPage() {
           </div>
         )}
       </section>
-
-      {/* OTP Verification Modal for limit changes */}
-      <VerificationModal
-        isOpen={showVerification}
-        onClose={() => setShowVerification(false)}
-        onVerified={handleLimitVerified}
-      />
     </div>
   );
 }

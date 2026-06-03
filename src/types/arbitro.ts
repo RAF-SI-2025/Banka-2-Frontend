@@ -172,16 +172,6 @@ export interface AgentActionResult {
   cached?: boolean;
 }
 
-/**
- * Phase 4 v3.5 — Arbitro user-facing settings (sessionStorage persisted).
- */
-export interface ArbitroSettings {
-  agenticMode: boolean;
-  /** Phase 5 — TTS auto-playback posle done event-a. */
-  ttsEnabled: boolean;
-  ttsVoice: string;
-}
-
 export interface ArbitroHealth {
   provider: string;
   model: string;
@@ -190,17 +180,6 @@ export interface ArbitroHealth {
   ragToolReachable: boolean;
   /** Phase 5 — Kokoro TTS sidecar reachability. */
   ttsReachable?: boolean;
-}
-
-/**
- * Phase 5 — Voice options za TTS sintezu.
- * Default: 'af_bella' (US English Female), engleski jezik.
- */
-export interface TtsRequestPayload {
-  text: string;
-  voice?: string;
-  lang?: string;
-  speed?: number;
 }
 
 export interface ArbitroConversation {

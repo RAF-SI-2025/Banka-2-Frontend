@@ -42,6 +42,7 @@ import {
   reviewFraudAlert,
   type FraudAlertDTO,
 } from '@/services/fraudAlertService';
+import { addDaysISO } from '@/utils/formatters';
 
 const REVIEW_STATUSES = [
   { value: 'APPROVED', label: 'Odobreno (legit)' },
@@ -90,10 +91,10 @@ function reviewStatusVariant(status?: string):
   }
 }
 
+// [P1-i18n-1 / 1887] lokalni date-builder umesto UTC `toISOString().slice` —
+// pre ponoci po UTC bi "7 dana unazad" promasilo za jos jedan dan u Beogradu.
 function sevenDaysAgoIso(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 7);
-  return d.toISOString().slice(0, 10);
+  return addDaysISO(-7);
 }
 
 function formatDateTime(iso: string): string {

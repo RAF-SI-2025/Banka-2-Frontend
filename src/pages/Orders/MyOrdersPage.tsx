@@ -128,8 +128,9 @@ function InfoRow({
 
 export default function MyOrdersPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const isEmployeeRole = user?.role === 'ADMIN' || user?.role === 'EMPLOYEE';
+  const { isEmployee } = useAuth();
+  // R1-857: koristi centralizovani `isEmployee` umesto inline magic role-string.
+  const isEmployeeRole = isEmployee;
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -378,13 +379,15 @@ export default function MyOrdersPage() {
                 }}
                 className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
+                {/* Samo statusi koje BE OrderStatus enum poznaje (PENDING/APPROVED/
+                    DECLINED/DONE). PARTIALLY_FILLED i CANCELLED ne postoje na BE-u —
+                    OrderServiceImpl.getMyOrders bi tiho ignorisao nepoznat status i
+                    vratio SVE ordere (zavaravajuc filter). */}
                 <option value="">Sve</option>
                 <option value="PENDING">Na cekanju</option>
                 <option value="APPROVED">Odobreni</option>
                 <option value="DECLINED">Odbijeni</option>
                 <option value="DONE">Zavrseni</option>
-                <option value="PARTIALLY_FILLED">Parcijalno popunjeni</option>
-                <option value="CANCELLED">Otkazani</option>
               </select>
             </div>
 

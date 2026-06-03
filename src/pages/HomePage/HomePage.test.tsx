@@ -369,25 +369,30 @@ describe('HomePage', () => {
     expect(screen.getAllByText(/Kartice/i).length).toBeGreaterThan(0);
   });
 
-  // ---------- Balance history chart ----------
+  // ---------- Fabricated data removed (R3-1559 / R4-1758) ----------
+  // HomePage je ranije renderovao Math.random() "Istoriju stanja" + sparkline
+  // krive kao stvarne podatke (krsi "ne lazni podaci"). Te lazne vizuelizacije
+  // su uklonjene — proveravamo da se vise NE prikazuju.
 
-  it('renders balance history chart', async () => {
+  it('does NOT render the fabricated balance history chart', async () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText(/Istorija stanja/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/Moji racuni/i).length).toBeGreaterThan(0);
     });
+    expect(screen.queryByText(/Istorija stanja/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Kretanje ukupnog stanja/i)).not.toBeInTheDocument();
   });
 
-  it('renders chart period buttons', async () => {
+  it('does NOT render fabricated chart period buttons', async () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('1N')).toBeInTheDocument();
+      expect(screen.getAllByText(/Moji racuni/i).length).toBeGreaterThan(0);
     });
-    expect(screen.getByText('1M')).toBeInTheDocument();
-    expect(screen.getByText('3M')).toBeInTheDocument();
-    expect(screen.getByText('1G')).toBeInTheDocument();
+    expect(screen.queryByText('1N')).not.toBeInTheDocument();
+    expect(screen.queryByText('3M')).not.toBeInTheDocument();
+    expect(screen.queryByText('1G')).not.toBeInTheDocument();
   });
 
   // ---------- Exchange rates section ----------

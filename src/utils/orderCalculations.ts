@@ -7,6 +7,11 @@ import { OrderType } from '@/types/celina3';
  * Zaposleni / aktuari trguju sa bankinih racuna pa nema neto provizije
  * (`isEmployee=true` vraca 0). Bila duplirana u CreateOrderPage i MyOrdersPage
  * pa ekstrahovana ovde kao jedan izvor istine.
+ *
+ * R1-844: `approximatePrice` i cap ($7/$12) su denominirani u VALUTI LISTINGA
+ * (spec primeri su u USD jer su hartije listirane u USD). Cap nije konvertovan
+ * u RSD ovde — pretpostavka je da pozivalac prosledjuje cenu i ocekuje rezultat
+ * u istoj (listing) valuti. FE prikazni sloj odgovoran je za labeliranje valute.
  */
 export function getOrderCommission(
   orderType: OrderType,

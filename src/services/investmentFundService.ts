@@ -11,7 +11,7 @@ import type {
 } from '@/types/celina4';
 
 const investmentFundService = {
-  /** GET /funds?search=X&sort=Y&direction=Z&minContribution=&maxContribution=&minFundValue=&maxFundValue=&minProfit=&maxProfit= — lista svih fondova za Discovery stranicu. */
+  /** GET /funds?search=X&sort=Y&direction=Z&minContribution=&maxContribution=&minFundValue=&maxFundValue=&minProfit=&maxProfit=&managerEmployeeId= — lista fondova za Discovery / manager-scoped prikaz. */
   async list(params?: {
     search?: string;
     sort?: string;
@@ -22,6 +22,8 @@ const investmentFundService = {
     maxFundValue?: number;
     minProfit?: number;
     maxProfit?: number;
+    /** BE-side filter (P2-perf-nplus1-1): vrati samo fondove kojima upravlja ovaj zaposleni. */
+    managerEmployeeId?: number;
   }): Promise<InvestmentFundSummary[]> {
     const { data } = await api.get<InvestmentFundSummary[]>('/funds', { params });
     return data;

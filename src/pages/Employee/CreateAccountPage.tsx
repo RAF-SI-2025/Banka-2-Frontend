@@ -16,6 +16,7 @@ import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { clientService } from '@/services/clientService';
 import { getErrorMessage } from '@/utils/formatters';
+import { DEFAULT_DAILY_LIMIT, DEFAULT_MONTHLY_LIMIT } from '@/utils/accountConstants';
 import type { Client } from '@/types';
 import type { AccountType, AccountSubtype, Currency } from '@/types/celina2';
 import {
@@ -73,8 +74,8 @@ export default function CreateAccountPage() {
       currency: 'RSD',
       initialDeposit: undefined,
       // Spec Celina 2 §454-455: defaultni limiti.
-      dailyLimit: 250000,
-      monthlyLimit: 1000000,
+      dailyLimit: DEFAULT_DAILY_LIMIT,
+      monthlyLimit: DEFAULT_MONTHLY_LIMIT,
       createCard: false,
       companyName: '',
       registrationNumber: '',
@@ -181,10 +182,13 @@ export default function CreateAccountPage() {
   };
 
   const mapAccountSubtype = (feSub: string): string => {
+    // R1-302: BE AccountSubtype enum nema AD/FONDACIJA — sve poslovne forme
+    // (DOO/AD/FONDACIJA) mapiraju na STANDARD (jedina poslovna podvrsta na BE).
+    // Pre fix-a samo DOO je bio mapiran, pa su AD/FONDACIJA isli "as-is" → 400.
     const map: Record<string, string> = {
       STANDARDNI: 'STANDARD', STEDNI: 'SAVINGS', PENZIONERSKI: 'PENSION',
       ZA_MLADE: 'YOUTH', STUDENTSKI: 'STUDENT', ZA_NEZAPOSLENE: 'UNEMPLOYED',
-      DOO: 'STANDARD', LICNI: 'PERSONAL',
+      DOO: 'STANDARD', AD: 'STANDARD', FONDACIJA: 'STANDARD', LICNI: 'PERSONAL',
     };
     return map[feSub] || feSub;
   };

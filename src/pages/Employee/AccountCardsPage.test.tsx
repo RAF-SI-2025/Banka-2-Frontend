@@ -31,7 +31,8 @@ const mockAccount: Account = {
 const mockCards: BankCard[] = [
   {
     id: 101,
-    cardNumber: '4111111111111234',
+    // R1-637/638: BE vraca VEC maskiran broj (5798********5571) — FE prikazuje direktno.
+    cardNumber: '4111********1234',
     cardType: 'VISA',
     cardName: 'Visa Classic',
     status: 'ACTIVE',
@@ -43,7 +44,7 @@ const mockCards: BankCard[] = [
   } as BankCard,
   {
     id: 102,
-    cardNumber: '5500000000005678',
+    cardNumber: '5500********5678',
     cardType: 'MASTERCARD',
     cardName: 'Mastercard Gold',
     status: 'BLOCKED',
@@ -55,7 +56,7 @@ const mockCards: BankCard[] = [
   } as BankCard,
   {
     id: 103,
-    cardNumber: '3700000000009012',
+    cardNumber: '3700********9012',
     cardType: 'AMERICAN_EXPRESS',
     cardName: 'Amex',
     status: 'DEACTIVATED',
@@ -168,9 +169,9 @@ describe('AccountCardsPage', () => {
       expect(screen.getAllByText(/Marko Petrovic/).length).toBeGreaterThan(0);
     });
 
-    // Cards should be displayed
-    expect(screen.getAllByText(/\*\*\*\* \*\*\*\* \*\*\*\* 1234/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/\*\*\*\* \*\*\*\* \*\*\*\* 5678/).length).toBeGreaterThan(0);
+    // Cards should be displayed — BE-maskiran broj (4111********1234) prikazan direktno.
+    expect(screen.getAllByText(/4111\*+1234/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/5500\*+5678/).length).toBeGreaterThan(0);
   });
 
   it('displays card status labels correctly', async () => {

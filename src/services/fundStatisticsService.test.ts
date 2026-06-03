@@ -9,18 +9,20 @@ vi.mock('./api', () => ({
 
 import fundStatisticsService from './fundStatisticsService';
 import api from './api';
-import type { FundStatisticsDto } from '../types/fundStatistics';
+import type { FundStatisticsRawDto } from '../types/fundStatistics';
 
 const mockGet = api.get as ReturnType<typeof vi.fn>;
 
-const sampleStats: FundStatisticsDto = {
+// P1-fe-contracts-1: BE salje `annualizedReturn`/`volatility`/`maxDrawdown`/
+// `rewardToVariability` (bez `Percent`/`Ratio`) — servis ih normalizuje.
+const sampleBeStats: FundStatisticsRawDto = {
   fundId: 7,
   fundName: 'Alpha Growth',
   snapshotCount: 90,
-  annualizedReturnPercent: 12.34,
-  volatilityPercent: 4.2,
-  maxDrawdownPercent: -8.5,
-  rewardToVariabilityRatio: 2.94,
+  annualizedReturn: 12.34,
+  volatility: 4.2,
+  maxDrawdown: -8.5,
+  rewardToVariability: 2.94,
   sufficientHistory: true,
 };
 
@@ -31,30 +33,34 @@ describe('fundStatisticsService', () => {
 
   describe('getFundStatistics', () => {
     it('šalje GET /funds/{fundId}/statistics', async () => {
-      mockGet.mockResolvedValue({ data: sampleStats });
+      mockGet.mockResolvedValue({ data: sampleBeStats });
 
       await fundStatisticsService.getFundStatistics(7);
 
       expect(mockGet).toHaveBeenCalledWith('/funds/7/statistics');
     });
 
-    it('vraća FundStatisticsDto iz BE odgovora', async () => {
-      mockGet.mockResolvedValue({ data: sampleStats });
+    it('mapira BE kljuceve u FE *Percent/*Ratio polja', async () => {
+      mockGet.mockResolvedValue({ data: sampleBeStats });
 
       const result = await fundStatisticsService.getFundStatistics(7);
 
-      expect(result).toEqual(sampleStats);
+      expect(result.annualizedReturnPercent).toBe(12.34);
+      expect(result.volatilityPercent).toBe(4.2);
+      expect(result.maxDrawdownPercent).toBe(-8.5);
+      expect(result.rewardToVariabilityRatio).toBe(2.94);
+      expect(result.sufficientHistory).toBe(true);
     });
 
     it('podržava DTO sa null metrikama (nedovoljno istorije)', async () => {
-      const insufficient: FundStatisticsDto = {
+      const insufficient: FundStatisticsRawDto = {
         fundId: 9,
         fundName: 'Novi fond',
         snapshotCount: 5,
-        annualizedReturnPercent: null,
-        volatilityPercent: null,
-        maxDrawdownPercent: null,
-        rewardToVariabilityRatio: null,
+        annualizedReturn: null,
+        volatility: null,
+        maxDrawdown: null,
+        rewardToVariability: null,
         sufficientHistory: false,
       };
       mockGet.mockResolvedValue({ data: insufficient });

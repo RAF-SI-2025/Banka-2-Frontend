@@ -17,6 +17,7 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { getPasswordStrength, getStrengthInfo } from '../../utils/passwordStrength';
 import AuthPageLayout from '@/components/layout/AuthPageLayout';
+import { toast } from '@/lib/notify';
 
 // Spec Sc 9 + ad-hoc bag 12.05.2026: pre renderovanja forme, FE poziva
 // GET /auth-employee/activation-token/{token}/status da bi proverio da li je
@@ -36,6 +37,8 @@ export default function ActivateAccountPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tokenStatus, setTokenStatus] = useState<TokenStatus>('CHECKING');
   const [tokenEmail, setTokenEmail] = useState<string | null>(null);
+  const [isResending, setIsResending] = useState(false);
+  const [resendSent, setResendSent] = useState(false);
 
   const {
     register,
@@ -111,6 +114,23 @@ export default function ActivateAccountPage() {
     }
   };
 
+  // Spec Celina 1 Sc 9: kad je token istekao, posalji novi aktivacioni link.
+  // BE je anti-enumeration (uvek generic 200), pa je i poruka neutralna:
+  // "ako nalog postoji". Greske hvatamo gracefully i prikazujemo error toast.
+  const handleResend = async () => {
+    if (!token) return;
+    setIsResending(true);
+    try {
+      await authService.resendActivation(token);
+      setResendSent(true);
+      toast.success('Novi aktivacioni link je poslat ako nalog postoji.');
+    } catch {
+      toast.error('Slanje novog linka trenutno nije uspelo. Pokusajte ponovo kasnije.');
+    } finally {
+      setIsResending(false);
+    }
+  };
+
   // Spec Sc 9 — token istekao
   if (tokenStatus === 'EXPIRED') {
     return (
@@ -127,9 +147,36 @@ export default function ActivateAccountPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3" data-testid="activation-token-expired">
-              <p className="text-sm text-muted-foreground text-center">
-                Kontaktirajte vaseg administratora da vam posalje novi aktivacioni link.
-              </p>
+              {resendSent ? (
+                <Alert>
+                  <CheckCircle2 className="h-4 w-4" />
+                  <AlertTitle>Link je poslat</AlertTitle>
+                  <AlertDescription>
+                    Novi aktivacioni link je poslat ako nalog postoji. Proverite vas email
+                    (i spam folder) i kliknite na novi link.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center">
+                  Mozete sami zatraziti novi aktivacioni link ili kontaktirati vaseg administratora.
+                </p>
+              )}
+              <Button
+                className="w-full bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold"
+                onClick={handleResend}
+                disabled={isResending || resendSent}
+              >
+                {isResending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Slanje...
+                  </>
+                ) : resendSent ? (
+                  'Link je poslat'
+                ) : (
+                  'Posalji novi link'
+                )}
+              </Button>
               <Button variant="outline" className="w-full" onClick={() => navigate('/login')}>
                 Nazad na prijavu
               </Button>

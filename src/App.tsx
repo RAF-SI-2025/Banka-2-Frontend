@@ -137,13 +137,29 @@ export default function App() {
           <Route path="/cards" element={<CardListPage />} />
           <Route path="/loans" element={<LoanListPage />} />
           <Route path="/loans/apply" element={<LoanApplicationPage />} />
-          <Route path="/margin-accounts" element={<MarginAccountsPage />} />
+
+          {/* Marzni racuni su trgovinski feature (Celina 3 / Marzni_Racuni) —
+              P1-fe-mobile-authz-1 (1388): ranije BEZ ikakvog guard-a (bilo koji
+              prijavljeni je mogao otvoriti URL-om, ukljucujuci agente). Sad
+              noAgentOnly (defense-in-depth; BE je autoritativan). */}
+          <Route element={<ProtectedRoute noAgentOnly />}>
+            <Route path="/margin-accounts" element={<MarginAccountsPage />} />
+          </Route>
 
           {/* Admin-only rute */}
           <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/admin/employees" element={<EmployeeListPage />} />
             <Route path="/admin/employees/new" element={<EmployeeCreatePage />} />
             <Route path="/admin/employees/:id" element={<EmployeeEditPage />} />
+          </Route>
+
+          {/* R1 534 (P2-authz-method-1): Spark analytics + fraud alerts dashboard.
+              BE matcher /admin/analytics/** i /admin/fraud-alerts/** je ADMIN+SUPERVISOR
+              (deliberate W3-T2, paritet sa /audit/**). Ranije su ove rute bile pod
+              adminOnly na FE-u → supervizor (legitiman po BE-u) nije mogao da otvori
+              stranicu. Sad supervisorOnly (admin je uvek supervizor) → FE+BE konzistentni,
+              paritet sa /audit-log koji je vec supervisorOnly. */}
+          <Route element={<ProtectedRoute supervisorOnly />}>
             {/* W3-T3: Spark output exposure — analytics + fraud alerts dashboard */}
             <Route path="/admin/analytics" element={<AnalyticsPage />} />
             <Route path="/admin/fraud-alerts" element={<FraudAlertsPage />} />
@@ -174,12 +190,22 @@ export default function App() {
             <Route path="/funds/create" element={<CreateFundPage />} />
           </Route>
 
-          {/* Berza */}
-          <Route path="/securities" element={<SecuritiesListPage />} />
-          <Route path="/securities/:id" element={<SecuritiesDetailsPage />} />
-          <Route path="/orders/new" element={<CreateOrderPage />} />
-          <Route path="/orders/my" element={<MyOrdersPage />} />
-          <Route path="/portfolio" element={<PortfolioPage />} />
+          {/* Berza — P1-fe-mobile-authz-1 (1761): trgovinske rute su ranije bile
+              BEZ guard-a dok su Watchlist/OTC bili skriveni za istog klijenta
+              (kontradikcija). Sad: discovery/portfolio/moji-orderi su noAgentOnly
+              (agent nema trgovinski pristup po §137-141), a kreiranje naloga
+              dodatno trazi tradeGate — klijent bez TRADE_STOCKS vise ne prolazi
+              ceo order+OTP flow da bi na kraju dobio 403. tradeGate dozvoljava
+              supervizore/admine (kupuju u ime fonda) i klijente sa TRADE_STOCKS. */}
+          <Route element={<ProtectedRoute noAgentOnly />}>
+            <Route path="/securities" element={<SecuritiesListPage />} />
+            <Route path="/securities/:id" element={<SecuritiesDetailsPage />} />
+            <Route path="/orders/my" element={<MyOrdersPage />} />
+            <Route path="/portfolio" element={<PortfolioPage />} />
+            <Route element={<ProtectedRoute tradeGate />}>
+              <Route path="/orders/new" element={<CreateOrderPage />} />
+            </Route>
+          </Route>
 
           {/* OTC trgovina (Celina 4 intra+inter-bank) — agenti nemaju pristup po §137-141 */}
           <Route element={<ProtectedRoute noAgentOnly />}>

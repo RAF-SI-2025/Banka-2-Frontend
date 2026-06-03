@@ -81,7 +81,10 @@ export interface ClientFundPosition {
   fundId: number;
   fundName: string;
   userId: number;
-  userRole: 'CLIENT' | 'BANK';
+  // R1 804: BE uvek salje 'CLIENT' (banka se prati kao CLIENT pozicija preko
+  // listBankPositions -> listMyPositions(bankClientId, "CLIENT")). 'BANK' je bio
+  // phantom vrednost koju BE nikad ne emituje — uklonjena.
+  userRole: 'CLIENT';
   userName: string;
   totalInvested: number;
   currentValue: number;
@@ -306,13 +309,4 @@ export interface ActuaryProfit {
   position: 'SUPERVISOR' | 'AGENT';
   totalProfitRsd: number;
   ordersDone: number;
-}
-
-export interface BankFundPosition {
-  fundId: number;
-  fundName: string;
-  managerName: string;
-  percentShare: number;
-  rsdValue: number;
-  profitRsd: number;
 }

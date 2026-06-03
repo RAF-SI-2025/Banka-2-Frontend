@@ -92,7 +92,6 @@ export const MIN_DEPOSIT_AMOUNT: Record<string, number> = {
 };
 
 export const TERM_OPTIONS = [3, 6, 12, 24, 36] as const;
-export type TermOption = (typeof TERM_OPTIONS)[number];
 
 export const STATUS_LABEL_SR: Record<SavingsDepositStatus, string> = {
   ACTIVE: 'Aktivan',

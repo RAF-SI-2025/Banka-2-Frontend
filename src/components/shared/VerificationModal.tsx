@@ -70,19 +70,25 @@ export default function VerificationModal({ isOpen, onClose, onVerified }: Verif
     defaultValues: { code: '' },
   });
 
-  // Request OTP when modal opens + fetch generated code for dev display
+  // Request OTP when modal opens + (DEV ONLY) fetch generated code for display.
   const sendOtp = useCallback(async () => {
     try {
       await transactionService.requestOtp();
       setOtpSent(true);
-      // Fetch the just-generated code so we can show it in the modal
-      try {
-        const active = await transactionService.getActiveOtp();
-        if (active.active && active.code) {
-          setDevOtp(active.code);
+      // P0-F1/N2 fix: OTP kod NIKAD ne prikazujemo u produkciji. Ranije je modal
+      // fetch-ovao i renderovao OTP u DOM-u bez gate-a -> 2FA je bila no-op (svako
+      // ko gleda ekran vidi kod). Fetch+prikaz gejtujemo iza import.meta.env.DEV
+      // (samo za lokalno testiranje); u prod-u korisnik kuca kod iz svog
+      // authenticator app-a, a /payments/my-otp poziv se tree-shake-uje iz bundle-a.
+      if (import.meta.env.DEV) {
+        try {
+          const active = await transactionService.getActiveOtp();
+          if (active.active && active.code) {
+            setDevOtp(active.code);
+          }
+        } catch {
+          // non-fatal — modal still works, user reads from authenticator app
         }
-      } catch {
-        // non-fatal — modal still works, user reads from mobile app
       }
     } catch {
       toast.error('Greška pri slanju verifikacionog koda.');
@@ -161,19 +167,37 @@ export default function VerificationModal({ isOpen, onClose, onVerified }: Verif
           data?: { error?: string; message?: string; verified?: boolean; blocked?: boolean };
         };
       };
+      const status = error.response?.status;
       const data403 = error.response?.data;
+      const blocked = data403?.blocked === true;
+
+      // R1-253: razdvajamo OTP-greske od POSLOVNIH gresaka. OtpService vraca 403
+      // (FORBIDDEN) iskljucivo za pogresan/istekao/blokiran kod — TADA trosimo
+      // pokusaj. Za poslovne odbijenice (404 racun ne postoji, 400 nedovoljno
+      // sredstava, 409 konflikt) OTP je bio ISPRAVAN; ranije smo tu i dalje
+      // dekrementirali pokusaj i posle 3 takve greske gasili modal, sto je
+      // korisnika koctalo OTP-a za gresku koja nema veze sa kodom. Sada poslovnu
+      // gresku samo prikazemo (parent je vec uradio toast), bez trosenja pokusaja.
+      const isOtpFailure = status === 403 || blocked;
+
       const msg =
         data403?.error ??
         data403?.message ??
-        (error.response?.status === 403
+        (isOtpFailure
           ? 'Verifikacioni kod nije tacan.'
-          : 'Verifikacija nije uspela. Pokusajte ponovo.');
+          : 'Transakcija nije uspela. Proverite podatke i pokusajte ponovo.');
       setServerError(msg);
 
-      // Backend je vec markirao OTP kao iskoriscen kada si premasila maxAttempts —
-      // pogledaj polje `blocked` iz direktnog /payments/verify poziva ako postoji,
-      // inace pratimo attempts lokalno (po default-u max 3 kao sto OtpService vraca).
-      const blocked = data403?.blocked === true;
+      if (!isOtpFailure) {
+        // Poslovna/mrezna greska — kod je validan (ili greska nije OTP-vezana);
+        // ne trosimo pokusaj i ne gasimo modal (korisnik moze ispraviti podatke
+        // van modala i ponovo pokusati istim kodom dok je u TOTP prozoru).
+        return;
+      }
+
+      // Backend je vec markirao OTP kao iskoriscen kada je premasen maxAttempts —
+      // pogledaj polje `blocked` ako postoji, inace pratimo attempts lokalno
+      // (po default-u max 3 kao sto OtpService vraca).
       setAttemptsLeft((prev) => {
         const next = blocked ? 0 : prev - 1;
         if (next <= 0) {
@@ -244,8 +268,10 @@ export default function VerificationModal({ isOpen, onClose, onVerified }: Verif
             )}
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-              {/* Dev convenience: prikaz generisanog OTP koda iz bekenda.
-                  U produkciji bi ovo trebalo sakriti, ali za SI rok je praktičnije. */}
+              {/* DEV-ONLY: prikaz generisanog OTP koda iz bekenda za lokalno
+                  testiranje. `devOtp` se popunjava SAMO kada je import.meta.env.DEV
+                  (vidi sendOtp) — u produkciji ostaje null pa se ovaj blok ne render-uje
+                  i kod se nikad ne pojavljuje u DOM-u. */}
               {devOtp && (
                 <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-800 dark:bg-indigo-950/40">
                   <div className="flex items-center justify-between gap-3">
@@ -328,10 +354,14 @@ export default function VerificationModal({ isOpen, onClose, onVerified }: Verif
                 )}
               </div>
 
-              {/* Timer & attempts info */}
+              {/* Timer & attempts info.
+                  R1-574: ovaj 5-minutni prozor je validnost OTP-a POSLATOG na
+                  email/mobilni (resend/email fallback ispod) — RAZLICITO od TOTP
+                  30s prozora iznad (authenticator app, RFC 6238). Eksplicitno
+                  obelezimo da se ne pomesa sa TOTP rotacijom. */}
               <div className="rounded-lg border bg-muted/30 p-4 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Kod važi još</span>
+                  <span className="text-muted-foreground">Kod sa email/mobilnog važi još</span>
                   <span className={`font-mono font-semibold ${secondsLeft <= 60 ? 'text-destructive' : ''}`}>
                     {formattedTime}
                   </span>

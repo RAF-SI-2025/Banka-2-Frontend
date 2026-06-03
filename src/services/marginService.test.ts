@@ -14,18 +14,21 @@ describe('marginService', () => {
 
   describe('getMyAccounts', () => {
     it('should fetch margin accounts', async () => {
+      // P1-fe-contracts-1: BE MarginAccountDto shape (accountId/userId/companyId,
+      // bez linkedAccountNumber/currency).
       const accounts = [
         {
           id: 1,
+          accountId: 5,
           accountNumber: '111111111111111111',
-          linkedAccountId: 5,
-          linkedAccountNumber: '222222222222222222',
+          userId: 42,
+          companyId: null,
           status: 'ACTIVE',
           initialMargin: 10000,
           loanValue: 5000,
           maintenanceMargin: 3000,
           bankParticipation: 0.5,
-          currency: 'RSD',
+          createdAt: '2026-03-01T10:00:00',
         },
       ];
       mockedApi.get.mockResolvedValue({ data: accounts });

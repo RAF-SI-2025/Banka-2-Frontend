@@ -13,7 +13,8 @@ import type {
 } from '../types/notification';
 
 interface ListParams {
-  read?: boolean;
+  /** true => samo neprocitane. BE param je `onlyUnread` (ne `read`). */
+  onlyUnread?: boolean;
   page?: number;
   size?: number;
 }
@@ -23,7 +24,10 @@ export const notificationService = {
     params: ListParams = {}
   ): Promise<NotificationPageDto<NotificationDto>> => {
     const query: Record<string, unknown> = {};
-    if (typeof params.read === 'boolean') query.read = params.read;
+    // P1-fe-contracts-1: BE NotificationController cita `onlyUnread` (Boolean),
+    // ne `read`. Slanje `read=false` je BE tiho ignorisao → UNREAD filter je
+    // vracao SVE notifikacije.
+    if (params.onlyUnread === true) query.onlyUnread = true;
     if (typeof params.page === 'number') query.page = params.page;
     if (typeof params.size === 'number') query.size = params.size;
     const { data } = await api.get<NotificationPageDto<NotificationDto>>(

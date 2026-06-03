@@ -42,9 +42,11 @@ import { accountService } from '@/services/accountService';
 const mockCardService = vi.mocked(cardService);
 const mockAccountService = vi.mocked(accountService);
 
+// R1-637/638: BE vraca VEC maskiran broj (5798********5571, Celina 2 §321) —
+// FE ga prikazuje direktno bez re-maskiranja. Mockovi koriste BE-maskiranu formu.
 const card1 = mockCard({
   id: 1,
-  cardNumber: '4111111111111234',
+  cardNumber: '4111********1234',
   cardType: 'VISA',
   cardName: 'Visa Debit',
   status: 'ACTIVE',
@@ -54,7 +56,7 @@ const card1 = mockCard({
 
 const card2 = mockCard({
   id: 2,
-  cardNumber: '5500000000005678',
+  cardNumber: '5500********5678',
   cardType: 'MASTERCARD',
   cardName: 'Mastercard Gold',
   status: 'BLOCKED',
@@ -454,9 +456,10 @@ describe('CardListPage', () => {
       expect(screen.getByText(/Zahtev za novu karticu/i)).toBeInTheDocument();
     });
 
-    // Try to submit without selecting account - button should be disabled
-    const createBtn = screen.getByRole('button', { name: /Kreiraj karticu/i });
-    expect(createBtn).toBeDisabled();
+    // ACCEPTED-DEVIATION (user-directed 03.06): bez izabranog racuna, dugme za
+    // podnosenje zahteva je disabled (single-step submit, bez OTP/email koda).
+    const submitBtn = screen.getByTestId('card-submit-request-button');
+    expect(submitBtn).toBeDisabled();
   });
 
   it('closes new card form when "Otkazi" is clicked', async () => {
@@ -627,10 +630,10 @@ describe('CardListPage', () => {
     const accOption = await screen.findByRole('option', { name: /Tekuci/i });
     await user.click(accOption);
 
-    // Now submit
-    const createBtn = screen.getByRole('button', { name: /Kreiraj karticu/i });
-    expect(createBtn).not.toBeDisabled();
-    await user.click(createBtn);
+    // ACCEPTED-DEVIATION (user-directed 03.06): jednokoracni submit bez OTP/email koda.
+    const submitBtn = screen.getByTestId('card-submit-request-button');
+    expect(submitBtn).not.toBeDisabled();
+    await user.click(submitBtn);
 
     await waitFor(() => {
       expect(mockCardService.submitRequest).toHaveBeenCalledWith(
@@ -639,6 +642,10 @@ describe('CardListPage', () => {
         })
       );
     });
+    // OTP/email kod se vise NE salje uz zahtev za karticu.
+    expect(mockCardService.submitRequest).toHaveBeenCalledWith(
+      expect.not.objectContaining({ verificationCode: expect.anything() })
+    );
   });
 
   it('shows error when card creation API fails', async () => {
@@ -678,7 +685,8 @@ describe('CardListPage', () => {
     const accOption = await screen.findByRole('option', { name: /Tekuci/i });
     await user.click(accOption);
 
-    await user.click(screen.getByRole('button', { name: /Kreiraj karticu/i }));
+    // ACCEPTED-DEVIATION (user-directed 03.06): direktan submit bez OTP/email koda.
+    await user.click(screen.getByTestId('card-submit-request-button'));
 
     await waitFor(() => {
       expect(mockCardService.submitRequest).toHaveBeenCalled();
@@ -724,9 +732,11 @@ describe('CardListPage', () => {
     const accOption = await screen.findByRole('option', { name: /Tekuci/i });
     await user.click(accOption);
 
-    await user.click(screen.getByRole('button', { name: /Kreiraj karticu/i }));
+    // ACCEPTED-DEVIATION (user-directed 03.06): max-cards validacija blokira submit
+    // (jednokoracni flow, bez OTP/email koda).
+    await user.click(screen.getByTestId('card-submit-request-button'));
 
-    // Should not call submitRequest due to max cards
+    // Zahtev se ne salje zbog max-cards praga.
     expect(mockCardService.submitRequest).not.toHaveBeenCalled();
   });
 
@@ -788,17 +798,42 @@ describe('CardListPage', () => {
     }
   });
 
-  // ---------- Card limit ring display ----------
+  // ---------- Card limit ring display (R1-548) ----------
 
-  it('shows limit progress ring for each card', async () => {
+  it('does NOT show a fake 0% limit ring for DEBIT cards (R1-548)', async () => {
     renderPage();
 
     await waitFor(() => {
       expect(screen.getByText(/Visa Debit/i)).toBeInTheDocument();
     });
 
-    // Limit ring shows 0% by default (used = 0)
-    const percentTexts = screen.getAllByText('0%');
-    expect(percentTexts.length).toBeGreaterThan(0);
+    // card1/card2 nemaju cardCategory → DEBIT → nema spending podataka → nema prstena.
+    // Pre fix-a je svaka kartica imala hardkodiran "0%" (lazni podatak).
+    expect(screen.queryByText('0%')).not.toBeInTheDocument();
+  });
+
+  it('shows a REAL usage ring for CREDIT cards (outstanding/credit-limit) (R1-548)', async () => {
+    const creditCard = mockCard({
+      id: 99,
+      cardNumber: '5200000000009999',
+      cardType: 'MASTERCARD',
+      cardName: 'Mastercard Credit',
+      status: 'ACTIVE',
+      holderName: 'MARKO PETROVIC',
+      limit: 100000,
+      cardCategory: 'CREDIT',
+      creditLimit: 100000,
+      outstandingBalance: 25000,
+    });
+    mockCardService.getMyCards.mockResolvedValue([creditCard]);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText(/Mastercard Credit/i)).toBeInTheDocument();
+    });
+
+    // 25000 / 100000 = 25%
+    expect(screen.getByText('25%')).toBeInTheDocument();
   });
 });

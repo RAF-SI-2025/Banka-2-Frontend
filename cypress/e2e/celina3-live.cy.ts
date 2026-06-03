@@ -177,10 +177,11 @@ describe('Live: Upravljanje aktuarima', () => {
     cy.url().should('include', '/403');
   });
 
-  // TODO: toast "Limit je uspesno azuriran" pojavljuje se ali Cypress timeout 10s
-  // ne hvata u CI/Live race. FE source ima taj tekst (ActuaryManagementPage:154).
-  // Flaky toast timing — refactor da koristi `data-cy="toast-success"` selektor.
-  it.skip('S3: Supervizor menja limit agentu — uspesno', () => {
+  // FIXED 03.06 (de-flake): umesto ephemeral toast-a (react-toastify auto-dismiss
+  // race sa Cypress 10s timeout-om), asertujemo deterministicnu promenu stanja:
+  // dialog se zatvara (naslov "Izmena limita" nestaje) i red Maje prikazuje novi
+  // formatiran limit (sr-RS: 150.000). Stabilno bez zavisnosti od toast tajminga.
+  it('S3: Supervizor menja limit agentu — uspesno', () => {
     loginAsAdmin();
     cy.visit('/employee/actuaries');
     cy.contains('td', 'maja.ristic@banka.rs', { timeout: 15000 }).should('be.visible');
@@ -189,7 +190,12 @@ describe('Live: Upravljanje aktuarima', () => {
     cy.contains('Izmena limita').should('be.visible');
     cy.get('#dailyLimit').clear().type('150000');
     cy.contains('button', 'Sacuvaj').click();
-    cy.contains('Limit je uspesno azuriran', { timeout: 10000 }).should('be.visible');
+    // Uspeh = dialog zatvoren + tabela reflektuje novi limit (150.000 sr-RS format).
+    cy.contains('Izmena limita', { timeout: 10000 }).should('not.exist');
+    cy.contains('td', 'maja.ristic@banka.rs')
+      .closest('tr')
+      .contains('150.000', { timeout: 10000 })
+      .should('be.visible');
   });
 
   it('S4: Unos nevalidnog limita — negativna vrednost', () => {
@@ -203,14 +209,24 @@ describe('Live: Upravljanje aktuarima', () => {
     cy.contains(/nenegativan|nije uspelo|greska/i, { timeout: 5000 }).should('be.visible');
   });
 
-  // TODO: ista flaky toast timing kao S3 — refactor sa `data-cy` selektorom.
-  it.skip('S5: Supervizor resetuje usedLimit agentu', () => {
+  // FIXED 03.06 (de-flake): reset ide kroz ConfirmDialog ("Resetuj" potvrda) — stari
+  // test je preskakao potvrdu i cekao ephemeral toast. Sada potvrdjujemo dialog i
+  // asertujemo deterministicno stanje: iskorisceni limit u redu Maje je 0 (format
+  // "0 / <dnevni limit>"). Nezavisno od toast tajminga.
+  it('S5: Supervizor resetuje usedLimit agentu', () => {
     loginAsAdmin();
     cy.visit('/employee/actuaries');
     cy.contains('td', 'maja.ristic@banka.rs', { timeout: 15000 }).should('be.visible');
 
     cy.contains('td', 'maja.ristic@banka.rs').closest('tr').contains('button', 'Resetuj limit').click();
-    cy.contains('Limit je uspesno resetovan', { timeout: 10000 }).should('be.visible');
+    // ConfirmDialog: potvrdi reset.
+    cy.contains('Reset iskoriscenog limita', { timeout: 10000 }).should('be.visible');
+    cy.contains('button', 'Resetuj').click();
+    // Uspeh = iskorisceni limit je sad 0 ("0 / <dnevni>").
+    cy.contains('td', 'maja.ristic@banka.rs')
+      .closest('tr')
+      .contains(/^0\s*\//, { timeout: 10000 })
+      .should('be.visible');
   });
 
   it('S8: Admin je ujedno i supervizor — ima pristup portalu', () => {
@@ -549,24 +565,65 @@ describe('Live: Pregled naloga — Supervisor', () => {
   });
 
   it('S52: Supervizor odobrava pending order', () => {
+    // Deterministicki: ne klikcemo "prvi Odobri" iz tabele (legacy seed orderi sa
+    // null accountId dobiju DECLINED cim ih scheduler pokupi → duplo approve baca 400,
+    // pa je stari oneOf([200,201,400,409]) bio uvek-zelen). Umesto toga preko API-ja
+    // biramo deterministicki APPROVABILNI PENDING order i tvrdimo PRAVI ishod:
+    // 200 + status == APPROVED za bas taj id.
+    //
+    // Izbor preduslova (po pouzdanosti): SELL PENDING gde korisnik DRZI hartiju
+    // (approve rezervise kolicinu iz portfolija — seed Stefanu daje AAPL holdinge,
+    // pa SELL AAPL AON PENDING uvek prolazi). Ako takav ne postoji, fallback na
+    // BUY PENDING sa povezanim accountId (seed racuni imaju dovoljno sredstava).
+    // Ako NIJEDAN approvabilan PENDING ne postoji → skip sa logom (NE prihvatamo
+    // bilo koji status).
     loginAsAdmin();
-    // Intercept approve endpoint — proveravamo da li backend prihvata ili odbija
-    cy.intercept('PATCH', '**/api/orders/*/approve').as('approveOrder');
+    // cy.session() hidrira sessionStorage tek pri sledecem visit-u; visit-ujemo
+    // orders portal da window.sessionStorage ima accessToken pre API poziva.
     cy.visit('/employee/orders');
-    cy.contains('button', /Na čekanju|Na cekanju/i).click();
-    cy.wait(1500);
+    cy.contains('Pregled naloga', { timeout: 15000 }).should('be.visible');
+    cy.window().then((win) => {
+      const token = win.sessionStorage.getItem('accessToken');
+      const authReq = (method: string, url: string) =>
+        cy.request({
+          method,
+          url,
+          headers: { Authorization: `Bearer ${token}` },
+          failOnStatusCode: false,
+        });
 
-    cy.get('body').then(($body) => {
-      if ($body.find('button:contains("Odobri")').length > 0) {
-        cy.contains('button', 'Odobri').first().click();
-        cy.contains('button', 'Potvrdi').click();
-        // Backend moze vratiti 200 (odobren), 400 (already processed — legacy seed order
-        // sa null accountId dobija DECLINED cim ga scheduler pokupi, pa duplo approve pada),
-        // ili 409 (nedovoljno sredstava u trenutku odobravanja). Sva su validna stanja.
-        cy.wait('@approveOrder', { timeout: 15000 }).its('response.statusCode').should('be.oneOf', [200, 201, 400, 409]);
-      } else {
-        cy.log('Nema PENDING ordera za odobravanje');
-      }
+      authReq('GET', '/api/orders?status=PENDING&excludeFund=true&size=100').then((listResp) => {
+        expect(listResp.status, 'GET pending orders').to.eq(200);
+        const orders: Array<{ id: number; direction: string; status: string; accountId: number | null }> =
+          Array.isArray(listResp.body) ? listResp.body : (listResp.body?.content ?? []);
+        const pending = orders.filter((o) => o.status === 'PENDING');
+
+        // Prefer SELL (oslanja se na portfolio holding — bez FX/funds zavisnosti),
+        // pa BUY sa eksplicitnim accountId.
+        const candidate =
+          pending.find((o) => o.direction === 'SELL') ??
+          pending.find((o) => o.direction === 'BUY' && o.accountId != null);
+
+        if (!candidate) {
+          cy.log('PRECONDITION NOT MET: nema approvabilnog PENDING ordera u seed-u — skip.');
+          return;
+        }
+
+        cy.log(`Approving order id=${candidate.id} (${candidate.direction})`);
+        authReq('PATCH', `/api/orders/${candidate.id}/approve`).then((appResp) => {
+          // Pravi ishod: 200 + status prelazi u APPROVED (ili DECLINED samo ako je
+          // settlementDate u proslosti — za seed listinge nije, pa ocekujemo APPROVED).
+          expect(appResp.status, 'approve order HTTP status').to.eq(200);
+          expect(appResp.body.id, 'approved order id').to.eq(candidate.id);
+          expect(appResp.body.status, 'order status posle approve').to.eq('APPROVED');
+
+          // Verifikuj perzistirani prelaz stanja preko fresh GET-a.
+          authReq('GET', `/api/orders/${candidate.id}`).then((getResp) => {
+            expect(getResp.status).to.eq(200);
+            expect(getResp.body.status, 'persisted status').to.eq('APPROVED');
+          });
+        });
+      });
     });
   });
 
@@ -602,17 +659,24 @@ describe('Live: Pregled naloga — Supervisor', () => {
 describe('Live: Moji nalozi', () => {
   beforeEach(() => { enableLiveBackend(); loginAsClient(); });
 
-  // TODO: FE-TRD-01 fix (26.05 jutro) uklonio "Svi/Na cekanju/Odobreni/Zavrseni"
-  // chip filter dugmici kao redundantne (MyOrdersPage.tsx:127 +336). Status filter
-  // je sad samo BE dropdown sa data-testid="orders-status-filter". Refactor cy spec
-  // da koristi `cy.get('[data-testid="orders-status-filter"]')` umesto chip buttons.
-  it.skip('Klijent vidi moje naloge sa filterima', () => {
+  // FIXED 03.06: FE-TRD-01 je uklonio chip filtere (Svi/Na cekanju/Odobreni/Zavrseni)
+  // i zamenio ih BE status dropdown-om (data-testid="orders-status-filter"). Test sad
+  // asertuje novi dropdown + njegove opcije i da promena statusa filtrira (BE upit).
+  it('Klijent vidi moje naloge sa filterima', () => {
     cy.visit('/orders/my');
     cy.contains('Moji nalozi', { timeout: 15000 }).should('be.visible');
-    cy.contains('button', /Svi/i).should('be.visible');
-    cy.contains('button', /Na cekanju/i).should('be.visible');
-    cy.contains('button', /Odobreni/i).should('be.visible');
-    cy.contains('button', /Zavrseni/i).should('be.visible');
+    // Novi status filter (BE dropdown) je vidljiv sa svim statusima.
+    cy.get('[data-testid="orders-status-filter"]', { timeout: 15000 }).should('be.visible');
+    cy.get('[data-testid="orders-status-filter"] option').then(($opts) => {
+      const labels = [...$opts].map((o) => o.textContent?.trim());
+      expect(labels).to.include.members(['Sve', 'Na cekanju', 'Odobreni', 'Odbijeni', 'Zavrseni']);
+    });
+    // Datum + tip hartije filteri takodje postoje (detaljni filteri).
+    cy.get('[data-testid="orders-listing-type-filter"]').should('be.visible');
+    cy.get('[data-testid="orders-date-from-filter"]').should('exist');
+    // Izbor statusa okida BE upit i ne pada (lista se reload-uje bez greske).
+    cy.get('[data-testid="orders-status-filter"]').select('PENDING');
+    cy.contains('Greska pri ucitavanju').should('not.exist');
   });
 
   it('Klijent vidi svoje ordere sa statusima', () => {
@@ -1018,13 +1082,17 @@ describe('Live: Fund reservation + OTP flow (Phase 11)', () => {
     // Lobotomija: balance verification preskocena (zavisi od test pollution-a)
   });
 
-  // TODO: 403 verovatno zbog AGENT permissions resolver (banka-core /internal/permissions
-  // ne vraca AGENT autoritet za tamara.pavlovic). Curl test direktno na BE sa Tamara
-  // tokenom prosao do 400 "OTP required" — auth OK. Mozda Cypress UI flow ima drugaciji
-  // path. Refactor: dodaj cy.intercept za /internal/users/.../permissions ili seed Tamare
-  // sa proper AGENT autoritet u trading-seed.sql.
-  it.skip('AGENT BUY — bankin racun, provizija 0, OTP flow', () => {
-    // Tamara: AGENT, TRADE_STOCKS, needApproval=false
+  // FIXED 03.06: stari test je polazio od OBSOLETNE premise da agent kupuje preko
+  // /orders/new. Po Celini 4 (Nova) §137-141 agenti NEMAJU trgovinski pristup —
+  // /orders/new je dvostruko zasticen (noAgentOnly + tradeGate u App.tsx:200-207),
+  // pa ProtectedRoute (noAgentOnly: isAgent && !isSupervisor && !isAdmin) redirektuje
+  // agenta na /403. 403 koji je stari test video NIJE bug u permissions resolver-u
+  // (BE: Tamara ima TRADE_STOCKS+AGENT u seed-u, POST /orders je authenticated(),
+  // curl je stigao do 400 OTP-required) — to je TACAN, dizajnom predvidjen FE route
+  // guard. Test sad asertuje korektno ponasanje: agent -> /403 na /orders/new.
+  it('AGENT nema pristup kreiranju naloga — /orders/new redirektuje na /403 (§137-141)', () => {
+    // Tamara: AGENT (nije supervizor/admin) — real login, BE JWT nosi role=EMPLOYEE,
+    // a FE perms ['AGENT', ...] cine isAgent=true u AuthContext-u.
     loginAs(
       'agent-tamara-c3',
       'tamara.pavlovic@banka.rs',
@@ -1034,44 +1102,10 @@ describe('Live: Fund reservation + OTP flow (Phase 11)', () => {
     );
 
     cy.visit('/orders/new?listingId=1&direction=BUY');
-    cy.contains('Novi nalog', { timeout: 15000 }).should('be.visible');
-
-    // Agent ne bira racun — vidi Alert "Trguje se sa bankinog racuna"
-    cy.contains(/Trguje se sa bankinog/i, { timeout: 15000 }).should('be.visible');
-
-    // Listing se ucitava
-    cy.contains('Izabrana hartija', { timeout: 15000 }).should('exist');
-
-    // Kolicina
-    cy.get('#quantity').clear().type('3');
-
-    // Provizija mora biti 0 za zaposlene
-    cy.contains('Provizija').parent().should(($el) => {
-      const txt = $el.text();
-      expect(txt).to.match(/zaposleni|0[.,]?0?0?/i);
-    });
-
-    cy.intercept('POST', '**/api/orders').as('submitAgentOrder');
-
-    // Nastavi na potvrdu
-    cy.contains('button', 'Nastavi na potvrdu').click();
-    cy.get('[role="dialog"]', { timeout: 10000 }).should('be.visible');
-    cy.contains('Potvrda naloga', { timeout: 5000 }).should('be.visible');
-    cy.get('[data-cy="confirm-order"]').should('be.visible').and('not.be.disabled').then(($btn) => {
-      $btn[0].click();
-    });
-
-    // OTP flow
-    cy.get('#otp', { timeout: 10000 }).should('be.visible');
-    fetchOtpAndConfirm();
-
-    // Agent order moze zavrsiti APPROVED ili PENDING u zavisnosti od Tamare.
-    // BE moze odbiti sa 400/409 ako bankin racun nema stanja ili validacija padne.
-    // Kljucno je da OTP flow zaokruzeno stigne do BE-a.
-    cy.wait('@submitAgentOrder', { timeout: 15000 }).then((interception) => {
-      const status = interception.response?.statusCode;
-      expect([200, 201, 400, 409]).to.include(status);
-    });
+    // noAgentOnly guard: cist agent se odbija na /403 (defense-in-depth uz BE).
+    cy.url({ timeout: 15000 }).should('include', '/403');
+    // Forma za nalog se NE renderuje agentu.
+    cy.contains('Novi nalog').should('not.exist');
   });
 });
 
@@ -1179,8 +1213,9 @@ describe('Live: E2E Scenario — Kompletan radni dan na berzi', () => {
     enableRealBackendScenario();
   });
 
-  // TODO: ista flaky toast timing kao S3/S5 — refactor sa `data-cy` selektorom.
-  it.skip('DEO 1 — Supervizor podesava limit agentu Maji', () => {
+  // FIXED 03.06 (de-flake): ista klasa kao S3 — asertujemo promenu stanja (dialog
+  // zatvoren + tabela prikazuje 200.000) umesto ephemeral toast-a.
+  it('DEO 1 — Supervizor podesava limit agentu Maji', () => {
     loginAsScenario('supervisor-e2e', SUPERVISOR_E2E);
     cy.visit('/employee/actuaries');
     cy.contains('Upravljanje aktuarima', { timeout: 15000 }).should('be.visible');
@@ -1192,7 +1227,11 @@ describe('Live: E2E Scenario — Kompletan radni dan na berzi', () => {
     cy.contains('Izmena limita').should('be.visible');
     cy.get('#dailyLimit').clear().type('200000');
     cy.contains('button', 'Sacuvaj').click();
-    cy.contains(/uspesno|azuriran/i, { timeout: 10000 }).should('be.visible');
+    cy.contains('Izmena limita', { timeout: 10000 }).should('not.exist');
+    cy.contains('td', 'maja.ristic@banka.rs')
+      .closest('tr')
+      .contains('200.000', { timeout: 10000 })
+      .should('be.visible');
   });
 
   it('DEO 2 — Agent pretrazuje hartije i otvara detalje', () => {
@@ -1297,12 +1336,16 @@ describe('Live: E2E Scenario — Kompletan radni dan na berzi', () => {
     });
   });
 
-  // TODO: ista "Svi" chip refactor kao "Klijent vidi moje naloge sa filterima" iznad.
-  it.skip('DEO 5 — Klijent proverava Moje naloge', () => {
+  // FIXED 03.06: FE-TRD-01 chip filteri uklonjeni — asertujemo novi status dropdown
+  // (data-testid="orders-status-filter") umesto "Svi" chip dugmeta.
+  it('DEO 5 — Klijent proverava Moje naloge', () => {
     loginAsScenario('client-e2e', CLIENT_E2E);
     cy.visit('/orders/my');
     cy.contains(/Moji nalozi|nalozi/i, { timeout: 15000 }).should('be.visible');
-    cy.contains('button', /Svi/i).should('be.visible');
+    cy.get('[data-testid="orders-status-filter"]', { timeout: 15000 }).should('be.visible');
+    // "Sve" je default opcija (ekvivalent starog "Svi" chip-a).
+    cy.get('[data-testid="orders-status-filter"]').should('have.value', '');
+    cy.get('[data-testid="orders-status-filter"] option:selected').should('contain.text', 'Sve');
   });
 
   it('DEO 6 — Klijent proverava portfolio', () => {

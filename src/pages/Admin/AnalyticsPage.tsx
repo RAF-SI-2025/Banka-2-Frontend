@@ -23,6 +23,7 @@ import {
   getAnalyticsDaily,
   type AnalyticsDailyDTO,
 } from '@/services/analyticsService';
+import { addDaysISO } from '@/utils/formatters';
 
 const METRIC_NAMES = [
   { value: '', label: 'Sve metrike' },
@@ -33,10 +34,10 @@ const METRIC_NAMES = [
   { value: 'avg_order_size', label: 'Prosecna velicina naloga' },
 ] as const;
 
+// [P1-i18n-1 / 1887] lokalni date-builder umesto UTC `toISOString().slice` —
+// pre ponoci po UTC bi "yesterday" promasilo za jos jedan dan u Beogradu.
 function yesterdayIso(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+  return addDaysISO(-1);
 }
 
 function formatNumber(value: number): string {

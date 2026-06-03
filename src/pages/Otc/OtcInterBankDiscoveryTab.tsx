@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { addDaysISO, formatAmount, getErrorMessage } from '@/utils/formatters';
+import { addDaysISO, formatAmount, getErrorMessage, isFutureDateOnly } from '@/utils/formatters';
 
 type OfferFormState = {
   quantity: string;
@@ -179,6 +179,12 @@ export default function OtcInterBankDiscoveryTab() {
     }
     if (!formState.settlementDate) {
       toast.error('Datum dospeca je obavezan.');
+      return;
+    }
+    // R1 860: `min` atribut nije dovoljan (paste/program submit moze proci prosli
+    // datum) — odbij settlement koji nije striktno u buducnosti.
+    if (!isFutureDateOnly(formState.settlementDate)) {
+      toast.error('Datum dospeca mora biti u buducnosti.');
       return;
     }
 

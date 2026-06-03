@@ -77,7 +77,9 @@ export const creditService = {
   },
 
   apply: async (data: LoanApplicationRequest): Promise<LoanRequest> => {
-    const { interestRateType, ...rest } = data;
+    // ACCEPTED-DEVIATION (user-directed 03.06): zahtev za kredit se podnosi bez OTP.
+    const { interestRateType, otpCode: _otpCode, ...rest } = data;
+    void _otpCode;
     const payload = {
       ...rest,
       loanType: loanTypeToBE[data.loanType] || data.loanType,
@@ -101,7 +103,8 @@ export const creditService = {
   },
 
   earlyRepayment: async (loanId: number): Promise<void> => {
-    await api.post(`/loans/${loanId}/early-repayment`);
+    // ACCEPTED-DEVIATION (user-directed 03.06): prevremena otplata bez OTP gate-a.
+    await api.post(`/loans/${loanId}/early-repayment`, null);
   },
 
   getMyRequests: async (): Promise<LoanRequest[]> => {

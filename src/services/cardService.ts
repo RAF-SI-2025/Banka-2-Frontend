@@ -36,21 +36,41 @@ export const cardService = {
   /**
    * Dopuna INTERNET_PREPAID kartice — skida amount sa sourceAccountId i dodaje na
    * Card.prepaidBalance. BE validira ownership i kategoriju.
+   *
+   * P1-idempotency-1 (R5-1849): saljemo `Idempotency-Key` (UUID po pozivu). Ako
+   * se isti zahtev re-isporuci na transport nivou (retry-on-connection-failure),
+   * BE deduplikuje i ne prebacuje sredstva dvaput. `idempotencyKey` se moze
+   * proslediti spolja (stabilan po submit-u, npr. da prezivi double-click);
+   * default je svez UUID.
    */
-  topUp: async (cardId: number, sourceAccountId: number, amount: number): Promise<Card> => {
-    const response = await api.post<Card>(`/cards/${cardId}/top-up`, { sourceAccountId, amount });
+  topUp: async (cardId: number, sourceAccountId: number, amount: number, idempotencyKey?: string): Promise<Card> => {
+    const response = await api.post<Card>(`/cards/${cardId}/top-up`, { sourceAccountId, amount }, {
+      headers: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() },
+    });
     return response.data;
   },
 
   /**
    * Povlacenje sa INTERNET_PREPAID kartice nazad na racun — obrnut smer od top-up-a.
    */
-  withdraw: async (cardId: number, targetAccountId: number, amount: number): Promise<Card> => {
-    const response = await api.post<Card>(`/cards/${cardId}/withdraw`, { targetAccountId, amount });
+  withdraw: async (cardId: number, targetAccountId: number, amount: number, idempotencyKey?: string): Promise<Card> => {
+    const response = await api.post<Card>(`/cards/${cardId}/withdraw`, { targetAccountId, amount }, {
+      headers: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() },
+    });
     return response.data;
   },
 
-  submitRequest: async (data: { accountId: number; cardLimit?: number; cardType?: string; cardCategory?: string; creditLimit?: number; authorizedPersonId?: number; authorizedPerson?: Partial<AuthorizedPerson> }): Promise<unknown> => {
+  /**
+   * C2 Sc28 (§308): salje email verifikacioni kod ("Potvrdite da ste Vi podneli
+   * ovaj zahtev") pre podnosenja zahteva za karticu. Klijent zatim unosi taj kod u
+   * {@link submitRequest} (verificationCode), koji BE verifikuje pre kreiranja zahteva.
+   */
+  sendRequestCode: async (): Promise<{ sent: boolean; message: string }> => {
+    const response = await api.post<{ sent: boolean; message: string }>('/cards/requests/send-code');
+    return response.data;
+  },
+
+  submitRequest: async (data: { accountId: number; cardLimit?: number; cardType?: string; cardCategory?: string; creditLimit?: number; verificationCode?: string; authorizedPersonId?: number; authorizedPerson?: Partial<AuthorizedPerson> }): Promise<unknown> => {
     const response = await api.post('/cards/requests', data);
     return response.data;
   },

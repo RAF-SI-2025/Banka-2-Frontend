@@ -18,11 +18,23 @@ vi.mock('react-router-dom', async () => {
 
 const mockActivateAccount = vi.fn();
 const mockGetTokenStatus = vi.fn();
+const mockResendActivation = vi.fn();
 
 vi.mock('../../services/authService', () => ({
   authService: {
     activateAccount: (...args: unknown[]) => mockActivateAccount(...args),
     getActivationTokenStatus: (...args: unknown[]) => mockGetTokenStatus(...args),
+    resendActivation: (...args: unknown[]) => mockResendActivation(...args),
+  },
+}));
+
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+
+vi.mock('@/lib/notify', () => ({
+  toast: {
+    success: (...args: unknown[]) => mockToastSuccess(...args),
+    error: (...args: unknown[]) => mockToastError(...args),
   },
 }));
 
@@ -269,6 +281,62 @@ describe('ActivateAccountPage', () => {
     });
     expect(screen.getAllByText(/istekao/i).length).toBeGreaterThan(0);
     expect(screen.queryByLabelText(/nova lozinka/i)).not.toBeInTheDocument();
+    // Spec Sc 9: EXPIRED ekran nudi "Posalji novi link" dugme.
+    expect(screen.getByRole('button', { name: /posalji novi link/i })).toBeInTheDocument();
+  });
+
+  // Spec Celina 1 Sc 9: resend activation link sa EXPIRED ekrana.
+
+  it('resends activation link and shows success toast on EXPIRED screen', async () => {
+    mockSearchParams = new URLSearchParams('token=expired-token');
+    mockGetTokenStatus.mockResolvedValueOnce({
+      status: 'EXPIRED',
+      expiresAt: '2026-05-01T20:00:00',
+      email: null,
+    });
+    mockResendActivation.mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    renderWithProviders(<ActivateAccountPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /posalji novi link/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /posalji novi link/i }));
+
+    await waitFor(() => {
+      expect(mockResendActivation).toHaveBeenCalledWith('expired-token');
+    });
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      'Novi aktivacioni link je poslat ako nalog postoji.',
+    );
+    // Posle slanja dugme se disable-uje i menja u "Link je poslat".
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /link je poslat/i })).toBeDisabled();
+    });
+  });
+
+  it('shows error toast when resend fails', async () => {
+    mockSearchParams = new URLSearchParams('token=expired-token');
+    mockGetTokenStatus.mockResolvedValueOnce({
+      status: 'EXPIRED',
+      expiresAt: '2026-05-01T20:00:00',
+      email: null,
+    });
+    mockResendActivation.mockRejectedValueOnce(new Error('network down'));
+    const user = userEvent.setup();
+    renderWithProviders(<ActivateAccountPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /posalji novi link/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /posalji novi link/i }));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalled();
+    });
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+    // Greska ne disable-uje dugme trajno — korisnik moze ponovo da pokusa.
+    expect(screen.getByRole('button', { name: /posalji novi link/i })).not.toBeDisabled();
   });
 
   it('shows ALREADY_ACTIVE state when account already activated', async () => {

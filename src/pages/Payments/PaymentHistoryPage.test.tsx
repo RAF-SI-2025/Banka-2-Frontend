@@ -87,6 +87,27 @@ describe('PaymentHistoryPage', () => {
     expect(screen.getByText('Otkazane')).toBeInTheDocument();
   });
 
+  // R1-333: BE moze vratiti PROCESSING/ABORTED — FE mora mapirati u citljive labele
+  // umesto da prikaze sirov enum string.
+  it('maps PROCESSING status to "U obradi" and ABORTED to "Prekinuto" (R1-333)', async () => {
+    const txProcessing = mockTransaction({ id: 10, amount: 7000, recipientName: 'Inter-bank uplata', status: 'PROCESSING', fromAccountNumber: acc.accountNumber });
+    const txAborted = mockTransaction({ id: 11, amount: 4000, recipientName: 'Prekinuta uplata', status: 'ABORTED', fromAccountNumber: acc.accountNumber });
+    mockTransactionService.getAll.mockResolvedValue(paginatedResponse([txProcessing, txAborted]));
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Inter-bank uplata')).toBeInTheDocument();
+    });
+
+    // Badge labele (a ne "PROCESSING"/"ABORTED" sirovi enum) — filter pill "U obradi"
+    // takodje koristi istu labelu, pa ocekujemo bar 1 pojavu svake.
+    expect(screen.getAllByText('U obradi').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Prekinute').length).toBeGreaterThan(0); // filter pill
+    expect(screen.queryByText('PROCESSING')).not.toBeInTheDocument();
+    expect(screen.queryByText('ABORTED')).not.toBeInTheDocument();
+  });
+
   it('filters by status when pill is clicked', async () => {
     const user = userEvent.setup();
     renderPage();

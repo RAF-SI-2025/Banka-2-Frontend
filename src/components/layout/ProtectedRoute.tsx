@@ -1,6 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import type { Permission } from '../../types';
+import { Permission } from '../../types';
 
 interface ProtectedRouteProps {
   requiredPermission?: Permission;
@@ -13,6 +13,12 @@ interface ProtectedRouteProps {
   // Defense-in-depth: ruta NIJE dostupna agentima. Po Celini 4 (Nova) §137-141
   // agenti nemaju OTC pristup; sidebar krije linkove ali ovo blokira direktni URL.
   noAgentOnly?: boolean;
+  // P1-fe-mobile-authz-1 (1761): ruta za plasiranje naloga. Dozvoljeno za one
+  // koji STVARNO mogu da trguju: admin/supervizor (kupuju u ime fonda) ili
+  // klijent sa TRADE_STOCKS permisijom. Agenti su iskljuceni. Klijent bez
+  // TRADE_STOCKS dobija /403 PRE nego sto prodje ceo order+OTP flow (umesto
+  // BE 403 na kraju).
+  tradeGate?: boolean;
 }
 
 export default function ProtectedRoute({
@@ -21,6 +27,7 @@ export default function ProtectedRoute({
   employeeOnly = false,
   supervisorOnly = false,
   noAgentOnly = false,
+  tradeGate = false,
 }: ProtectedRouteProps) {
   const { user, isLoading, hasPermission, isAdmin, isSupervisor, isAgent } = useAuth();
 
@@ -81,6 +88,16 @@ export default function ProtectedRoute({
   // noAgentOnly: agent koji nije ujedno i supervizor/admin se odbija
   if (noAgentOnly && isAgent && !isSupervisor && !isAdmin) {
     return <Navigate to="/403" replace />;
+  }
+
+  // tradeGate (1761): mogu da trguju admin/supervizor (u ime fonda) ili klijent
+  // sa TRADE_STOCKS. Svi ostali (klijent bez permisije, cist EMPLOYEE bez
+  // supervizor/admin, agent) → /403 fail-closed.
+  if (tradeGate) {
+    const canTrade = isAdmin || isSupervisor || hasPermission(Permission.TRADE_STOCKS);
+    if (!canTrade) {
+      return <Navigate to="/403" replace />;
+    }
   }
 
   if (requiredPermission && !hasPermission(requiredPermission)) {

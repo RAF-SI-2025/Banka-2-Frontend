@@ -17,11 +17,27 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/lib/notify';
-import marginService from '@/services/marginService';
-import type { MarginAccount, MarginTransaction } from '@/services/marginService';
+import marginService, { MARGIN_CURRENCY } from '@/services/marginService';
+import type { MarginAccount, MarginTransaction, MarginTransactionType } from '@/services/marginService';
 import { formatAmount, getErrorMessage } from '@/utils/formatters';
 
 type ModalType = 'deposit' | 'withdraw';
+
+// Srpske labele za sve 4 BE vrste margin transakcije (MarginTransactionType.java).
+const MARGIN_TX_LABELS: Record<MarginTransactionType, string> = {
+  DEPOSIT: 'Uplata',
+  WITHDRAWAL: 'Isplata',
+  BUY: 'Kupovina',
+  SELL: 'Prodaja',
+};
+
+/**
+ * Predznak/boja iznosa po vrsti transakcije iz perspektive margin racuna:
+ * priliv (+, zeleno) za DEPOSIT i SELL; odliv (−, crveno) za WITHDRAWAL i BUY.
+ */
+function isMarginInflow(type: MarginTransactionType): boolean {
+  return type === 'DEPOSIT' || type === 'SELL';
+}
 
 export default function MarginAccountsPage() {
   const [accounts, setAccounts] = useState<MarginAccount[]>([]);
@@ -213,7 +229,7 @@ export default function MarginAccountsPage() {
                         <CardTitle className="text-base">{account.accountNumber}</CardTitle>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Povezan sa: {account.linkedAccountNumber}
+                        {account.companyId != null ? 'Firmski marzni racun' : 'Licni marzni racun'}
                       </p>
                     </div>
                     <Badge variant={isBlocked ? 'destructive' : 'success'}>
@@ -227,25 +243,29 @@ export default function MarginAccountsPage() {
                       <div className="rounded-md border bg-muted/30 p-3 text-center">
                         <p className="text-xs text-muted-foreground">Inicijalna margina</p>
                         <p className="mt-1 font-mono font-semibold text-sm">
-                          {formatAmount(account.initialMargin)} {account.currency}
+                          {formatAmount(account.initialMargin)} {MARGIN_CURRENCY}
                         </p>
                       </div>
                       <div className="rounded-md border bg-muted/30 p-3 text-center">
                         <p className="text-xs text-muted-foreground">Vrednost kredita</p>
                         <p className="mt-1 font-mono font-semibold text-sm">
-                          {formatAmount(account.loanValue)} {account.currency}
+                          {formatAmount(account.loanValue)} {MARGIN_CURRENCY}
                         </p>
                       </div>
                       <div className="rounded-md border bg-muted/30 p-3 text-center">
                         <p className="text-xs text-muted-foreground">Margina odrzavanja</p>
                         <p className="mt-1 font-mono font-semibold text-sm">
-                          {formatAmount(account.maintenanceMargin)} {account.currency}
+                          {formatAmount(account.maintenanceMargin)} {MARGIN_CURRENCY}
                         </p>
                       </div>
                       <div className="rounded-md border bg-muted/30 p-3 text-center">
                         <p className="text-xs text-muted-foreground">Ucesce banke</p>
                         <p className="mt-1 font-mono font-semibold text-sm">
-                          {formatAmount(account.bankParticipation)}%
+                          {/* BE salje udeo kao odnos 0..1 (npr. 0.50 = 50%); mnozimo ×100 za prikaz */}
+                          {(Number(account.bankParticipation ?? 0) * 100).toLocaleString('sr-RS', {
+                            maximumFractionDigits: 2,
+                          })}
+                          %
                         </p>
                       </div>
                     </div>
@@ -306,35 +326,38 @@ export default function MarginAccountsPage() {
                           </p>
                         ) : (
                           <div className="max-h-60 space-y-2 overflow-y-auto rounded-md border p-2">
-                            {accountTxns.map((txn) => (
-                              <div
-                                key={txn.id}
-                                className="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2 text-sm"
-                              >
-                                <div>
-                                  <p className="font-medium">
-                                    {txn.type === 'DEPOSIT' ? 'Uplata' : 'Isplata'}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {new Date(txn.createdAt).toLocaleDateString('sr-RS')}{' '}
-                                    {new Date(txn.createdAt).toLocaleTimeString('sr-RS', {
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })}
-                                  </p>
-                                </div>
-                                <span
-                                  className={`font-mono font-semibold ${
-                                    txn.type === 'DEPOSIT'
-                                      ? 'text-emerald-600 dark:text-emerald-400'
-                                      : 'text-red-600 dark:text-red-400'
-                                  }`}
+                            {accountTxns.map((txn) => {
+                              const inflow = isMarginInflow(txn.type);
+                              return (
+                                <div
+                                  key={txn.id}
+                                  className="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2 text-sm"
                                 >
-                                  {txn.type === 'DEPOSIT' ? '+' : '-'}
-                                  {formatAmount(txn.amount)} {txn.currency}
-                                </span>
-                              </div>
-                            ))}
+                                  <div>
+                                    <p className="font-medium">
+                                      {MARGIN_TX_LABELS[txn.type] ?? txn.type}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {new Date(txn.createdAt).toLocaleDateString('sr-RS')}{' '}
+                                      {new Date(txn.createdAt).toLocaleTimeString('sr-RS', {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      })}
+                                    </p>
+                                  </div>
+                                  <span
+                                    className={`font-mono font-semibold ${
+                                      inflow
+                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                        : 'text-red-600 dark:text-red-400'
+                                    }`}
+                                  >
+                                    {inflow ? '+' : '-'}
+                                    {formatAmount(txn.amount)} {MARGIN_CURRENCY}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -382,7 +405,7 @@ export default function MarginAccountsPage() {
 
             <div className="space-y-4 p-6">
               <div className="space-y-2">
-                <Label htmlFor="margin-amount">Iznos ({modalAccount?.currency ?? 'RSD'})</Label>
+                <Label htmlFor="margin-amount">Iznos ({MARGIN_CURRENCY})</Label>
                 <Input
                   id="margin-amount"
                   type="number"

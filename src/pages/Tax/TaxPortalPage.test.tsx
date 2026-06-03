@@ -142,10 +142,8 @@ describe('TaxPortalPage', () => {
     });
   });
 
-  it('calls triggerCalculation when clicking calculate button', async () => {
+  it('calls triggerCalculation after confirming in dialog (R1 561 — ConfirmDialog, ne window.confirm)', async () => {
     const user = userEvent.setup();
-    // Mock window.confirm
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     renderWithProviders(<TaxPortalPage />);
 
@@ -154,15 +152,18 @@ describe('TaxPortalPage', () => {
     });
 
     await user.click(screen.getByText('Izracunaj porez'));
+
+    // ConfirmDialog se otvara — potvrdi.
+    const confirmBtn = await screen.findByTestId('confirm-dialog-confirm');
+    await user.click(confirmBtn);
 
     await waitFor(() => {
       expect(mockTriggerCalculation).toHaveBeenCalled();
     });
   });
 
-  it('does not trigger calculation when confirm is cancelled', async () => {
+  it('does not trigger calculation when dialog is cancelled', async () => {
     const user = userEvent.setup();
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
 
     renderWithProviders(<TaxPortalPage />);
 
@@ -171,6 +172,10 @@ describe('TaxPortalPage', () => {
     });
 
     await user.click(screen.getByText('Izracunaj porez'));
+
+    // Otkazi (zatvori dialog bez potvrde).
+    const cancelBtn = await screen.findByRole('button', { name: 'Otkazi' });
+    await user.click(cancelBtn);
 
     expect(mockTriggerCalculation).not.toHaveBeenCalled();
   });
@@ -345,5 +350,28 @@ describe('TaxPortalPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('tax-detail-error')).toBeInTheDocument();
     });
+  });
+
+  // TEST-fe-xcut-3: pored 404, dialog tretira i 501 (Not Implemented) kao
+  // "unavailable" placeholder (ne kao hard error) — BE jos nije implementirao
+  // /tax/{userId}/details endpoint.
+  it('shows graceful unavailable placeholder when BE returns 501 (not implemented)', async () => {
+    const user = userEvent.setup();
+    mockGetTaxBreakdown.mockRejectedValue({
+      response: { status: 501 },
+    });
+
+    renderWithProviders(<TaxPortalPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Marko Petrovic')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('tax-row-CLIENT-100'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('tax-detail-unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('tax-detail-error')).not.toBeInTheDocument();
   });
 });

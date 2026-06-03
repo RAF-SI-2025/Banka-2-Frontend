@@ -79,14 +79,16 @@ describe('MyFundsTab', () => {
     expect(screen.getByText('Povuci')).toBeInTheDocument();
   });
 
-  it('renders supervisor managed funds table', async () => {
+  it('renders supervisor managed funds table (BE-side manager filter)', async () => {
     mockUseAuth.mockReturnValue({ isSupervisor: true, user: { id: 55 } });
-    mockListFunds.mockResolvedValue([{ id: 201 }, { id: 202 }]);
+    // R1 852: supervizorski put salje BE-side `managerEmployeeId` filter, pa
+    // `list({ managerEmployeeId: 55 })` vraca SAMO fondove ovog supervizora.
+    mockListFunds.mockResolvedValue([{ id: 201 }]);
     mockGetFund.mockImplementation(async (id: number) => ({
       id,
       name: `Fund ${id}`,
       description: 'Desc',
-      managerEmployeeId: id === 201 ? 55 : 99,
+      managerEmployeeId: 55,
       managerName: 'Manager',
       fundValue: 500000,
       liquidAmount: 100000,
@@ -103,7 +105,8 @@ describe('MyFundsTab', () => {
     await waitFor(() => {
       expect(screen.getByText('Fund 201')).toBeInTheDocument();
     });
-    expect(screen.queryByText('Fund 202')).not.toBeInTheDocument();
+    // Filter je proslis BE-u, a ne fetch-ovan ceo katalog + klijentski filter.
+    expect(mockListFunds).toHaveBeenCalledWith({ managerEmployeeId: 55 });
     expect(screen.getByText('Likvidnost')).toBeInTheDocument();
   });
 });

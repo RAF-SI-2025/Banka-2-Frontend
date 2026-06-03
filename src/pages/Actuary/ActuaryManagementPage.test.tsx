@@ -146,9 +146,8 @@ describe('ActuaryManagementPage', () => {
     });
   });
 
-  it('calls resetLimit when clicking reset button and confirming', async () => {
+  it('calls resetLimit after confirming in dialog (R1 561 — ConfirmDialog)', async () => {
     const user = userEvent.setup();
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     renderWithProviders(<ActuaryManagementPage />);
 
@@ -157,15 +156,16 @@ describe('ActuaryManagementPage', () => {
     });
 
     await user.click(screen.getAllByText('Resetuj limit')[0]);
+    // ConfirmDialog se otvara — potvrdi.
+    await user.click(await screen.findByTestId('confirm-dialog-confirm'));
 
     await waitFor(() => {
       expect(mockResetLimit).toHaveBeenCalledWith(10);
     });
   });
 
-  it('does not call resetLimit when confirm is cancelled', async () => {
+  it('does not call resetLimit when dialog is cancelled', async () => {
     const user = userEvent.setup();
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
 
     renderWithProviders(<ActuaryManagementPage />);
 
@@ -174,6 +174,7 @@ describe('ActuaryManagementPage', () => {
     });
 
     await user.click(screen.getAllByText('Resetuj limit')[0]);
+    await user.click(await screen.findByRole('button', { name: 'Otkazi' }));
 
     expect(mockResetLimit).not.toHaveBeenCalled();
   });

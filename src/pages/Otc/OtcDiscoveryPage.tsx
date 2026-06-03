@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { addDaysISO, formatAmount, getErrorMessage } from '@/utils/formatters';
+import { addDaysISO, formatAmount, getErrorMessage, isFutureDateOnly } from '@/utils/formatters';
 import OtcSourceFilterChip, { type OtcSource } from '@/components/otc/OtcSourceFilterChip';
 import OtcSubHero from '@/components/otc/OtcSubHero';
 import OtcInterBankDiscoveryTab from './OtcInterBankDiscoveryTab';
@@ -72,7 +72,9 @@ export default function OtcDiscoveryPage() {
   const openForListing = (listing: OtcListing) => {
     setOpenedKey(rowKey(listing));
     setFormState({
-      quantity: String(Math.min(listing.availablePublicQuantity, 1)),
+      // R1 776: default kolicina = 1 ako ima sta da se ponudi, inace 0.
+      // (Math.min(available, 1) je bila besmislena idioma — uvek 1 ili 0.)
+      quantity: String(listing.availablePublicQuantity > 0 ? 1 : 0),
       pricePerStock: listing.currentPrice ? String(listing.currentPrice) : '',
       premium: '',
       settlementDate: addDaysISO(7),
@@ -94,6 +96,9 @@ export default function OtcDiscoveryPage() {
     if (!Number.isFinite(price) || price <= 0) { toast.error('Cena mora biti pozitivna.'); return; }
     if (!Number.isFinite(premium) || premium <= 0) { toast.error('Premija mora biti pozitivna.'); return; }
     if (!formState.settlementDate) { toast.error('Datum dospeca je obavezan.'); return; }
+    // R1 860: HTML `min` atribut ne sprecava programski/paste unos proslog datuma —
+    // eksplicitno odbij settlement koji nije u buducnosti pre slanja ponude.
+    if (!isFutureDateOnly(formState.settlementDate)) { toast.error('Datum dospeca mora biti u buducnosti.'); return; }
 
     const payload: CreateOtcOfferRequest = {
       listingId: listing.listingId,

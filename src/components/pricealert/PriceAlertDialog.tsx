@@ -104,7 +104,12 @@ export default function PriceAlertDialog({
   const currency = initialListing?.currency;
 
   // Compute helper text — % distance from current price.
+  // R1 570 / R7 2037: `wrongSide` znaci da je prag na POGRESNOJ strani trenutne
+  // cene (ABOVE prag <= cena, ili BELOW prag >= cena) — takav alarm bi se okinuo
+  // odmah / nikad i nema smisla. Kad nemamo currentPrice, ne mozemo proveriti
+  // smer (fail-open na klijentu; BE i dalje validira).
   let helperText: { text: string; tone: 'positive' | 'negative' | 'neutral' } | null = null;
+  let wrongSide = false;
   if (currentPrice != null && currentPrice > 0 && threshold > 0) {
     const diffPct = ((threshold - currentPrice) / currentPrice) * 100;
     if (condition === 'ABOVE') {
@@ -114,6 +119,7 @@ export default function PriceAlertDialog({
           tone: 'positive',
         };
       } else {
+        wrongSide = true;
         helperText = {
           text: `Prag mora biti iznad trenutne cene (${formatPriceShort(currentPrice, currency)})`,
           tone: 'negative',
@@ -126,6 +132,7 @@ export default function PriceAlertDialog({
           tone: 'positive',
         };
       } else {
+        wrongSide = true;
         helperText = {
           text: `Prag mora biti ispod trenutne cene (${formatPriceShort(currentPrice, currency)})`,
           tone: 'negative',
@@ -135,6 +142,21 @@ export default function PriceAlertDialog({
   }
 
   const onSubmit = async (data: FormData) => {
+    // R1 570 / R7 2037: blokiraj slanje praga na pogresnoj strani cene.
+    if (currentPrice != null && currentPrice > 0) {
+      if (data.condition === 'ABOVE' && data.threshold <= currentPrice) {
+        toast.error(
+          `Prag za "Cena prelazi" mora biti iznad trenutne cene (${formatPriceShort(currentPrice, currency)}).`
+        );
+        return;
+      }
+      if (data.condition === 'BELOW' && data.threshold >= currentPrice) {
+        toast.error(
+          `Prag za "Cena pada ispod" mora biti ispod trenutne cene (${formatPriceShort(currentPrice, currency)}).`
+        );
+        return;
+      }
+    }
     try {
       const created = await priceAlertService.createAlert({
         listingId: data.listingId,
@@ -337,7 +359,7 @@ export default function PriceAlertDialog({
               </Dialog.Close>
               <Button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || wrongSide}
                 data-testid="price-alert-submit"
                 className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white"
               >

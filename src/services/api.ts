@@ -73,6 +73,40 @@ async function refreshAccessToken(): Promise<string> {
   return refreshPromise;
 }
 
+// R3-1625: razlikuj GENUINSKI nevalidan token (refresh endpoint vratio 4xx —
+// token istekao/opozvan → korisnik MORA na login) od TRANSIENT greske (timeout,
+// network down, 5xx na refresh endpoint-u, ili lokalni "No refresh token" pre
+// nego sto sesija uopste postoji). Na transient gresku NE brisemo sesiju i NE
+// izbacujemo korisnika — originalni 401 se vraca caller-u koji moze da retry-uje
+// ili prikaze gresku, a token ostaje za sledeci pokusaj. Ranije je bilo kakav
+// refresh-fail (uklj. timeout/500) gasio sesiju → korisnik izbacen na tranzientu.
+function isInvalidTokenError(error: unknown): boolean {
+  // Lokalni "nema refresh token-a" => sesija ne postoji => tretiraj kao
+  // unauthorized (ne mozemo da osvezimo).
+  if (error instanceof Error && error.message === 'No refresh token available') {
+    return true;
+  }
+  const status =
+    typeof error === 'object' && error !== null && 'response' in error
+      ? (error as AxiosError).response?.status
+      : undefined;
+  if (status === undefined) {
+    // Nema HTTP odgovora (timeout/network/abort) => transient, ne gasi sesiju.
+    return false;
+  }
+  // 4xx na refresh endpoint-u => token nevalidan; 5xx => server-side transient.
+  return status >= 400 && status < 500;
+}
+
+/** Centralizuje "izbaci korisnika" odluku: gasi sesiju + emit SAMO ako je token
+ *  zaista nevalidan (4xx / nepostojeci). Na transient gresku ne radi nista. */
+function handleRefreshFailure(error: unknown): void {
+  if (isInvalidTokenError(error)) {
+    sessionStorage.clear();
+    emitUnauthorized();
+  }
+}
+
 // Internal flag tip — `_retry` se setuje na originalRequest da spreci infinitu
 // petlju ako refresh prodje ali zahtev jos uvek vraca 401.
 type RetryableRequest = AxiosRequestConfig & { _retry?: boolean };
@@ -87,6 +121,27 @@ api.interceptors.response.use(
 
     // Ne diraj 401 sa /auth/* endpoint-a (login/refresh) — prosledi dalje da UI obradi gresku
     if (error.response?.status !== 401 || isAuthEndpoint || !originalRequest) {
+      return Promise.reject(error);
+    }
+
+    // P0-F1/N3 fix (defense-in-depth): NE auto-retry-uj mutacione metode
+    // (POST/PATCH/PUT/DELETE) na 401. Money-POST (payments/transfers/orders) NE sme
+    // da se nekontrolisano re-posalje ako token istekne usred zahteva — to bi pri
+    // odredjenom (sad zatvorenom) BE timing-u moglo da napravi duplu transakciju.
+    // Samo idempotentne metode (GET/HEAD) se refresh-uju i retry-uju; za mutacije
+    // refresh-ujemo token (da sledeci poziv prodje) ali zahtev NE re-saljemo —
+    // korisnik svesno ponavlja akciju. OTP single-use (B7) je primarna zastita;
+    // ovo je dodatni sloj.
+    const method = (originalRequest.method ?? 'get').toUpperCase();
+    const isIdempotent = method === 'GET' || method === 'HEAD';
+    if (!isIdempotent) {
+      try {
+        // Osvezi token tako da sledeci (rucni) pokusaj korisnika prodje, ali NE
+        // re-saljemo ovaj mutacioni zahtev automatski.
+        await refreshAccessToken();
+      } catch (refreshError) {
+        handleRefreshFailure(refreshError);
+      }
       return Promise.reject(error);
     }
 
@@ -105,8 +160,7 @@ api.interceptors.response.use(
       (originalRequest.headers as Record<string, string>).Authorization = `Bearer ${accessToken}`;
       return api(originalRequest);
     } catch (refreshError) {
-      sessionStorage.clear();
-      emitUnauthorized();
+      handleRefreshFailure(refreshError);
       return Promise.reject(refreshError);
     }
   }

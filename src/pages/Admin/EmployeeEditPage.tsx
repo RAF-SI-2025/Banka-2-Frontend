@@ -47,6 +47,11 @@ import * as Dialog from '@radix-ui/react-dialog';
 
 const ALL_PERMISSIONS = Object.values(Permission);
 
+// R3 1628: "Selektuj sve" NE sme bulk-dodeliti ADMIN (privilege escalation).
+// ADMIN se mora dodeliti namerno, pojedinacnim checkbox-om. Ako je ADMIN vec
+// bio dodeljen, "Selektuj sve" ga zadrzava (ne oduzima), samo ga ne UVODI.
+const NON_ADMIN_PERMISSIONS = ALL_PERMISSIONS.filter((p) => p !== Permission.ADMIN);
+
 const POSITIONS = [
   'Software Developer',
   'Project Manager',
@@ -563,7 +568,14 @@ export default function EmployeeEditPage() {
                       variant="ghost"
                       size="sm"
                       className="h-7 text-xs"
-                      onClick={() => setPermissions([...ALL_PERMISSIONS])}
+                      // R3 1628: bulk select ne uvodi ADMIN; zadrzava ga ako je vec dodeljen.
+                      onClick={() =>
+                        setPermissions((prev) =>
+                          prev.includes(Permission.ADMIN)
+                            ? [Permission.ADMIN, ...NON_ADMIN_PERMISSIONS]
+                            : [...NON_ADMIN_PERMISSIONS]
+                        )
+                      }
                     >
                       Selektuj sve
                     </Button>

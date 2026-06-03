@@ -42,14 +42,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { formatDate, formatBalance, formatAccountNumber, getErrorMessage, isBusinessAccountType } from '@/utils/formatters';
 import { parseNumber } from '@/utils/numberUtils';
+import { normalizeTransaction } from '@/utils/transactionUtils';
+import { DEFAULT_DAILY_LIMIT, DEFAULT_MONTHLY_LIMIT } from '@/utils/accountConstants';
 import { sortByAvailableBalanceDesc } from '@/utils/comparators';
 
 import { ACCOUNT_TYPE_LABELS as accountTypeLabels } from '@/utils/accountTypeLabels';
 
-import {
-  CURRENCY_GRADIENTS as currencyGradients,
-  CURRENCY_SYMBOLS as currencySymbols,
-} from '@/utils/currencyMaps';
+import { getCurrencyGradient, getCurrencySymbol } from '@/utils/currencyMaps';
 
 import {
   TRANSACTION_STATUS_LABELS as transactionStatusLabels,
@@ -96,8 +95,8 @@ export default function AccountListPage() {
         currency: newAccCurrency,
         initialDeposit: parseNumber(newAccDeposit),
         createCard: newAccCard,
-        dailyLimit: 250000,
-        monthlyLimit: 1000000,
+        dailyLimit: DEFAULT_DAILY_LIMIT,
+        monthlyLimit: DEFAULT_MONTHLY_LIMIT,
       });
       toast.success('Zahtev za otvaranje racuna je uspesno podnet! Ceka odobrenje zaposlenog.');
       setShowNewAccount(false);
@@ -185,16 +184,7 @@ export default function AccountListPage() {
 
       const response: PaginatedResponse<Transaction> = await transactionService.getAll(filters);
       const rawTx = Array.isArray(response.content) ? response.content : [];
-      setTransactions(rawTx.map((tx) => {
-        const t = tx as unknown as Record<string, unknown>;
-        return {
-          ...tx,
-          fromAccountNumber: tx.fromAccountNumber || (t.fromAccount as string) || '',
-          toAccountNumber: tx.toAccountNumber || (t.toAccount as string) || '',
-          paymentPurpose: tx.paymentPurpose || (t.description as string) || '',
-          currency: tx.currency || (t.currency as string) || 'RSD',
-        };
-      }));
+      setTransactions(rawTx.map((tx) => normalizeTransaction(tx, 'RSD')));
       setTxTotalElements(response.totalElements ?? 0);
       setTxTotalPages(response.totalPages ?? 0);
     } catch {
@@ -248,6 +238,11 @@ export default function AccountListPage() {
     return sum;
   }, 0);
   const totalFxAccounts = accounts.filter(a => a.currency !== 'RSD').length;
+
+  // R1-836: "Poslovni" filter opcija je beskorisna klijentu koji nema nijedan
+  // poslovni racun (vecina klijenata). Prikazujemo je samo ako stvarno postoji
+  // bar jedan BUSINESS racun u listi.
+  const hasBusinessAccount = accounts.some(a => a.accountType === 'BUSINESS');
 
   // --- Transaction type classification ---
   function classifyTxType(tx: Transaction): string {
@@ -401,7 +396,7 @@ export default function AccountListPage() {
                 <SelectItem value="ALL">Svi tipovi</SelectItem>
                 <SelectItem value="CHECKING">Tekuci</SelectItem>
                 <SelectItem value="FOREIGN">Devizni</SelectItem>
-                <SelectItem value="BUSINESS">Poslovni</SelectItem>
+                {hasBusinessAccount && <SelectItem value="BUSINESS">Poslovni</SelectItem>}
               </SelectContent>
             </Select>
           </div>
@@ -466,8 +461,8 @@ export default function AccountListPage() {
         <>
           <div className="grid gap-4 sm:grid-cols-2">
             {paginatedAccounts.map((account, idx) => {
-              const grad = currencyGradients[account.currency] || 'from-slate-500 to-slate-700';
-              const sym = currencySymbols[account.currency] || account.currency;
+              const grad = getCurrencyGradient(account.currency);
+              const sym = getCurrencySymbol(account.currency);
               const isSelected = selectedAccountId === account.id;
               const dailyPct = account.dailyLimit > 0 ? Math.min(100, ((account.dailySpending ?? 0) / account.dailyLimit) * 100) : 0;
               const monthlyPct = account.monthlyLimit > 0 ? Math.min(100, ((account.monthlySpending ?? 0) / account.monthlyLimit) * 100) : 0;
@@ -479,6 +474,11 @@ export default function AccountListPage() {
                     isSelected ? 'ring-2 ring-indigo-500 shadow-lg shadow-indigo-500/10' : 'shadow-sm hover:shadow-lg'
                   }`}
                   style={{ animationDelay: `${idx * 80}ms`, animationFillMode: 'both' }}
+                  // R1-838: jednostruki klik selektuje, dvostruki klik je samo
+                  // precica do detalja. Dostupna (keyboard/touch) navigacija ide
+                  // preko "Detalji" dugmeta u footeru kartice; title hint
+                  // objasnjava dvoklik za misne korisnike.
+                  title="Klik bira racun, dvoklik otvara detalje (ili dugme Detalji)"
                   onClick={() => setSelectedAccountId(account.id)}
                   onDoubleClick={() => {
                     if (isBusinessAccountType(account.accountType)) {

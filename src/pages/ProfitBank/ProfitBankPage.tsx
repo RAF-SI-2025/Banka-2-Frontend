@@ -78,6 +78,31 @@ export default function ProfitBankPage() {
     }
   };
 
+  /**
+   * R1 560: posle invest/withdraw mutacije keshirani `fundDetailCache[fundId]`
+   * (holdings, totalAssetValue, sharePrice) postaje USTAJAO. Invalidiramo unos;
+   * ako je red trenutno otvoren, odmah ponovo dohvatamo svez detalj.
+   */
+  const invalidateFundDetail = async (fundId: number) => {
+    setFundDetailCache((prev) => {
+      if (!(fundId in prev)) return prev;
+      const next = { ...prev };
+      delete next[fundId];
+      return next;
+    });
+    if (expandedFundId === fundId) {
+      setLoadingDetailFundId(fundId);
+      try {
+        const detail = await investmentFundService.get(fundId);
+        setFundDetailCache((prev) => ({ ...prev, [fundId]: detail }));
+      } catch (err: unknown) {
+        toast.error(getErrorMessage(err, 'Greska pri ucitavanju detalja fonda'));
+      } finally {
+        setLoadingDetailFundId(null);
+      }
+    }
+  };
+
   useEffect(() => {
     if (!isSupervisor) return;
     let cancelled = false;
@@ -94,20 +119,17 @@ export default function ProfitBankPage() {
     return () => { cancelled = true; };
   }, [isSupervisor]);
 
+  // R1-845: pocetno ucitavanje pozicija deli istu fetch+error logiku sa
+  // `reloadBankPositions` (koji se zove posle invest/withdraw mutacije), pa
+  // ovde pozivamo isti fetcher umesto duplirane inline kopije. Poziv ide kroz
+  // async IIFE tako da setState pozivi ostaju unutar async grane (ne sinhrono
+  // u telu efekta).
   useEffect(() => {
     if (!isSupervisor) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await profitBankService.listBankFundPositions();
-        if (!cancelled) setBankPositions(data);
-      } catch (err: unknown) {
-        if (!cancelled) toast.error(getErrorMessage(err, 'Greska pri ucitavanju pozicija banke'));
-      } finally {
-        if (!cancelled) setLoadingPositions(false);
-      }
+    void (async () => {
+      await reloadBankPositions();
     })();
-    return () => { cancelled = true; };
+    // reloadBankPositions je stabilna helper funkcija u okviru komponente.
   }, [isSupervisor]);
 
   // Spec Celina 4 (Nova) §4585-4628: Uplata/Povlacenje akcije po fondu.
@@ -429,8 +451,10 @@ export default function ProfitBankPage() {
           minimumContribution={dialog.minimumContribution}
           onClose={() => setDialog(null)}
           onSuccess={() => {
+            const fundId = dialog.fundId;
             setDialog(null);
             void reloadBankPositions();
+            void invalidateFundDetail(fundId);
           }}
         />
       )}
@@ -443,8 +467,10 @@ export default function ProfitBankPage() {
           myPosition={dialog.position}
           onClose={() => setDialog(null)}
           onSuccess={() => {
+            const fundId = dialog.fundId;
             setDialog(null);
             void reloadBankPositions();
+            void invalidateFundDetail(fundId);
           }}
         />
       )}

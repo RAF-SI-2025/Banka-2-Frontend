@@ -22,7 +22,9 @@ import {
   loanApplicationSchema,
   type LoanApplicationFormData,
 } from '@/utils/validationSchemas.celina2';
-import { asArray, getErrorMessage } from '@/utils/formatters';
+import { asArray } from '@/utils/formatters';
+import { LOAN_AMOUNT_MIN, LOAN_AMOUNT_MAX, LOAN_AMOUNT_STEP } from '@/utils/accountConstants';
+import { estimateLoanEffectiveRate } from '@/utils/loanLabels';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -211,26 +213,12 @@ export default function LoanApplicationPage() {
     }
   }, [filteredAccounts, setValue, watch]);
 
-  const annualRate = useMemo(() => {
-    let baseRate: number;
-    if (amount <= 500000) baseRate = 6.25;
-    else if (amount <= 1000000) baseRate = 6.0;
-    else if (amount <= 2000000) baseRate = 5.75;
-    else if (amount <= 5000000) baseRate = 5.5;
-    else if (amount <= 10000000) baseRate = 5.25;
-    else if (amount <= 20000000) baseRate = 5.0;
-    else baseRate = 4.75;
-
-    const marginMap: Record<string, number> = {
-      GOTOVINSKI: 1.75,
-      STAMBENI: 1.50,
-      AUTO: 1.25,
-      REFINANSIRAJUCI: 1.00,
-      STUDENTSKI: 0.75,
-    };
-    const margin = marginMap[selectedLoanType] ?? 1.75;
-    return baseRate + margin;
-  }, [amount, selectedLoanType]);
+  // R1-657/R1-658: efektivna (base + marža) stopa preko centralizovanog helper-a
+  // (mirror BE getBaseRate + LoanType.getMargin); pre su tranše/marže bile inline magic.
+  const annualRate = useMemo(
+    () => estimateLoanEffectiveRate(amount, selectedLoanType),
+    [amount, selectedLoanType]
+  );
 
   const monthlyPayment = useMemo(() => {
     if (!amount || !repaymentPeriod || repaymentPeriod <= 0) return 0;
@@ -245,6 +233,8 @@ export default function LoanApplicationPage() {
   const totalRepayment = useMemo(() => monthlyPayment * (repaymentPeriod || 0), [monthlyPayment, repaymentPeriod]);
   const totalInterest = useMemo(() => Math.max(0, totalRepayment - amount), [totalRepayment, amount]);
 
+  // ACCEPTED-DEVIATION (user-directed 03.06): zahtev za kredit se podnosi direktno,
+  // bez OTP verifikacije. OTP ostaje SAMO na placanju i transferu (money-out).
   const onSubmit = async (data: LoanApplicationFormData) => {
     setIsSubmitting(true);
     try {
@@ -264,8 +254,8 @@ export default function LoanApplicationPage() {
       });
       toast.success('Zahtev za kredit je uspesno poslat.');
       navigate('/loans');
-    } catch (err) {
-      toast.error(getErrorMessage(err, 'Slanje zahteva nije uspelo.'));
+    } catch {
+      toast.error('Podnosenje zahteva za kredit nije uspelo.');
     } finally {
       setIsSubmitting(false);
     }
@@ -340,17 +330,17 @@ export default function LoanApplicationPage() {
                   {/* Slider */}
                   <input
                     type="range"
-                    min="10000"
-                    max="50000000"
-                    step="10000"
+                    min={LOAN_AMOUNT_MIN}
+                    max={LOAN_AMOUNT_MAX}
+                    step={LOAN_AMOUNT_STEP}
                     value={amount}
                     onChange={(e) => setValue('amount', Number(e.target.value))}
                     className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-indigo-500"
                     aria-label="Iznos kredita"
                   />
                   <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>10.000</span>
-                    <span>50.000.000</span>
+                    <span>{LOAN_AMOUNT_MIN.toLocaleString('sr-RS')}</span>
+                    <span>{LOAN_AMOUNT_MAX.toLocaleString('sr-RS')}</span>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -420,10 +410,18 @@ export default function LoanApplicationPage() {
 
               {/* Calculator - premium display */}
               <div className="rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-50/50 via-white to-violet-50/50 dark:from-indigo-950/30 dark:via-background dark:to-violet-950/30 p-6">
-                <div className="flex items-center gap-2 mb-6">
+                <div className="flex items-center gap-2 mb-2">
                   <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
                   <p className="font-bold text-sm">Kalkulacija kredita</p>
                 </div>
+                {/* R1-254: stope/anuitet su ORIJENTACIONA procena (FE kalkulator),
+                    a NE obavezujuca ponuda — konacne uslove utvrdjuje banka pri
+                    odobravanju. Bez disclaimer-a bi izmisljeni brojevi izgledali
+                    kao stvarni uslovi (krsi "ne lazni podaci"). */}
+                <p className="text-xs text-muted-foreground mb-6">
+                  Prikazana kamatna stopa i rata su orijentaciona procena. Konacne uslove
+                  kredita utvrdjuje banka prilikom obrade zahteva.
+                </p>
 
                 <div className="flex flex-col md:flex-row items-center gap-8">
                   {/* Donut chart */}
@@ -444,7 +442,7 @@ export default function LoanApplicationPage() {
                   {/* Stats */}
                   <div className="flex-1 grid gap-4 sm:grid-cols-3 w-full">
                     <div className="rounded-xl bg-white dark:bg-background border p-4 text-center hover:shadow-md transition-shadow">
-                      <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Kamatna stopa</p>
+                      <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Efektivna kamatna stopa</p>
                       <p className="text-2xl font-bold mt-2 bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">{annualRate.toFixed(2)}%</p>
                     </div>
                     <div className="rounded-xl bg-white dark:bg-background border p-4 text-center hover:shadow-md transition-shadow">

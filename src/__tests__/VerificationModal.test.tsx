@@ -10,6 +10,7 @@ vi.mock('@/services/transactionService', () => ({
   transactionService: {
     requestOtp: vi.fn().mockResolvedValue({ sent: true, message: 'ok' }),
     requestOtpViaEmail: vi.fn().mockResolvedValue({ sent: true, message: 'ok' }),
+    getActiveOtp: vi.fn().mockResolvedValue({ active: true, code: '424242' }),
   },
 }));
 
@@ -117,9 +118,9 @@ describe('VerificationModal', () => {
     });
   });
 
-  it('shows error and decrements attempts on verification failure', async () => {
+  it('shows error and decrements attempts on OTP (403) failure', async () => {
     const onVerified = vi.fn().mockRejectedValue({
-      response: { data: { message: 'Pogresan kod' } },
+      response: { status: 403, data: { message: 'Pogresan kod' } },
     });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
@@ -141,8 +142,82 @@ describe('VerificationModal', () => {
     expect(screen.getByText('2')).toBeTruthy();
   });
 
-  it('closes modal after max attempts exceeded', async () => {
-    const onVerified = vi.fn().mockRejectedValue(new Error('fail'));
+  // R1-253: poslovna greska (404/400/...) NE sme da trosi OTP pokusaj —
+  // OTP je bio ispravan, transakcija je pala iz drugog razloga (npr. racun
+  // ne postoji). Modal prikaze poruku ali ostavlja 3 pokusaja.
+  it('does NOT decrement attempts on a business error (404 account not found)', async () => {
+    const onVerified = vi.fn().mockRejectedValue({
+      response: { status: 404, data: { message: 'Racun primaoca ne postoji.' } },
+    });
+    const onClose = vi.fn();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await act(async () => {
+      render(<VerificationModal isOpen={true} onClose={onClose} onVerified={onVerified} />);
+    });
+
+    const input = screen.getByLabelText('Verifikacioni kod');
+    await user.type(input, '123456');
+    await user.click(screen.getByRole('button', { name: 'Potvrdi' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Racun primaoca ne postoji.')).toBeTruthy();
+    });
+
+    // Pokusaji ostaju 3 (nije bio OTP problem) i modal se ne gasi.
+    expect(screen.getByText('3')).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('does NOT decrement attempts on a 400 business error (insufficient funds)', async () => {
+    const onVerified = vi.fn().mockRejectedValue({
+      response: { status: 400, data: { message: 'Nedovoljno sredstava.' } },
+    });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await act(async () => {
+      render(<VerificationModal {...defaultProps} onVerified={onVerified} />);
+    });
+
+    const input = screen.getByLabelText('Verifikacioni kod');
+    await user.type(input, '123456');
+    await user.click(screen.getByRole('button', { name: 'Potvrdi' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Nedovoljno sredstava.')).toBeTruthy();
+    });
+
+    expect(screen.getByText('3')).toBeTruthy();
+  });
+
+  it('blocks immediately when backend returns blocked=true', async () => {
+    const onVerified = vi.fn().mockRejectedValue({
+      response: { status: 403, data: { message: 'Prekoracen broj pokusaja.', blocked: true } },
+    });
+    const onClose = vi.fn();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await act(async () => {
+      render(<VerificationModal isOpen={true} onClose={onClose} onVerified={onVerified} />);
+    });
+
+    const input = screen.getByLabelText('Verifikacioni kod');
+    await user.type(input, '111111');
+    await user.click(screen.getByRole('button', { name: 'Potvrdi' }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('Maksimalan broj pokusaja. Transakcija otkazana.');
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('closes modal after max OTP (403) attempts exceeded', async () => {
+    const onVerified = vi.fn().mockRejectedValue({ response: { status: 403, data: {} } });
     const onClose = vi.fn();
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
@@ -215,5 +290,39 @@ describe('VerificationModal', () => {
     render(<VerificationModal {...defaultProps} isOpen={false} />);
 
     expect(screen.queryByText('Verifikacija (TOTP)')).toBeNull();
+  });
+
+  // P0-F1/N2 — OTP kod u DOM-u (2FA no-op) gejtovan iza import.meta.env.DEV
+  describe('OTP dev-display gating (N2)', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('in DEV: fetches and renders the OTP code', async () => {
+      vi.stubEnv('DEV', true);
+      await act(async () => {
+        render(<VerificationModal {...defaultProps} />);
+      });
+
+      await waitFor(() => {
+        expect(transactionService.getActiveOtp).toHaveBeenCalledTimes(1);
+      });
+      expect(screen.getByText('424242')).toBeTruthy();
+      expect(screen.getByText('Vaš verifikacioni kod')).toBeTruthy();
+    });
+
+    it('in PROD: does NOT fetch or render the OTP code', async () => {
+      vi.stubEnv('DEV', false);
+      await act(async () => {
+        render(<VerificationModal {...defaultProps} />);
+      });
+
+      // Modal i dalje radi (requestOtp je pozvan)...
+      expect(transactionService.requestOtp).toHaveBeenCalledTimes(1);
+      // ...ali kod se NE fetch-uje niti prikazuje.
+      expect(transactionService.getActiveOtp).not.toHaveBeenCalled();
+      expect(screen.queryByText('424242')).toBeNull();
+      expect(screen.queryByText('Vaš verifikacioni kod')).toBeNull();
+    });
   });
 });

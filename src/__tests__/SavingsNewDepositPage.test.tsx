@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import SavingsNewDepositPage from '../pages/Savings/SavingsNewDepositPage';
 import { savingsService } from '../services/savingsService';
 import { accountService } from '../services/accountService';
+import { toast } from '@/lib/notify';
 import { mockAccount } from '../test/helpers';
 
 // Mock-ujemo navigate jer ga page koristi posle uspesnog openDeposit.
@@ -226,6 +227,77 @@ describe('SavingsNewDepositPage', () => {
     expect(call.termMonths).toBe(12);
     expect(call.autoRenew).toBe(false);
     expect(call.otpCode).toBe('123456');
+  });
+
+  // R4-1802: balance pre-check PRE OTP-a. Glavnica iznad raspolozivog stanja se
+  // odbija lokalno (bez trosenja OTP pokusaja); OTP modal se NE otvara.
+  it('blocks submit and shows error when principal exceeds available balance (no OTP)', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('source-account')).toBeTruthy();
+    });
+
+    // RSD racun ima availableBalance 500000.
+    await user.selectOptions(screen.getByTestId('source-account'), '1');
+    const principalInput = screen.getByTestId('principal-input') as HTMLInputElement;
+    await user.clear(principalInput);
+    await user.type(principalInput, '600000'); // > 500000
+
+    await user.click(screen.getByTestId('submit-deposit'));
+
+    await waitFor(() => {
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
+        'Nedovoljno sredstava na izvornom racunu za zeljenu glavnicu.'
+      );
+    });
+    expect(screen.queryByTestId('otp-modal')).toBeNull();
+    expect(mockOpenDeposit).not.toHaveBeenCalled();
+  });
+
+  // R7-2097: kad se promeni valuta izvornog racuna, stale linkedAccountId iz
+  // druge valute se resetuje (na izvorni racun koji je sad u dozvoljenom skupu),
+  // pa BE ne dobija nevalidan povezani racun.
+  it('resets stale linkedAccountId when source account currency changes', async () => {
+    const user = userEvent.setup();
+    mockOpenDeposit.mockResolvedValue({ id: 88 } as unknown as Awaited<
+      ReturnType<typeof savingsService.openDeposit>
+    >);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('source-account')).toBeTruthy();
+    });
+
+    // Izaberi RSD (id=1) → linked default na 1 (isti racun).
+    await user.selectOptions(screen.getByTestId('source-account'), '1');
+    const linkedSelect = screen.getByTestId('linked-account') as HTMLSelectElement;
+    await waitFor(() => expect(linkedSelect.value).toBe('1'));
+
+    // Promeni izvorni na EUR (id=2) — RSD linked (id=1) vise nije validan →
+    // reset na izvorni (id=2, koji je u EUR skupu).
+    await user.selectOptions(screen.getByTestId('source-account'), '2');
+    await waitFor(() => expect(linkedSelect.value).toBe('2'));
+
+    // Submit sa EUR min (100) i potvrdi da openDeposit dobija konzistentan par.
+    const principalInput = screen.getByTestId('principal-input') as HTMLInputElement;
+    await user.clear(principalInput);
+    await user.type(principalInput, '500');
+    await user.click(screen.getByTestId('submit-deposit'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('otp-modal')).toBeTruthy();
+    });
+    fireEvent.click(screen.getByTestId('otp-verify-button'));
+
+    await waitFor(() => {
+      expect(mockOpenDeposit).toHaveBeenCalledTimes(1);
+    });
+    const call = mockOpenDeposit.mock.calls[0][0];
+    expect(call.sourceAccountId).toBe(2);
+    expect(call.linkedAccountId).toBe(2); // resetovan, ne stale RSD id=1
   });
 
   it('navigates na /savings/:id posle uspesnog openDeposit', async () => {

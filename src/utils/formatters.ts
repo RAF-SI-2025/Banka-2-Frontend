@@ -22,9 +22,22 @@ export function formatDate(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('sr-RS');
 }
 
-/** Format a Date as ISO date-only string (yyyy-mm-dd). */
+/**
+ * Format a Date as ISO date-only string (yyyy-mm-dd) using the LOCAL calendar
+ * date.
+ *
+ * [P1-i18n-1 / 1856] NE koristiti `toISOString().slice(0,10)` — to konvertuje
+ * lokalni `Date` u UTC pre slice-a, pa pre ponoci po UTC (npr. 00:30 u Beogradu
+ * = 22:30 UTC prethodnog dana) vraca datum -1. Koristi se kao OTC settlement
+ * default + `min` date-picker → korisnik bi mogao odabrati "juce" ili biti
+ * blokiran za validan datum. Gradimo iz lokalnih komponenti (`getFullYear`/
+ * `getMonth`/`getDate`) da datum uvek odgovara lokalnom kalendaru (sr-RS).
+ */
 export function toIsoDateOnly(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /** Return today's date + N days as ISO date string (yyyy-mm-dd). Used for default settlement dates. */
@@ -32,6 +45,22 @@ export function addDaysISO(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return toIsoDateOnly(d);
+}
+
+/**
+ * True ako je `dateOnly` (yyyy-mm-dd) striktno u buducnosti u odnosu na danasnji
+ * lokalni datum (poredjenje po danu, ne po vremenu). Koristi se za OTC settlement
+ * validaciju gde HTML `min` atribut nije dovoljan (korisnik moze prilepiti/ukucati
+ * prosli datum, a `min` se ne forsira pri programskom submit-u). Prazan/nevalidan
+ * string → false (poziva se posle provere obaveznosti polja).
+ */
+export function isFutureDateOnly(dateOnly: string | null | undefined): boolean {
+  if (!dateOnly) return false;
+  const parsed = new Date(`${dateOnly}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return parsed.getTime() > today.getTime();
 }
 
 /**
@@ -81,40 +110,26 @@ export function formatAccountNumber(accountNumber: string): string {
   return `${accountNumber.slice(0, 3)}-${accountNumber.slice(3, 16)}-${accountNumber.slice(16)}`;
 }
 
-/**
- * Mask a card number for display. Always shows the last 4 digits.
- * - Default: `**** **** **** 1234`
- * - `showFirst4`: `1234  ****  ****  5678` (helpful where the brand prefix
- *   is also useful, e.g. card list with VISA/MASTERCARD detection).
- */
-export function maskCardNumber(number: string, options?: { showFirst4?: boolean }): string {
-  const digits = (number ?? '').replace(/\D/g, '');
-  const last4 = digits.slice(-4);
-  if (options?.showFirst4 && digits.length >= 8) {
-    return `${digits.slice(0, 4)}  ****  ****  ${last4}`;
-  }
-  return `**** **** **** ${last4}`;
-}
-
 /** Format a price for display using sr-RS locale with 2 decimal places. Returns '-' for null/undefined. */
 export function formatPrice(value: number | null | undefined): string {
   if (value === null || value === undefined) return '-';
   return value.toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/** Format a volume for display using sr-RS locale. Returns '-' for null/undefined. */
-export function formatVolume(value: number | null | undefined): string {
-  if (value === null || value === undefined) return '-';
-  return value.toLocaleString('sr-RS');
-}
-
-/** Format a volume in compact form (K/M/B suffixes). */
+/**
+ * Format a volume in compact form (K/M/B suffixes).
+ * R4-1803: jedan decimalni separator mora biti sr-RS zarez (npr. "1,5K"), ne
+ * tacka iz `toFixed`. Koristimo `toLocaleString('sr-RS')` da prikaz bude
+ * konzistentan sa ostalim formatter-ima (formatPrice/formatAmount).
+ */
 export function formatVolumeCompact(v: number | null | undefined): string {
   if (v === null || v === undefined) return '-';
-  if (v >= 1_000_000_000) return (v / 1_000_000_000).toFixed(1) + 'B';
-  if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + 'M';
-  if (v >= 1_000) return (v / 1_000).toFixed(1) + 'K';
-  return String(v);
+  const compact = (scaled: number, suffix: string): string =>
+    scaled.toLocaleString('sr-RS', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + suffix;
+  if (v >= 1_000_000_000) return compact(v / 1_000_000_000, 'B');
+  if (v >= 1_000_000) return compact(v / 1_000_000, 'M');
+  if (v >= 1_000) return compact(v / 1_000, 'K');
+  return v.toLocaleString('sr-RS');
 }
 
 /**

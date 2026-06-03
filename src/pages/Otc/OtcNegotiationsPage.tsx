@@ -174,6 +174,33 @@ export default function OtcNegotiationsPage() {
   const handleCounter = async (offer: OtcOffer) => {
     const form = counterFormByOfferId[offer.id];
     if (!form) { toast.error('Popunite sve vrednosti kontraponude.'); return; }
+    // R1 477: validacija kontraponude pre slanja (qty/cena/premija/datum).
+    const qty = Number(form.quantity);
+    const price = Number(form.pricePerStock);
+    const premium = Number(form.premium);
+    if (!Number.isInteger(qty) || qty <= 0) {
+      toast.error('Kolicina mora biti pozitivan ceo broj.');
+      return;
+    }
+    if (!Number.isFinite(price) || price <= 0) {
+      toast.error('Cena po hartiji mora biti pozitivan broj.');
+      return;
+    }
+    if (!Number.isFinite(premium) || premium < 0) {
+      toast.error('Premija ne sme biti negativna.');
+      return;
+    }
+    if (!form.settlementDate) {
+      toast.error('Datum poravnanja je obavezan.');
+      return;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const settle = new Date(form.settlementDate);
+    if (Number.isNaN(settle.getTime()) || settle < today) {
+      toast.error('Datum poravnanja mora biti danas ili u buducnosti.');
+      return;
+    }
     setBusyOfferId(offer.id);
     try {
       await otcService.counterOffer(offer.id, form);

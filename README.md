@@ -1,20 +1,25 @@
 # Banka 2 — Frontend
 
-React 19 SPA koja pokriva celokupni bankarski UI: klijentski portal (racuni, kartice, placanja, transferi, berza, OTC intra+inter-bank, fondovi), Employee portal (klijenti, orderi), Supervizor portal (aktuari, porez, Profit Banke), Admin portal (zaposleni, berze). Deo projekta **Softversko inzenjerstvo** na Racunarskom fakultetu 2025/26.
+React 19 SPA koja pokriva celokupni bankarski UI: klijentski portal (racuni,
+kartice, placanja, transferi, berza, OTC intra+inter-bank, fondovi), Employee
+portal (klijenti, orderi), Supervizor portal (aktuari, porez, Profit Banke) i
+Admin portal (zaposleni, berze). Deo projekta **Softversko inzenjerstvo** na
+Racunarskom fakultetu 2025/26.
 
 ## Tech Stack
 
-- **React 19.2.5** + **TypeScript 6.0.3**
-- **Vite 8.0.10** (Rolldown bundler — production build u ~900ms)
-- **Tailwind CSS 4.2.4** (CSS-first config preko `@theme` u `src/index.css`, `@tailwindcss/vite` plugin) + **shadcn/ui** (Radix UI) + **lucide-react 1.14** ikone + `tw-animate-css`
-- **React Router v7.14**
-- **React Hook Form** + **Zod 4.4** (forme + validacija)
-- **Axios 1.16** sa JWT auto-refresh interceptor-ima
-- **Recharts 3.8** + **Three.js 0.184** + **globe.gl** (lazy-loaded GlobeView)
-- **Vitest 4.1.5** — unit testovi (**1494 testa** u 102 fajla, coverage 77+/79+ statements/lines)
-- **Cypress 15.14.2** — E2E testovi (8 fajlova: 4 celine × mock+live; arbitro lokalno)
-- **ESLint 10.3.0** + **TypeScript ESLint 8.59** + eslint-plugin-security 4.0
-- npm audit: **0 vulnerabilities**
+- **React 19.2** + **TypeScript 6**
+- **Vite 8** (Rolldown bundler)
+- **Tailwind CSS 4** (CSS-first config preko `@theme` u `src/index.css`, `@tailwindcss/vite` plugin) + **shadcn/ui** (Radix UI) + **lucide-react** ikone + `tw-animate-css`
+- **React Router v7**
+- **React Hook Form** + **Zod 4** (forme + validacija)
+- **Axios** sa JWT auto-refresh interceptor-ima
+- **Recharts 3** + **Three.js** + **react-globe.gl** (lazy-loaded GlobeView), **Leaflet** (mapa filijala)
+- **Vitest 4** — unit testovi (~146 test fajla)
+- **Cypress 15** — E2E testovi (mock + live parovi po celinama + Arbitro lokalno)
+- **ESLint 10** + **typescript-eslint** + eslint-plugin-security
+
+Tacne verzije su u `package.json`.
 
 ## Pokretanje
 
@@ -26,7 +31,9 @@ docker compose up -d --build
 
 Pokrece SPA na `http://localhost:3000` (nginx:alpine servira statiku iz `dist/`).
 
-**Obavezno pokreni backend pre** — frontend nginx proxira `/api/*` i `/auth/*` na `http://banka2_backend:8080`. Oba compose fajla koriste isti docker network (`banka-2-backend_default`).
+**Pokreni backend pre** — nginx u kontejneru proxira `/api/*` na api-gateway
+(`http://banka2_gateway`). Oba compose fajla dele isti docker network
+(`banka-2-backend_default`).
 
 Override host port (Hyper-V/WinNAT konflikt na Windows-u):
 
@@ -41,227 +48,148 @@ npm install
 npm run dev     # http://localhost:5173 (Vite HMR)
 ```
 
-Za proxy ka backendu vec je podesen u `vite.config.ts` — ne treba `.env` u dev rezimu.
+API base URL se u dev-u uzima iz `VITE_API_URL` (vidi sekciju Environment). Za
+lokalni dev usmeri ga na pokrenuti backend (npr. `http://localhost:8080`).
 
 ### Testovi
 
 ```bash
-npm test                   # Vitest watch mode
-npm run test:run           # CI mode (1771 testa, ~35s)
-npm run test:coverage      # coverage report (threshold 72/74/63/60 — statements/lines/branches/functions)
+npm test                   # Vitest (jednom prodje, CI mode)
+npm run test:watch         # watch mode
+npm run test:coverage      # coverage report
 ```
 
-Trenutni FE coverage (25.05.2026): statements 74.47% / branches 65.16% / functions 72.89% / lines 76.46%. Cilj postepenog povratka na 80/70/65 — staircase plan u `vite.config.ts`.
+Coverage threshold-ovi su u `vite.config.ts` (`statements 72 / branches 63 /
+functions 60 / lines 74`).
 
-Cypress (zahteva BE+FE+seed up):
+Cypress (live varijante zahtevaju BE+FE+seed up):
 
 ```bash
-npm run cypress:open       # interactive
-npm run cypress:run        # headless
-
-# CI parity (4 celine × mock+live):
-npx cypress run --spec "cypress/e2e/celina1-mock.cy.ts,cypress/e2e/celina2-mock.cy.ts,cypress/e2e/celina3-mock.cy.ts,cypress/e2e/celina4-mock.cy.ts,cypress/e2e/celina1-live.cy.ts,cypress/e2e/celina2-live.cy.ts,cypress/e2e/celina3-live.cy.ts,cypress/e2e/celina4-live.cy.ts" --config video=false,baseUrl=http://localhost:3000
+npx cypress open           # interactive
+npx cypress run            # headless
 
 # Samo mock (brzo, ne treba BE):
-npx cypress run --spec "cypress/e2e/celina*-mock.cy.ts" --config video=false,baseUrl=http://localhost:3000
-
-# Arbitro tests (lokalno only, NIJE u CI):
-npx cypress run --spec "cypress/e2e/arbitro-mock.cy.ts" --config video=false,baseUrl=http://localhost:3000
-# Arbitro live trazi Banka-2-Tools stack:
-#   cd ../Banka-2-Backend/Banka-2-Tools && docker compose up -d
-npx cypress run --spec "cypress/e2e/arbitro-live.cy.ts" --config video=false,baseUrl=http://localhost:3000
+npx cypress run --spec "cypress/e2e/*-mock.cy.ts" --config video=false,baseUrl=http://localhost:3000
 ```
 
-### Build
+### Build / lint
 
 ```bash
-npm run build              # vite build → dist/ (Rolldown bundler ~900ms)
-npm run build:check        # tsc --noEmit + eslint + vitest + build
+npm run build              # tsc -b && vite build → dist/
 npm run lint               # ESLint
+npm run lint:security      # eslint-plugin-security (SAST)
 npm run preview            # preview dist/ lokalno
 ```
 
 ## Environment
 
-Build time (Vite zamenjuje u bundle-u):
+API base URL se resolvuje (vidi `src/config/runtime.ts`): runtime
+`window._env_.API_URL` → build-time `VITE_API_URL` → fallback `/api`.
 
-| Varijabla | Default | Opis |
-|-----------|---------|------|
-| `VITE_API_URL` | `http://localhost:8080` | Base URL backend-a u dev-u |
+| Varijabla | Tip | Default | Opis |
+|-----------|-----|---------|------|
+| `VITE_API_URL` | build-time | `/api` | base URL backend-a u `npm run dev` |
+| `API_URL` | runtime (Docker) | `/api` | injektuje se u `window._env_` preko `/config.js` |
+| `OUR_BANK_CODE` | runtime (Docker) | `RN-222` | rutiranje za inter-bank OTC |
+| `ENV` | runtime (Docker) | `development` | environment label |
 
-U produkciji (Docker), sve `/api/*` i `/auth/*` zahtevi se proksiraju kroz nginx u kontejneru — `VITE_API_URL` nije potreban.
+U Docker-u runtime config (`docker-entrypoint.sh` → `envsubst` iz
+`public/config.template.js` → `/config.js`) dozvoljava menjanje backend URL-a
+bez rebuild-a image-a. U dev/prod kroz nginx, `/api/*` se proxira na backend
+gateway.
 
 ## Struktura projekta
 
 ```text
 src/
 ├── components/
-│   ├── layout/                  # ClientSidebar, Navbar, ProtectedRoute, Dashboard layouts
-│   ├── shared/                  # VerificationModal (OTP), EmptyState, ThemeToggle, Skeleton
-│   └── ui/                      # shadcn/ui reusable (Button, Card, Dialog, Input, ...)
-├── context/
-│   ├── AuthContext.tsx          # JWT + permisije iz /employees?email + async logout
-│   ├── ThemeContext.tsx         # light/dark/system theme, persist u localStorage
-│   └── ArbitroContext.tsx       # AI asistent state (Celina 6, opciono)
-├── hooks/                       # useCountUp, useDebounce, useQueryParams, useArbitro*
-├── lib/                         # notify (toast), utils (cn, classnames)
-├── pages/
-│   ├── Landing/                 # Marketing + login/register CTA + GlobeView (lazy)
-│   ├── Login/                   # Login + forgot password + lockout UX (Opc.2)
-│   ├── HomePage/                # Dashboard po ulozi (Client/Admin/Supervizor/Agent)
-│   ├── Accounts/                # Lista + details + requests
-│   ├── Cards/                   # Kartice + request + block/unblock
-│   ├── Payments/                # New payment (sa 2PC inter-bank stepper) + recipients + history + PDF
-│   ├── Transfers/               # Internal + FX + history
-│   ├── Securities/              # Berza lista + details (chart + options chain + ITM coloring)
-│   ├── Orders/                  # Create order + my orders + supervizor view + cancel partial
-│   ├── Portfolio/               # Drzanje + profit + OTC public toggle + MyFundsTab + TaxBreakdownTab
-│   ├── Otc/                     # OTC intra+inter-bank: Trgovina + Ponude/Ugovori (4 tab-a)
-│   ├── Funds/                   # Investicioni fondovi: Discovery + Details + Create + Invest/Withdraw dialozi
-│   ├── ProfitBank/              # Portal Profit Banke (supervizor)
-│   ├── Tax/                     # Porez + TaxDetailDialog (per-listing breakdown)
-│   ├── Loans/                   # Zahtev za kredit + rate + early repayment
-│   ├── Admin/                   # Employee CRUD + berze + reassign-manager dialog
-│   ├── Actuaries/               # Agent limit management
-│   ├── Margin/                  # Margin racuni + transakcije
-│   ├── Exchanges/               # Exchanges sa GlobeView (lazy)
-│   └── Employee/                # Employee portal (klijenti, racuni, kartice)
-├── services/                    # Axios wrappers po domenu
-│   ├── authService.ts           # login + logout + refresh
-│   ├── otcService.ts            # OTC intra-bank
-│   ├── interbankOtcService.ts   # OTC inter-bank wrapper
-│   ├── interbankPaymentService.ts # 2PC payments
-│   ├── investmentFundService.ts # Fondovi + reassignManager
-│   ├── profitBankService.ts     # Profit Banke
-│   ├── taxService.ts            # + getMyPerListingBreakdown / getPerListingBreakdown
-│   └── ... (15 ostalih servisa)
-├── types/                       # TypeScript tipovi (celina1-5, auth, ...)
-└── utils/                       # formatters (sr-RS), jwt decode, validationSchemas, otcOfferUtils
+│   ├── layout/          # ClientSidebar, Navbar, ProtectedRoute, Dashboard layouts
+│   ├── shared/          # VerificationModal (OTP), EmptyState, ThemeToggle, Skeleton
+│   └── ui/              # shadcn/ui reusable (Button, Card, Dialog, Input, ...)
+├── config/              # runtime config (window._env_ → VITE_API_URL → /api)
+├── context/             # AuthContext, ThemeContext, ArbitroContext
+├── hooks/               # useCountUp, useDebounce, useQueryParams, useArbitro*
+├── lib/                 # notify (toast), utils (cn, classnames)
+├── pages/               # Landing, Login, HomePage, Accounts, Cards, Payments,
+│                        # Transfers, Securities, Orders, Portfolio, Otc, Funds,
+│                        # ProfitBank, Tax, Loans, Admin, Actuaries, Margin, ...
+├── services/            # Axios wrappers po domenu (auth, otc, fund, tax, ...)
+├── types/               # TypeScript tipovi (celina1-5, auth, ...)
+└── utils/               # formatters (sr-RS), jwt decode, validationSchemas
 ```
 
 ## Autentifikacija i autorizacija
 
 1. `POST /auth/login` → `{ accessToken, refreshToken }` u `sessionStorage`
 2. JWT dekoder (`utils/jwt.ts`) cita `sub` (email), `role` (ADMIN/EMPLOYEE/CLIENT), `active`
-3. Ako role = ADMIN ili EMPLOYEE → fetch `/employees?email=<sub>` da vidimo prave permisije
+3. Za ADMIN/EMPLOYEE → fetch `/employees?email=<sub>` za prave permisije
 4. `AuthContext` daje: `user`, `isAdmin`, `isSupervisor`, `isAgent`, `hasPermission(code)`
-5. Route guards u `App.tsx`: `adminOnly`, `employeeOnly`, `supervisorOnly`, `noAgentOnly` (Celina 4 OTC ban)
+5. Route guards u `App.tsx`: `adminOnly`, `employeeOnly`, `supervisorOnly`, `noAgentOnly`
 6. Axios response interceptor auto-refresh na 401
-7. Logout: async `POST /auth/logout` (BE blacklist token sa Caffeine 20min TTL) + `sessionStorage.clear()`
-8. Lockout UX: ako BE vrati "Account temporarily locked. Try again in N seconds.", FE prikazuje warning Alert sa srpskim prevodom
+7. Logout: async `POST /auth/logout` (BE blacklist token) + `sessionStorage.clear()`
+8. Lockout UX: ako BE vrati "Account temporarily locked…", FE prikazuje warning Alert sa srpskim prevodom
 
 ## Dizajn sistem
 
-- **Primary gradient**: `from-indigo-500 to-violet-600`
-- **Shadow akcenta**: `shadow-lg shadow-indigo-500/20`
+- **Primary gradient**: `from-indigo-500 to-violet-600`, akcenat shadow `shadow-indigo-500/20`
 - **Badges**: `success` (emerald), `warning` (amber), `destructive` (red), `info` (blue), `secondary` (slate)
-- **Loading**: skeleton sa `animate-pulse` — nikad spinner
-- **Empty state**: ikonica u krugu + naslov + podnaslov
-- **Formatiranje brojeva**: `sr-RS` locale (zarez decimale, tacka hiljade)
-- **Dark mode**: Tailwind `dark:` prefix svuda, prekidanje preko ThemeContext + `<ThemeToggle variant="full" />` u sidebar footer-u (3-state cycle: System → Light → Dark)
-
-## Tailwind 4 migration (03.05.2026)
-
-- `tailwind.config.js` i `postcss.config.js` su **OBRISANI** — Tailwind 4 koristi CSS-first config preko `@theme` direktive u `src/index.css`
-- `vite.config.ts` import-uje `@tailwindcss/vite` plugin umesto starog PostCSS pipeline-a
-- `tailwindcss-animate` plugin zamenjen sa `tw-animate-css` (TW4 community port)
-- Sve custom HSL boje, 24 keyframes (`blob`, `aurora-1/2`, `morph`, `card-float`, `pulse-ring`, ...), container config, radius prebaceni iz `theme.extend` JS objekta u `@theme {}` blok u CSS-u
+- **Loading**: skeleton sa `animate-pulse` — bez spinner-a
+- **Brojevi**: `sr-RS` locale (zarez decimale, tacka hiljade)
+- **Dark mode**: Tailwind `dark:` prefix + ThemeContext + `<ThemeToggle />` (System → Light → Dark)
 
 ## Vite manualChunks (vazno)
 
-`vite.config.ts` deli vendor-e na:
+`vite.config.ts` deli vendor-e na `react-vendor`, `radix-vendor`, `icons-vendor`,
+`forms-vendor`, `http-vendor` i `vendor` (sve ostalo iz node_modules).
 
-- `react-vendor` (react, react-dom, react-router, scheduler)
-- `radix-vendor` (svi @radix-ui/*)
-- `icons-vendor` (lucide-react)
-- `forms-vendor` (react-hook-form, @hookform/, zod)
-- `http-vendor` (axios)
-- `vendor` (sve ostalo iz node_modules — ukljucujuci recharts, d3-*, three.js, globe.gl)
+**NE izdvajati `charts-vendor` ni `three-vendor`** — Recharts 3.x i three-globe
+dele iste d3-* tranzitivne deps, pa razdvojen chunk pravi circular chunk
+dependency koja u runtime-u puca (`E is not a function` / `nee is not a
+constructor`). Three.js je vec lazy-loaded preko `React.lazy(() => import('./GlobeView'))`.
 
-**NE izdvajati `charts-vendor` ni `three-vendor`** — Recharts 3.x i three-globe imaju iste d3-* tranzitivne deps, pa razdvojen chunk pravi `circular chunk dependency` koja u runtime-u puca:
+## nginx (Docker)
 
-- `Uncaught TypeError: E is not a function` (recharts split)
-- `Uncaught TypeError: nee is not a constructor` (three-globe split)
+`nginx.conf` ima:
 
-Vendor chunk je ~2.3MB (gzip 658KB) ali stabilnost > optimizacija. Three.js je vec lazy-loaded preko `React.lazy(() => import('./GlobeView'))`.
-
-## nginx Cache headers
-
-`nginx.conf` ima 3 location bloka:
-
-1. `/assets/` — `Cache-Control: immutable, max-age=1y` (Vite hash-uje fajlove)
-2. `/index.html` — `Cache-Control: no-store, no-cache, must-revalidate`
-3. `/` (SPA fallback) — isto no-store
-
-Bez no-store na index.html, Brave/Chrome cache-uju stari HTML koji referencira chunk hash-eve koji vise ne postoje posle no-cache rebuild-a → app ne renderuje.
-
-Plus security headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Strict-Transport-Security`, `Referrer-Policy: no-referrer`, `Permissions-Policy: geolocation=(), microphone=(), camera=()`, restriktivan CSP (Vite + Tailwind 4 inline styles allowed).
+- `/api/` → proxy na `http://banka2_gateway` (api-gateway koji path-rutira na backend/trading)
+- `/api/assistant/chat` i `/chat-multipart` → SSE proxy (no buffering, dug timeout) za Arbitro
+- `/config.js` → `no-store` (runtime config, ne sme da se kesira)
+- `/assets/` → `Cache-Control: immutable, max-age=1y` (Vite hash-uje fajlove)
+- `/index.html` + SPA fallback → `no-store, no-cache`
+- Security headers: `X-Content-Type-Options`, `X-Frame-Options: DENY`, HSTS, `Referrer-Policy`, `Permissions-Policy`, CSP
 
 ## OTP verifikacija
 
-Placanja, transferi i orderi zahtevaju OTP:
-
-1. Modal se otvori → `POST /payments/request-otp` generise kod
-2. Mobilna aplikacija prikaze kod (realni flow) ILI FE fetchuje `GET /payments/my-otp` i autopopuni kroz "Popuni" dugme (dev convenience)
-3. Korisnik unosi 6-cifreni kod → `onVerified(code)` u parent → parent salje POST na stvarni endpoint sa `otpCode`
-4. Backend verifikuje: pogresan → 403; 3. strike → blok i modal se zatvara
+Placanja, transferi i orderi zahtevaju OTP: modal generise kod (`POST
+/payments/request-otp`), korisnik unosi 6-cifreni kod → POST na stvarni endpoint
+sa `otpCode`. Pogresan kod → 403; 3. strike → blok i modal se zatvara.
 
 ## Inter-bank 2PC payment UI
 
-Kad korisnik posalje placanje na racun ciji prefix nije `222` (nasa banka), `NewPaymentPage` prikazuje:
-
-- **Inter-bank warning banner** ("Banka primaoca pocinje sa 111/333/444 — ide kroz 2-Phase Commit")
-- **Stepper modal** sa 4 faze (Inicijalizacija, Prepare, Commit, Zavrseno) + polling na 3s × 40 (2 minuta budget)
-- **STUCK banner** sa "Pokusaj ponovo" dugmetom kad polling istekne
-- **sessionStorage recovery** — pri page reload-u rehydrate-uje aktivni transactionId i nastavlja polling
-- **Razlog** prikaz iz `failureReason` (proksira BE poruku ili mapira `errorCode` na srpski tekst)
-
-## Test mode badge
-
-Securities lista pokazuje **SIMULIRANI PODACI** badge (amber) kad bilo koji listing dolazi sa berze u test modu. Inace **LIVE** (emerald). Koristi `listing.isTestMode` polje koje backend setuje iz `Exchange.testMode`. Test mode takodje spreci Alpha Vantage pozive u dev-u.
+Kad korisnik posalje placanje na racun ciji prefix nije `222` (nasa banka),
+`NewPaymentPage` prikazuje inter-bank warning banner + 4-fazni stepper modal
+(Inicijalizacija → Prepare → Commit → Zavrseno) sa pollingom, STUCK banner sa
+"Pokusaj ponovo", i `sessionStorage` recovery na reload.
 
 ## Cypress E2E
 
-```text
-cypress/e2e/
-├── celina1-mock.cy.ts          ~70 testova (Auth, Employee CRUD, Permisije, ThemeToggle)
-├── celina1-live.cy.ts          ~90 testova (isti na pravom BE)
-├── celina2-mock.cy.ts          ~135 testova (Accounts, Payments, Transfers, Exchange, Cards, Loans)
-├── celina2-live.cy.ts          ~105 testova
-├── celina3-mock.cy.ts          ~130 testova (Securities, Orders, Portfolio, Tax, Aktuari, Margin)
-├── celina3-live.cy.ts          ~100 testova + E2E scenario (12 DEO supervizor→agent→BUY→fill→SELL→porez)
-├── celina4-mock.cy.ts          ~150 testova (OTC intra+inter, Funds, Profit Banke, Reassign dialog)
-├── celina4-live.cy.ts          ~50 testova (gornje + 2PC + SAGA exercise + reassign API)
-├── arbitro-mock.cy.ts          (lokalno only, NIJE u CI) — Arbitro AI panel + SSE chat + voice
-└── arbitro-live.cy.ts          (lokalno only, NIJE u CI) — zahteva Banka-2-Tools stack up
-```
-
-`mock` varijante koriste `cy.intercept` — rade bez BE. `live` zahtevaju docker stack pokrenut.
-
-**Cached login pattern** u live spec-ovima: `Cypress.env()` perzistira tokene izmedju test-isolation cycles, login se izvrsava 1× po roli po spec run-u (ne 30+ puta), 429 retry sa 65s backoff fallback.
-
-## Bonus stackovi (Backend)
-
-Frontend depend-uje samo na core BE stack (`banka2_backend:8080`). Bonus stack-ovi su nezavisni:
-
-- **Tools** (Arbitro AI) — `Banka-2-Backend/Banka-2-Tools/docker-compose.yml`. FE detektuje da li su sidecari live preko `/assistant/health` i prikazuje Arbitro overlay samo ako `llmReachable=true`.
-- **Monitoring** (MLA) — `Banka-2-Backend/monitoring/docker-compose.yml`. FE ne pristupa direktno — Prometheus skrejpuje BE actuator. Grafana dashboard-ovi pokazuju per-endpoint latency, JVM metrics, GC.
+`cypress/e2e/` sadrzi mock+live parove po celinama (`celina1`-`celina5`), plus
+`saga`, `todo-final`, `intra-otc` i `arbitro` spec-ove. `*-mock.cy.ts` koriste
+`cy.intercept` i rade bez BE; `*-live.cy.ts` zahtevaju pokrenut docker stack.
+`arbitro-*` spec-ovi su lokalno-only (NISU u CI — trazе Banka-2-Tools stack).
 
 ## Deployment (Docker)
 
-`Dockerfile` radi multi-stage build:
+`Dockerfile` radi multi-stage build: `node:20-alpine` (`npm ci` + `npm run
+build` → `dist/`) → `nginx:alpine` (kopira `dist/` + custom `nginx.conf` sa
+`/api` proxy-em + security headers). `docker-compose.yml` mapira
+`${FRONTEND_HOST_PORT:-3000} → 80`.
 
-1. `node:24-alpine` — `npm ci` + `npm run build` → `dist/`
-2. `nginx:alpine` — kopira `dist/` u `/usr/share/nginx/html` + custom `nginx.conf` sa `/api` i `/auth` proxy-em + security headers
+## Napomene
 
-`docker-compose.yml` mapira `${FRONTEND_HOST_PORT:-3000} → 80`.
-
-## Poznate preporuke
-
-- **Dev bez backend-a**: `mock` cypress testovi ili pokretanje Vite dev servera i koriscenje `VITE_API_URL` ka deploy-ovanom backend-u
 - **Refresh cena** (Securities): zahteva ADMIN/EMPLOYEE; klijentima je dugme skriveno
-- **Mobile**: postoji `Banka-2-Mobile` (Android Kotlin + Jetpack Compose) — pokriva klijentski flow + supervisor + admin
-- **Auth rate limit u Cypress live testovima**: BE `AUTH_RATE_LIMIT_CAPACITY=100000` (default u `Banka-2-Backend/docker-compose.yml`) sprecava 429. NE setuj `AUTH_RATE_LIMIT_ENABLED=false` jer GlobalSecurityConfig zahteva filter bean
+- **Mobile**: postoji `Banka-2-Mobile` (Android Kotlin + Jetpack Compose) sa istim flow-om
+- **Auth rate limit u Cypress live testovima**: BE `AUTH_RATE_LIMIT_CAPACITY=100000` sprecava 429
 
 ## Tim
 

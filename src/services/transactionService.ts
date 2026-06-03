@@ -86,10 +86,10 @@ export const transactionService = {
     return mapTransferResponse(response.data);
   },
 
-  createFxTransfer: async (data: TransferRequest, otpCode?: string): Promise<Transfer> => {
-    const response = await api.post('/transfers/fx', { ...data, otpCode: otpCode || '' });
-    return mapTransferResponse(response.data);
-  },
+  // R1 339: createFxTransfer (POST /transfers/fx) uklonjen — mrtav iz UI-ja.
+  // Sve FE stranice koriste createTransfer (/transfers/internal), koji BE
+  // auto-detektuje kao FX kad se valute racuna razlikuju. (BE /transfers/fx i
+  // Mobile createFxTransfer ostaju — koriste se na svojim platformama.)
 
   getTransfers: async (filters?: { accountNumber?: string; dateFrom?: string; dateTo?: string }): Promise<Transfer[]> => {
     const params = new URLSearchParams();

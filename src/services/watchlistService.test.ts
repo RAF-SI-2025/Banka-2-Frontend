@@ -83,43 +83,61 @@ describe('watchlistService', () => {
   });
 
   describe('listItems', () => {
-    it('GET /watchlists/{id}/items', async () => {
-      const items: WatchlistItemDto[] = [
+    // P1-fe-contracts-1: BE salje `ticker`/`securityType`/`exchangeName`/
+    // `dailyChange` — servis ih normalizuje u FE-friendly oblik.
+    it('GET /watchlists/{id}/items and maps BE field names', async () => {
+      const beItems = [
         {
           id: 10,
           watchlistId: 1,
           listingId: 100,
-          listingTicker: 'AAPL',
-          listingType: 'STOCK',
+          ticker: 'AAPL',
+          securityType: 'STOCK',
+          exchangeName: 'NASDAQ',
           currentPrice: 180,
+          dailyChange: 5,
+          volume: 1000,
           addedAt: '2026-05-25T10:00:00Z',
         },
       ];
-      mockedApi.get.mockResolvedValue({ data: items });
+      mockedApi.get.mockResolvedValue({ data: beItems });
 
       const result = await watchlistService.listItems(1);
 
       expect(mockedApi.get).toHaveBeenCalledWith('/watchlists/1/items');
-      expect(result).toEqual(items);
+      expect(result[0].listingTicker).toBe('AAPL');
+      expect(result[0].listingType).toBe('STOCK');
+      expect(result[0].exchange).toBe('NASDAQ');
+      expect(result[0].dailyChange).toBe(5);
+      // dailyChangePercent = 5 / (180 - 5) * 100 ≈ 2.857
+      expect(result[0].dailyChangePercent).toBeCloseTo(2.857, 2);
+      expect(result[0].volume).toBe(1000);
+    });
+
+    it('handles null/empty item list', async () => {
+      mockedApi.get.mockResolvedValue({ data: null });
+      const result = await watchlistService.listItems(1);
+      expect(result).toEqual([]);
     });
   });
 
   describe('addItem', () => {
-    it('POST /watchlists/{id}/items with listingId', async () => {
-      const item: WatchlistItemDto = {
+    it('POST /watchlists/{id}/items with listingId and maps response', async () => {
+      const beItem = {
         id: 11,
         watchlistId: 1,
         listingId: 101,
-        listingTicker: 'MSFT',
-        listingType: 'STOCK',
+        ticker: 'MSFT',
+        securityType: 'STOCK',
         addedAt: '2026-05-25T10:00:00Z',
       };
-      mockedApi.post.mockResolvedValue({ data: item });
+      mockedApi.post.mockResolvedValue({ data: beItem });
 
-      const result = await watchlistService.addItem(1, { listingId: 101 });
+      const result: WatchlistItemDto = await watchlistService.addItem(1, { listingId: 101 });
 
       expect(mockedApi.post).toHaveBeenCalledWith('/watchlists/1/items', { listingId: 101 });
-      expect(result).toEqual(item);
+      expect(result.listingTicker).toBe('MSFT');
+      expect(result.listingType).toBe('STOCK');
     });
 
     it('propagates 409 conflict', async () => {
@@ -129,12 +147,13 @@ describe('watchlistService', () => {
   });
 
   describe('removeItem', () => {
-    it('DELETE /watchlists/{id}/items/{itemId}', async () => {
+    // P1-fe-contracts-1: BE path var je listingId (ne item PK).
+    it('DELETE /watchlists/{id}/items/{listingId}', async () => {
       mockedApi.delete.mockResolvedValue({ data: undefined });
 
-      await watchlistService.removeItem(1, 10);
+      await watchlistService.removeItem(1, 100);
 
-      expect(mockedApi.delete).toHaveBeenCalledWith('/watchlists/1/items/10');
+      expect(mockedApi.delete).toHaveBeenCalledWith('/watchlists/1/items/100');
     });
   });
 });

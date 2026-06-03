@@ -148,9 +148,37 @@ describe('cardService', () => {
     });
   });
 
+  // ==================== sendRequestCode (C2 Sc28) ====================
+
+  describe('sendRequestCode', () => {
+    it('should POST to send-code endpoint and return payload', async () => {
+      mockedApi.post.mockResolvedValue({ data: { sent: true, message: 'Potvrdite da ste Vi podneli ovaj zahtev.' } });
+
+      const result = await cardService.sendRequestCode();
+
+      expect(mockedApi.post).toHaveBeenCalledWith('/cards/requests/send-code');
+      expect(result).toEqual({ sent: true, message: 'Potvrdite da ste Vi podneli ovaj zahtev.' });
+    });
+
+    it('should propagate errors', async () => {
+      mockedApi.post.mockRejectedValue(new Error('Send failed'));
+      await expect(cardService.sendRequestCode()).rejects.toThrow('Send failed');
+    });
+  });
+
   // ==================== submitRequest ====================
 
   describe('submitRequest', () => {
+    it('should submit a card request with verificationCode (Sc28)', async () => {
+      const requestData = { accountId: 10, cardLimit: 25000, verificationCode: '123456' };
+      mockedApi.post.mockResolvedValue({ data: { requestId: 60 } });
+
+      const result = await cardService.submitRequest(requestData);
+
+      expect(mockedApi.post).toHaveBeenCalledWith('/cards/requests', requestData);
+      expect(result).toEqual({ requestId: 60 });
+    });
+
     it('should submit a card request', async () => {
       const requestData = { accountId: 10, cardLimit: 25000 };
       mockedApi.post.mockResolvedValue({ data: { requestId: 50 } });
