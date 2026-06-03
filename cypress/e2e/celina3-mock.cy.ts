@@ -1129,18 +1129,21 @@ describe('Order approval logika', () => {
   });
 
   it('S50: Agentov order prelazi limit - Pending', () => {
-    // When agent exceeds daily limit, order goes to PENDING.
-    // setupMocks() mora ici PRVI — definise catch-all `**/api/**`. Specificni
-    // `/orders/my` intercept mora biti registrovan POSLE njega da bi Cypress
-    // (last-defined wins) vratio PENDING order umesto praznog catch-all body-ja.
+    // /orders/my je sada `noAgentOnly` (P1-fe-mobile-authz-1 1761: agent nema
+    // trgovinski pristup §137-141) — agentska sesija bi bila redirektovana pa
+    // stranica ne render-uje. Koristimo supervizorsku sesiju (prolazi noAgentOnly,
+    // isto kao /portfolio) da verifikujemo da PENDING order render-uje status
+    // badge "Na cekanju" u tabeli naloga.
+    // setupMocks() PRVI (catch-all `**/api/**`), pa specificni /orders/my intercept
+    // (Cypress: last-defined wins) vraca PENDING order.
     setupMocks();
     cy.intercept('GET', '**/api/orders/my*', {
       statusCode: 200, body: {
-        content: [{ ...mockOrders.content[1], status: 'PENDING', userName: 'Agent' }],
+        content: [{ ...mockOrders.content[1], status: 'PENDING', userName: 'Agent Smith' }],
         totalElements: 1, totalPages: 1,
       },
     });
-    cy.visit('/orders/my', { onBeforeLoad: setupAgentSession });
+    cy.visit('/orders/my', { onBeforeLoad: setupSupervisorSession });
     cy.contains('Na cekanju').should('exist');
   });
 });

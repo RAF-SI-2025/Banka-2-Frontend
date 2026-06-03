@@ -879,8 +879,11 @@ describe('Mock C4: MyFundsTab', () => {
   it('S31: Supervizor vidi fondove kojima upravlja', () => {
     setupPortfolioBase();
     // MyFundsTab.loadSupervisorData salje GET /funds?managerEmployeeId=<id>
-    // (BE-side manager filter, R1-852) — intercept mora imati `*` da uhvati query.
-    cy.intercept('GET', '/api/funds*', { statusCode: 200, body: mockFunds }).as('funds');
+    // (BE-side manager filter, R1-852). Intercept mora imati `*` za query I MORA
+    // simulirati BE filter — vraca SAMO fond kojim supervizor upravlja (Alpha,
+    // managerEmployeeId 1). Da vraca sve mockFunds, 'Beta Income Fund' bi se
+    // prikazao i `should('not.exist')` bi pao.
+    cy.intercept('GET', '/api/funds*', { statusCode: 200, body: [mockFunds[0]] }).as('funds');
     cy.intercept('GET', '/api/funds/1', { statusCode: 200, body: { ...mockFundDetail, managerEmployeeId: 1 } });
     cy.intercept('GET', '/api/funds/2', { statusCode: 200, body: { ...mockFundDetail, id: 2, name: 'Beta Income Fund', managerEmployeeId: 3 } });
     cy.intercept('GET', '/api/funds/3', { statusCode: 200, body: { ...mockFundDetail, id: 3, name: 'Gamma Balanced Fund', managerEmployeeId: 5 } });
