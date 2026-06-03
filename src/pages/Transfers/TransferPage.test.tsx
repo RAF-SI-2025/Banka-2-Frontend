@@ -425,6 +425,53 @@ describe('TransferPage', () => {
     });
   });
 
+  // R1-554: dupli klik na OTP "Potvrdi" ne sme da napravi dva transfera.
+  // isSubmitting se ranije nikad nije setovao na true → re-entry je bio moguc.
+  it('guards against double-submit / double-OTP (R1-554)', async () => {
+    const user = userEvent.setup();
+    let resolveTransfer: (() => void) | undefined;
+    mockTransactionService.createTransfer.mockImplementation(
+      () => new Promise<never>((resolve) => { resolveTransfer = resolve as () => void; })
+    );
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Iznos/i)).toBeInTheDocument();
+    });
+
+    const selects = document.querySelectorAll('select');
+    if (selects.length >= 2) {
+      const toSelect = selects[1];
+      const options = toSelect.querySelectorAll('option');
+      if (options.length > 1) {
+        await user.selectOptions(toSelect, options[1].value);
+      }
+    }
+
+    const amountInput = screen.getByLabelText(/Iznos/i);
+    await user.clear(amountInput);
+    await user.type(amountInput, '10000');
+
+    await user.click(screen.getByRole('button', { name: /Nastavi|Potvrdi/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/Potvrda prenosa/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Potvrdi transfer/i }));
+    await waitFor(() => {
+      expect(screen.getByTestId('verification-modal')).toBeInTheDocument();
+    });
+
+    // Prvi OTP submit pokrece (visi) transfer; drugi klik dok je u toku ne sme
+    // da pozove createTransfer drugi put.
+    await user.click(screen.getByText('Potvrdi OTP'));
+    await user.click(screen.getByText('Potvrdi OTP'));
+
+    expect(mockTransactionService.createTransfer).toHaveBeenCalledTimes(1);
+
+    resolveTransfer?.();
+  });
+
   // ---------- Error handling ----------
 
   it('handles account loading error gracefully', async () => {
@@ -476,6 +523,35 @@ describe('TransferPage', () => {
     const amountInput = screen.getByLabelText(/Iznos/i);
     await user.clear(amountInput);
     await user.type(amountInput, '999999999');
+
+    await waitFor(() => {
+      expect(screen.getByText(/Nemate dovoljno raspolozivih sredstava/i)).toBeInTheDocument();
+    });
+  });
+
+  // R3-1593: cross-currency transfer cijim iznosom == raspolozivo stanje ipak je
+  // nedovoljan jer 0.5% provizija prelazi balans. Ranije je FE poredio samo iznos
+  // (ne iznos+provizija) pa bi korisnik prosao validaciju i potrosio OTP pokusaj.
+  it('flags insufficient funds when amount == balance but commission tips over (cross-currency)', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Iznos/i)).toBeInTheDocument();
+    });
+
+    // to = EUR (cross-currency → 0.5% provizija)
+    const selects = document.querySelectorAll('select');
+    const toSelect = selects[1];
+    const eurOption = Array.from(toSelect.querySelectorAll('option')).find((o) =>
+      o.textContent?.includes('EUR'),
+    );
+    if (eurOption) await user.selectOptions(toSelect, eurOption.value);
+
+    // Iznos == raspolozivo (190000) na RSD racunu → +0.5% = 190950 > 190000.
+    const amountInput = screen.getByLabelText(/Iznos/i);
+    await user.clear(amountInput);
+    await user.type(amountInput, '190000');
 
     await waitFor(() => {
       expect(screen.getByText(/Nemate dovoljno raspolozivih sredstava/i)).toBeInTheDocument();

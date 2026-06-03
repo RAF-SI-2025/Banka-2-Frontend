@@ -91,12 +91,25 @@ describe('ClientSidebar', () => {
       expect(screen.getByText('Krediti')).toBeTruthy();
     });
 
-    it('renders trading links', () => {
+    // P1-fe-mobile-authz-1 (1761): klijent BEZ TRADE_STOCKS (ovaj blok ima
+    // permissions: []) NE sme da vidi trgovinske base-linkove (Berza/Portfolio/
+    // Moji orderi) — ranije su bili uvek vidljivi pa je klijent prolazio ceo
+    // order flow do BE 403. "Berza" se i dalje renderuje kao naslov sekcije,
+    // ali link "Portfolio"/"Moji orderi" ne. "Investicioni fondovi" ostaje (svi).
+    it('does NOT render trading base links for client without TRADE_STOCKS', () => {
       renderSidebar();
-      // 'Berza' appears as both section heading and link label
-      expect(screen.getAllByText('Berza').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText('Portfolio')).toBeTruthy();
-      expect(screen.getByText('Moji orderi')).toBeTruthy();
+      expect(screen.queryByText('Portfolio')).toBeNull();
+      expect(screen.queryByText('Moji orderi')).toBeNull();
+      expect(screen.queryByText('Watchlist')).toBeNull();
+      // Investicioni fondovi je za sve role.
+      expect(screen.getByText('Investicioni fondovi')).toBeTruthy();
+    });
+
+    // R2-388: "Marzni racuni" je trgovinski feature — klijent bez TRADE_STOCKS
+    // ga vise NE vidi (ranije je bio u clientLinks za sve klijente).
+    it('does NOT render Marzni racuni for client without TRADE_STOCKS', () => {
+      renderSidebar();
+      expect(screen.queryByText('Marzni racuni')).toBeNull();
     });
 
     it('does NOT render employee portal links', () => {
@@ -126,6 +139,35 @@ describe('ClientSidebar', () => {
       await user.click(logoutBtn);
 
       expect(mockLogout).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // P1-fe-mobile-authz-1 (1761): klijent SA TRADE_STOCKS vidi trgovinske linkove.
+  describe('Client user with TRADE_STOCKS', () => {
+    beforeEach(() => {
+      mockUser = {
+        id: 4,
+        email: 'trader@banka.rs',
+        username: 'trader',
+        firstName: 'Trgo',
+        lastName: 'Vac',
+        role: 'CLIENT',
+        permissions: [Permission.TRADE_STOCKS],
+      };
+    });
+
+    it('renders trading base links when client can trade', () => {
+      renderSidebar();
+      expect(screen.getByText('Portfolio')).toBeTruthy();
+      expect(screen.getByText('Moji orderi')).toBeTruthy();
+      expect(screen.getByText('Watchlist')).toBeTruthy();
+      expect(screen.getByText('OTC trgovina')).toBeTruthy();
+    });
+
+    // R2-388: klijent SA TRADE_STOCKS i dalje vidi "Marzni racuni".
+    it('renders Marzni racuni for client with TRADE_STOCKS', () => {
+      renderSidebar();
+      expect(screen.getByText('Marzni racuni')).toBeTruthy();
     });
   });
 
@@ -197,6 +239,17 @@ describe('ClientSidebar', () => {
     it('does NOT render client finance links', () => {
       renderSidebar();
       expect(screen.queryByText('Moje finansije')).toBeNull();
+    });
+
+    // R2-389: obican zaposleni (EMPLOYEE bez supervisor/admin) vise NE vidi
+    // "Berza" sekciju — nije trgovinska rola. Sekcija + svi njeni linkovi su
+    // skriveni (ukljucujuci Investicione fondove, koji za zaposlenog nemaju
+    // namenu).
+    it('does NOT render the Berza trading section for a base employee', () => {
+      renderSidebar();
+      expect(screen.queryByText('Berza')).toBeNull();
+      expect(screen.queryByText('Portfolio')).toBeNull();
+      expect(screen.queryByText('Investicioni fondovi')).toBeNull();
     });
 
     it('shows Zaposleni role label', () => {

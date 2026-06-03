@@ -30,7 +30,7 @@ import {
   type AuditFilterParams,
   type AuditLogDto,
   type AuditPageDto,
-  AUDIT_ACTION_TYPES,
+  TRADING_AUDIT_ACTION_TYPES,
   AUDIT_ACTION_LABEL_SR,
 } from '@/types/audit';
 
@@ -45,14 +45,46 @@ type BadgeVariant =
   | 'warning'
   | 'info';
 
-const ACTION_BADGE_VARIANT: Record<AuditActionType, BadgeVariant> = {
+const ACTION_BADGE_VARIANT: Partial<Record<AuditActionType, BadgeVariant>> = {
   LIMIT_CHANGED: 'info',
   USED_LIMIT_RESET: 'warning',
+  USED_LIMIT_RESET_ALL: 'warning',
   ORDER_APPROVED: 'success',
   ORDER_DECLINED: 'destructive',
   PERMISSIONS_CHANGED: 'secondary',
   TAX_RUN_TRIGGERED: 'default',
+  // Krediti
+  LOAN_APPROVED: 'success',
+  LOAN_REJECTED: 'destructive',
+  LOAN_EARLY_REPAYMENT: 'info',
+  LOAN_INSTALLMENT_PAID: 'success',
+  LOAN_INSTALLMENT_FAILED: 'destructive',
+  // Placanja / transferi
+  PAYMENT_CREATED: 'info',
+  PAYMENT_ABORTED: 'destructive',
+  PAYMENT_QUICK_APPROVED: 'success',
+  TRANSFER_INTERNAL: 'info',
+  TRANSFER_FX: 'info',
+  // Stednja
+  SAVINGS_OPENED: 'success',
+  SAVINGS_WITHDRAWN_EARLY: 'warning',
+  SAVINGS_AUTO_RENEWED: 'info',
+  // Kartice
+  CARD_BLOCKED: 'destructive',
+  CARD_UNBLOCKED: 'success',
+  CARD_LIMIT_CHANGED: 'info',
+  CARD_DEACTIVATED: 'destructive',
+  // Racuni / zaposleni
+  ACCOUNT_STATUS_CHANGED: 'warning',
+  ACCOUNT_LIMITS_CHANGED: 'info',
+  EMPLOYEE_DEACTIVATED: 'destructive',
+  // Fondovi
+  FUND_CREATED: 'success',
+  FUND_INVEST: 'success',
+  FUND_WITHDRAW: 'warning',
 };
+
+const DEFAULT_BADGE_VARIANT: BadgeVariant = 'secondary';
 
 function formatDateTime(iso: string): string {
   try {
@@ -92,7 +124,8 @@ function truncate(value: string, max = 40): string {
 export default function AuditLogPage() {
   // Polja filter forme (string-only zbog HTML input-a)
   const [formActionType, setFormActionType] = useState<string>('');
-  const [formActorEmail, setFormActorEmail] = useState<string>('');
+  const [formActorId, setFormActorId] = useState<string>('');
+  const [formActorName, setFormActorName] = useState<string>('');
   const [formDateFrom, setFormDateFrom] = useState<string>('');
   const [formDateTo, setFormDateTo] = useState<string>('');
 
@@ -129,6 +162,11 @@ export default function AuditLogPage() {
         message = 'Nemate pristup audit-log zapisima (samo admin/supervizor).';
       } else if (status === 404) {
         message = 'Audit-log endpoint nije pronadjen.';
+      } else if (status === 400) {
+        // /audit rutira na trading-service; banka-core-only tip akcije nije
+        // podrzan i BE vraca 400 "Unknown actionType". Dropdown vec filtrira
+        // na dostizne tipove, ali ovo je defense-in-depth jasna poruka.
+        message = 'Izabrani tip akcije nije podrzan za ovaj revizioni izvor.';
       } else {
         message =
           err?.response?.data?.message ??
@@ -150,7 +188,20 @@ export default function AuditLogPage() {
   function applyFilters() {
     const next: AuditFilterParams = {};
     if (formActionType !== '') next.actionType = formActionType as AuditActionType;
-    if (formActorEmail.trim() !== '') next.actorEmail = formActorEmail.trim();
+    const trimmedId = formActorId.trim();
+    if (trimmedId !== '') {
+      const parsed = Number(trimmedId);
+      if (Number.isInteger(parsed) && parsed > 0) {
+        next.actorId = parsed;
+      } else {
+        toast.error('ID aktera mora biti pozitivan ceo broj.');
+        return;
+      }
+    }
+    // Sc45: ime aktera (supervizora). Numericki ID ima prednost (BE), ali ime
+    // saljemo nezavisno tako da korisnik moze da filtrira i samo po imenu.
+    const trimmedName = formActorName.trim();
+    if (trimmedName !== '') next.actorName = trimmedName;
     if (formDateFrom !== '') next.dateFrom = formDateFrom;
     if (formDateTo !== '') next.dateTo = formDateTo;
     setPageNum(0);
@@ -159,7 +210,8 @@ export default function AuditLogPage() {
 
   function resetFilters() {
     setFormActionType('');
-    setFormActorEmail('');
+    setFormActorId('');
+    setFormActorName('');
     setFormDateFrom('');
     setFormDateTo('');
     setPageNum(0);
@@ -175,7 +227,7 @@ export default function AuditLogPage() {
       />
 
       <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
           <div>
             <Label htmlFor="audit-filter-action">Tip akcije</Label>
             <select
@@ -188,7 +240,9 @@ export default function AuditLogPage() {
               onChange={(e) => setFormActionType(e.target.value)}
             >
               <option value="">Sve</option>
-              {AUDIT_ACTION_TYPES.map((type) => (
+              {/* Samo trading-service dostizni tipovi — /audit rutira na
+                  trading-service koji bi za banka-core tipove vratio 400. */}
+              {TRADING_AUDIT_ACTION_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {AUDIT_ACTION_LABEL_SR[type]}
                 </option>
@@ -197,14 +251,30 @@ export default function AuditLogPage() {
           </div>
 
           <div>
-            <Label htmlFor="audit-filter-actor">Email aktera</Label>
+            <Label htmlFor="audit-filter-actor">ID aktera</Label>
             <Input
               id="audit-filter-actor"
               data-testid="audit-filter-actor"
-              type="email"
-              placeholder="ime.prezime@banka.rs"
-              value={formActorEmail}
-              onChange={(e) => setFormActorEmail(e.target.value)}
+              type="number"
+              min={1}
+              step={1}
+              inputMode="numeric"
+              placeholder="npr. 42"
+              value={formActorId}
+              onChange={(e) => setFormActorId(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="audit-filter-actor-name">Ime aktera</Label>
+            <Input
+              id="audit-filter-actor-name"
+              data-testid="audit-filter-actor-name"
+              type="text"
+              placeholder="npr. Nikola Milenkovic"
+              value={formActorName}
+              onChange={(e) => setFormActorName(e.target.value)}
               className="mt-1"
             />
           </div>
@@ -299,7 +369,7 @@ export default function AuditLogPage() {
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={ACTION_BADGE_VARIANT[entry.actionType]}
+                          variant={ACTION_BADGE_VARIANT[entry.actionType] ?? DEFAULT_BADGE_VARIANT}
                           data-testid={`audit-action-badge-${entry.id}`}
                         >
                           {AUDIT_ACTION_LABEL_SR[entry.actionType] ?? entry.actionType}

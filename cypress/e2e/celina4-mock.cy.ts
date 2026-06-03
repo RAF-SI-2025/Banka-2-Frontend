@@ -148,13 +148,18 @@ const mockOtcRemoteOffer = {
 
 const mockOtcRemoteOffers = [
   {
+    // FIXED 03.06 (S43): NASA banka (RN-222) je kupac, nas klijent Stefan (id=1 ->
+    // C-1) je buyerUserId. computeMyRoleInOffer tako vraca 'BUYER' i — uz myTurn:true
+    // — "Prihvati" dugme postaje vidljivo (samo BUYER cross-bank moze accept, §3.6).
+    // Prodavac ostaje BANKA2 (S40 "Prodavac: BANKA2"); "Kupac: BANKA1" S40 asercija
+    // i dalje prolazi preko NVDA red ponude koja zadrzava buyerBankCode 'BANKA1'.
     offerId: 'remote-offer-green',
     listingTicker: 'AAPL',
     listingName: 'Apple Inc.',
     listingCurrency: 'USD',
     currentPrice: 100,
-    buyerBankCode: 'BANKA1',
-    buyerUserId: 'buyer-1',
+    buyerBankCode: 'RN-222',
+    buyerUserId: 'C-1',
     buyerName: 'Stefan Jovanovic',
     sellerBankCode: 'BANKA2',
     sellerUserId: 'seller-1',
@@ -163,8 +168,8 @@ const mockOtcRemoteOffers = [
     pricePerStock: 102,
     premium: 10,
     settlementDate: '2026-05-10',
-    waitingOnBankCode: 'BANKA1',
-    waitingOnUserId: 'buyer-1',
+    waitingOnBankCode: 'RN-222',
+    waitingOnUserId: 'C-1',
     myTurn: true,
     status: 'ACTIVE',
     lastModifiedAt: '2026-04-25T10:00:00Z',
@@ -337,8 +342,8 @@ const mockFundPositions = [
   },
 ];
 
-// Pending(sssmarta) — mockActuaryProfit + mockBankFundPositions za Issue #77
-// Referenca: ActuaryProfit, BankFundPosition
+// Pending(sssmarta) — mockActuaryProfit za Issue #77
+// Referenca: ActuaryProfit (bank fund pozicije koriste ClientFundPosition)
 
 
 // ============================================================
@@ -1012,6 +1017,387 @@ describe('Mock C4: CreateOrder Fund Selector', () => {
 
 
 // ============================================================
+//  Mock C4: OTC Intra-bank pregovaranje (Sc16-28)
+// --------------------------------------------------------------------------
+//  KRITICAN gap — intra-bank OTC tok (discovery → ponuda → kontraponuda →
+//  prihvatanje → ugovor → exercise/abandon) ranije NIJE imao mock coverage.
+//  setupClientSession = Stefan Jovanovic (id:1, TRADE_STOCKS). isMe() matchuje
+//  buyerId===1 ILI normalizovano ime "stefan jovanovic" (vidi otcUtils.ts),
+//  pa mock ponude/ugovori gde je Stefan kupac dobijaju akcione dugmice.
+//
+//  VAZNO: exercise i abandon NA OtcContractsPage koriste native window.confirm
+//  (NE Radix dialog), pa testovi moraju da stub-uju `cy.on('window:confirm')`.
+//  Exercise response je NOVI SAGA oblik {sagaId, sagaStatus, currentStep, id,
+//  status}; FE handleExercise samo gleda 2xx → success toast + refetch, pa stub
+//  vraca 200 sa tim oblikom (terminalni COMPLETED).
+// ============================================================
+describe('Mock C4: OTC Intra-bank pregovaranje (Sc16-28)', () => {
+  // React 19 controlled <input type="number"> + Cypress 15 + Vite 8 (Rolldown)
+  // imaju poznat race u kome clear()/type() ne okine React onChange pouzdano
+  // (React value tracker ne vidi DOM-level mutaciju). Koristi native value setter
+  // (isti workaround kao inter-bank counter test S44) da SyntheticEvent system
+  // primi pravu vrednost.
+  const setNativeValue = (selector: string, value: string) => {
+    cy.get(selector).then(($el) => {
+      const input = $el[0] as HTMLInputElement;
+      const nativeSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )?.set;
+      nativeSetter?.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  };
+
+  // --- Discovery mock listings (tudje javne akcije na koje Stefan moze ponuditi) ---
+  const mockOtcListings = [
+    {
+      portfolioId: 301, listingId: 1, listingTicker: 'AAPL', listingName: 'Apple Inc.',
+      exchangeAcronym: 'NASDAQ', listingCurrency: 'USD', currentPrice: 200,
+      publicQuantity: 50, availablePublicQuantity: 50,
+      sellerId: 9, sellerRole: 'CLIENT', sellerName: 'Milica Nikolic',
+    },
+    {
+      portfolioId: 302, listingId: 2, listingTicker: 'MSFT', listingName: 'Microsoft Corp.',
+      exchangeAcronym: 'NASDAQ', listingCurrency: 'USD', currentPrice: 410,
+      publicQuantity: 30, availablePublicQuantity: 30,
+      sellerId: 10, sellerRole: 'CLIENT', sellerName: 'Lazar Ilic',
+    },
+  ];
+
+  // --- Active offers (pregovori u kojima je Stefan ucesnik) ---
+  // Offer A: Stefan je KUPAC, myTurn=true → moze Prihvati/Kontraponuda/Otkazi.
+  //          pricePerStock 204 vs currentPrice 200 → +2.0% (zeleno ≤5%).
+  // Offer B: Stefan je PRODAVAC, myTurn=false (ceka kupca) → samo Otkazi.
+  //          pricePerStock 125 vs currentPrice 100 → +25.0% (crveno >20%).
+  // Offer C: pricePerStock 112 vs currentPrice 100 → +12.0% (zuto 5-20%).
+  const mockActiveOffers = [
+    {
+      id: 1001, listingId: 1, listingTicker: 'AAPL', listingName: 'Apple Inc.', listingCurrency: 'USD',
+      buyerId: 1, buyerName: 'Stefan Jovanovic', sellerId: 9, sellerName: 'Milica Nikolic',
+      quantity: 5, pricePerStock: 204, premium: 12, currentPrice: 200,
+      settlementDate: '2026-12-31', lastModifiedById: 9, lastModifiedByName: 'Milica Nikolic',
+      waitingOnUserId: 1, myTurn: true, status: 'ACTIVE',
+      createdAt: '2026-05-01T10:00:00Z', lastModifiedAt: '2026-05-02T10:00:00Z',
+    },
+    {
+      id: 1002, listingId: 2, listingTicker: 'MSFT', listingName: 'Microsoft Corp.', listingCurrency: 'USD',
+      buyerId: 11, buyerName: 'Ana Stojanovic', sellerId: 1, sellerName: 'Stefan Jovanovic',
+      quantity: 3, pricePerStock: 125, premium: 8, currentPrice: 100,
+      settlementDate: '2026-11-30', lastModifiedById: 1, lastModifiedByName: 'Stefan Jovanovic',
+      waitingOnUserId: 11, myTurn: false, status: 'ACTIVE',
+      createdAt: '2026-05-01T11:00:00Z', lastModifiedAt: '2026-05-01T11:00:00Z',
+    },
+    {
+      id: 1003, listingId: 1, listingTicker: 'TSLA', listingName: 'Tesla Inc.', listingCurrency: 'USD',
+      buyerId: 1, buyerName: 'Stefan Jovanovic', sellerId: 9, sellerName: 'Milica Nikolic',
+      quantity: 2, pricePerStock: 112, premium: 5, currentPrice: 100,
+      settlementDate: '2026-10-31', lastModifiedById: 9, lastModifiedByName: 'Milica Nikolic',
+      waitingOnUserId: 1, myTurn: true, status: 'ACTIVE',
+      createdAt: '2026-05-01T12:00:00Z', lastModifiedAt: '2026-05-02T12:00:00Z',
+    },
+  ];
+
+  // --- Contracts (sklopljeni ugovori) ---
+  // Contract 1: Stefan KUPAC, ACTIVE → moze Iskoristi/Odustani.
+  // Contract 2: Stefan KUPAC, vec EXERCISED → nema akcije (prikazuje status).
+  const mockContracts = [
+    {
+      id: 2001, listingId: 1, listingTicker: 'AAPL', listingName: 'Apple Inc.', listingCurrency: 'USD',
+      buyerId: 1, buyerName: 'Stefan Jovanovic', sellerId: 9, sellerName: 'Milica Nikolic',
+      quantity: 5, strikePrice: 200, premium: 12, currentPrice: 230,
+      settlementDate: '2026-12-31', status: 'ACTIVE', createdAt: '2026-05-03T10:00:00Z',
+    },
+    {
+      id: 2002, listingId: 2, listingTicker: 'MSFT', listingName: 'Microsoft Corp.', listingCurrency: 'USD',
+      buyerId: 1, buyerName: 'Stefan Jovanovic', sellerId: 10, sellerName: 'Lazar Ilic',
+      quantity: 3, strikePrice: 400, premium: 20, currentPrice: 420,
+      settlementDate: '2026-06-30', status: 'EXERCISED', createdAt: '2026-04-20T10:00:00Z',
+      exercisedAt: '2026-05-04T10:00:00Z',
+    },
+  ];
+
+  const stefanAccounts = [
+    {
+      id: 1, accountNumber: '265000000000000001', name: 'Stefan USD', ownerName: 'Stefan Jovanovic',
+      availableBalance: 100000, balance: 100000, reservedBalance: 0, currency: 'USD',
+      accountType: 'CHECKING', accountSubtype: 'STANDARD', status: 'ACTIVE',
+    },
+  ];
+
+  // ---------------- Discovery + create offer ----------------
+
+  it('Sc16: Klijent sa TRADE permisijom vidi javne OTC akcije na /otc/discovery', () => {
+    cy.intercept('GET', '**/api/otc/listings', { statusCode: 200, body: mockOtcListings }).as('listings');
+    cy.visit('/otc/discovery', { onBeforeLoad: setupClientSession });
+    cy.wait('@listings');
+    cy.contains('Javno dostupne akcije (2)').should('be.visible');
+    cy.contains('AAPL').should('be.visible');
+    cy.contains('Milica Nikolic').should('be.visible');
+    cy.contains('MSFT').should('be.visible');
+    cy.contains('Lazar Ilic').should('be.visible');
+  });
+
+  it('Sc17: Kreiranje ponude salje POST /api/otc/offers sa qty/price/premium/settlement', () => {
+    cy.intercept('GET', '**/api/otc/listings', { statusCode: 200, body: mockOtcListings }).as('listings');
+    cy.intercept('GET', '**/api/otc/offers/active', { statusCode: 200, body: [] }).as('offersAfter');
+    cy.intercept('POST', '**/api/otc/offers', (req) => {
+      expect(req.body.listingId).to.equal(1);
+      expect(req.body.sellerId).to.equal(9);
+      expect(req.body.quantity).to.equal(4);
+      expect(req.body.pricePerStock).to.equal(199.5);
+      expect(req.body.premium).to.equal(10);
+      expect(req.body.settlementDate).to.be.a('string').and.have.length.greaterThan(0);
+      req.reply({
+        statusCode: 200,
+        body: {
+          id: 5005, listingId: 1, listingTicker: 'AAPL', listingName: 'Apple Inc.', listingCurrency: 'USD',
+          buyerId: 1, buyerName: 'Stefan Jovanovic', sellerId: 9, sellerName: 'Milica Nikolic',
+          quantity: 4, pricePerStock: 199.5, premium: 10, currentPrice: 200,
+          settlementDate: req.body.settlementDate, lastModifiedById: 1, lastModifiedByName: 'Stefan Jovanovic',
+          waitingOnUserId: 9, myTurn: false, status: 'ACTIVE',
+          createdAt: '2026-05-05T10:00:00Z', lastModifiedAt: '2026-05-05T10:00:00Z',
+        },
+      });
+    }).as('createOffer');
+
+    cy.visit('/otc/discovery', { onBeforeLoad: setupClientSession });
+    cy.wait('@listings');
+
+    cy.contains('tr', 'AAPL').within(() => {
+      cy.contains('button', 'Napravi ponudu').click();
+    });
+    setNativeValue('input[id^="qty-"]', '4');
+    setNativeValue('input[id^="price-"]', '199.5');
+    setNativeValue('input[id^="premium-"]', '10');
+    // Verifikuj da je React state usvojio vrednosti pre submit-a.
+    cy.get('input[id^="qty-"]').should('have.value', '4');
+    cy.get('input[id^="price-"]').should('have.value', '199.5');
+    cy.get('input[id^="premium-"]').should('have.value', '10');
+    cy.contains('button', 'Posalji ponudu prodavcu').click();
+
+    cy.wait('@createOffer');
+    // Posle uspesnog create-a FE navigira na /otc/pregovori.
+    cy.url().should('include', '/otc/pregovori');
+  });
+
+  // ---------------- Negotiations: counter / accept / decline / deviation ----------------
+
+  const visitNegotiations = (offers: typeof mockActiveOffers) => {
+    cy.intercept('GET', '**/api/otc/offers/active', { statusCode: 200, body: offers }).as('offers');
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: stefanAccounts }).as('accounts');
+    cy.visit('/otc/pregovori', { onBeforeLoad: setupClientSession });
+    cy.wait('@offers');
+  };
+
+  it('Sc18: Pregovori prikazuju aktivne ponude gde je klijent kupac/prodavac', () => {
+    visitNegotiations(mockActiveOffers);
+    cy.contains('Moji aktivni pregovori (intra-bank)').should('be.visible');
+    cy.contains('tr', 'AAPL').should('be.visible');
+    cy.contains('tr', 'AAPL').contains('Kupac: Stefan Jovanovic').should('exist');
+    cy.contains('tr', 'MSFT').contains('Prodavac: Stefan Jovanovic').should('exist');
+  });
+
+  it('Sc19: Bojenje odstupanja cene — zeleno (≤5%) / zuto (5-20%) / crveno (>20%)', () => {
+    visitNegotiations(mockActiveOffers);
+    // Offer A AAPL: +2.0% → zeleni badge.
+    cy.contains('+2.0%').invoke('attr', 'class').should('include', 'bg-emerald-500/15');
+    // Offer C TSLA: +12.0% → zuti badge.
+    cy.contains('+12.0%').invoke('attr', 'class').should('include', 'bg-amber-500/15');
+    // Offer B MSFT: +25.0% → crveni badge.
+    cy.contains('+25.0%').invoke('attr', 'class').should('include', 'bg-red-500/15');
+  });
+
+  it('Sc20: Prodavac/kupac salje kontraponudu — POST /api/otc/offers/{id}/counter', () => {
+    cy.intercept('POST', '**/api/otc/offers/1001/counter', (req) => {
+      expect(req.body.quantity).to.equal(6);
+      expect(req.body.premium).to.equal(15);
+      req.reply({
+        statusCode: 200,
+        body: { ...mockActiveOffers[0], quantity: 6, premium: 15, myTurn: false },
+      });
+    }).as('counter');
+    visitNegotiations(mockActiveOffers);
+
+    cy.contains('tr', 'AAPL').within(() => {
+      cy.contains('button', 'Kontraponuda').click();
+    });
+    // Counter forma popunjava inicijalne vrednosti iz ponude; menjamo qty + premiju.
+    setNativeValue('#cq-1001', '6');
+    setNativeValue('#cpm-1001', '15');
+    cy.get('#cq-1001').should('have.value', '6');
+    cy.get('#cpm-1001').should('have.value', '15');
+    cy.contains('button', 'Posalji kontraponudu').click();
+
+    cy.wait('@counter');
+    cy.get('.Toastify__toast', { timeout: 8000 })
+      .should('exist')
+      .invoke('text')
+      .should('match', /Kontraponuda je poslata/i);
+  });
+
+  it('Sc21: Kupac prihvata ponudu — POST /api/otc/offers/{id}/accept → ugovor u "Sklopljeni ugovori"', () => {
+    cy.intercept('POST', '**/api/otc/offers/1001/accept*', (req) => {
+      // Stefan je kupac na offer-u 1001 → FE salje buyerAccountId.
+      expect(req.query.buyerAccountId).to.equal('1');
+      req.reply({ statusCode: 200, body: { ...mockActiveOffers[0], status: 'ACCEPTED' } });
+    }).as('accept');
+    // Posle accept-a FE re-fetchuje offers (sad bez accepted-og) i accounts.
+    cy.intercept('GET', '**/api/otc/offers/active', { statusCode: 200, body: mockActiveOffers }).as('offers');
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: stefanAccounts }).as('accounts');
+
+    cy.visit('/otc/pregovori', { onBeforeLoad: setupClientSession });
+    cy.wait('@offers');
+    // Sacekaj da se racuni ucitaju — handleAccept koristi getPreferredAccount
+    // (bez aktivnog racuna baca "Nemate nijedan aktivan racun" umesto accept-a).
+    cy.wait('@accounts');
+
+    cy.contains('tr', 'AAPL').within(() => {
+      cy.contains('button', 'Prihvati').click();
+    });
+    cy.wait('@accept');
+    cy.get('.Toastify__toast', { timeout: 8000 })
+      .should('exist')
+      .invoke('text')
+      .should('match', /opcioni ugovor je sklopljen|prihvacena/i);
+
+    // Verifikuj da sklopljeni ugovor stvarno postoji na /otc/ugovori strani.
+    cy.intercept('GET', '**/api/otc/contracts*', { statusCode: 200, body: mockContracts }).as('contracts');
+    cy.visit('/otc/ugovori', { onBeforeLoad: setupClientSession });
+    cy.wait('@contracts');
+    cy.contains('Sklopljeni ugovori').should('be.visible');
+    cy.contains('tr', 'AAPL').should('be.visible');
+  });
+
+  it('Sc22: Kupac/prodavac otkazuje pregovor — POST /api/otc/offers/{id}/decline', () => {
+    cy.on('window:confirm', () => true);
+    cy.intercept('POST', '**/api/otc/offers/1001/decline', {
+      statusCode: 200, body: { ...mockActiveOffers[0], status: 'CANCELLED' },
+    }).as('decline');
+    visitNegotiations(mockActiveOffers);
+
+    cy.contains('tr', 'AAPL').within(() => {
+      cy.contains('button', 'Otkazi').click();
+    });
+    cy.wait('@decline');
+    cy.get('.Toastify__toast', { timeout: 8000 })
+      .should('exist')
+      .invoke('text')
+      .should('match', /Pregovor je otkazan/i);
+  });
+
+  // ---------------- Contracts: exercise (SAGA) / abandon / access ----------------
+
+  const visitContracts = (contracts: typeof mockContracts) => {
+    cy.intercept('GET', '**/api/otc/contracts*', { statusCode: 200, body: contracts }).as('contracts');
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: stefanAccounts }).as('accounts');
+    cy.visit('/otc/ugovori', { onBeforeLoad: setupClientSession });
+    cy.wait('@contracts');
+  };
+
+  it('Sc23: Sklopljeni ugovori prikazuju ACTIVE i EXERCISED ugovore', () => {
+    visitContracts(mockContracts);
+    cy.contains('tr', 'AAPL').should('be.visible');
+    cy.contains('tr', 'MSFT').should('be.visible');
+    // Stefan je kupac na ACTIVE AAPL ugovoru → ima Iskoristi/Odustani.
+    cy.contains('tr', 'AAPL').contains('button', 'Iskoristi').should('be.visible');
+    cy.contains('tr', 'AAPL').contains('button', 'Odustani').should('be.visible');
+  });
+
+  it('Sc24: Iskoriscavanje validnog ugovora — POST /exercise vraca SAGA COMPLETED → ugovor EXERCISED', () => {
+    cy.on('window:confirm', () => true);
+    // NOVI SAGA oblik odgovora (terminalni COMPLETED, status EXERCISED).
+    cy.intercept('POST', '**/api/otc/contracts/2001/exercise*', (req) => {
+      // Stefan ima 1 aktivan racun (id:1) → FE ga prosledjuje kao buyerAccountId.
+      expect(req.query.buyerAccountId).to.equal('1');
+      req.reply({
+        statusCode: 200,
+        body: { sagaId: 'saga-intra-1', sagaStatus: 'COMPLETED', currentStep: 5, id: 2001, status: 'EXERCISED' },
+      });
+    }).as('exercise');
+
+    // Jedan intercept koji menja odgovor po pozivu: prvi (mount) vraca ACTIVE
+    // ugovor; sledeci (Promise.all re-fetch posle exercise-a) vraca EXERCISED.
+    // Dva odvojena cy.intercept-a ne bi radila — LIFO bi naterao i mount fetch
+    // da dobije EXERCISED, pa "Iskoristi" dugme nikad ne bi bilo prikazano.
+    let contractsCall = 0;
+    const afterExercise = mockContracts.map((c) =>
+      c.id === 2001 ? { ...c, status: 'EXERCISED', exercisedAt: '2026-05-06T10:00:00Z' } : c,
+    );
+    cy.intercept('GET', '**/api/otc/contracts*', (req) => {
+      contractsCall += 1;
+      req.reply({ statusCode: 200, body: contractsCall <= 1 ? mockContracts : afterExercise });
+    }).as('contracts');
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: stefanAccounts }).as('accounts');
+    cy.visit('/otc/ugovori', { onBeforeLoad: setupClientSession });
+    cy.wait('@contracts');
+    // handleExercise koristi getPreferredAccount → sacekaj racune da se ucitaju.
+    cy.wait('@accounts');
+
+    cy.contains('tr', 'AAPL').within(() => {
+      cy.contains('button', 'Iskoristi').click();
+    });
+    cy.wait('@exercise');
+    cy.get('.Toastify__toast', { timeout: 8000 })
+      .should('exist')
+      .invoke('text')
+      .should('match', /iskoriscen/i);
+    cy.wait('@contracts');
+    // AAPL red sad prikazuje status "Iskoriscen" (srpska labela za EXERCISED).
+    cy.contains('tr', 'AAPL').contains('Iskoriscen').should('be.visible');
+  });
+
+  it('Sc25: Odustajanje od ugovora — POST /api/otc/contracts/{id}/abandon', () => {
+    cy.on('window:confirm', () => true);
+    cy.intercept('POST', '**/api/otc/contracts/2001/abandon', {
+      statusCode: 200, body: { ...mockContracts[0], status: 'EXPIRED' },
+    }).as('abandon');
+
+    cy.intercept('GET', '**/api/otc/contracts*', { statusCode: 200, body: mockContracts }).as('contracts');
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: stefanAccounts }).as('accounts');
+    cy.visit('/otc/ugovori', { onBeforeLoad: setupClientSession });
+    cy.wait('@contracts');
+
+    cy.contains('tr', 'AAPL').within(() => {
+      cy.contains('button', 'Odustani').click();
+    });
+    cy.wait('@abandon');
+    cy.get('.Toastify__toast', { timeout: 8000 })
+      .should('exist')
+      .invoke('text')
+      .should('match', /Odustali ste od ugovora|Premija ostaje/i);
+  });
+
+  it('Sc26: Iskoriscavanje koje BE odbije (409) — prikazuje gresku, ugovor ostaje aktivan', () => {
+    cy.on('window:confirm', () => true);
+    cy.intercept('POST', '**/api/otc/contracts/2001/exercise*', {
+      statusCode: 409,
+      body: { message: 'Iskoriscavanje nije uspelo — sredstva vracena (SAGA COMPENSATED).' },
+    }).as('exerciseFail');
+    cy.intercept('GET', '**/api/otc/contracts*', { statusCode: 200, body: mockContracts }).as('contracts');
+    cy.intercept('GET', '**/api/accounts/my', { statusCode: 200, body: stefanAccounts }).as('accounts');
+    cy.visit('/otc/ugovori', { onBeforeLoad: setupClientSession });
+    cy.wait('@contracts');
+    // handleExercise koristi getPreferredAccount → sacekaj racune da se ucitaju.
+    cy.wait('@accounts');
+
+    cy.contains('tr', 'AAPL').within(() => {
+      cy.contains('button', 'Iskoristi').click();
+    });
+    cy.wait('@exerciseFail');
+    cy.get('.Toastify__toast', { timeout: 8000 })
+      .should('exist')
+      .invoke('text')
+      .should('match', /nije uspelo|sredstva vracena/i);
+    // Ugovor ostaje ACTIVE ("Aktivan") sa i dalje dostupnim dugmetom Iskoristi.
+    cy.contains('tr', 'AAPL').contains('Aktivan').should('be.visible');
+    cy.contains('tr', 'AAPL').contains('button', 'Iskoristi').should('be.visible');
+  });
+});
+
+
+// ============================================================
 //  FEATURE: Istorija OTC pregovora (FE4 — zadatak 7.3 / jkrunic)
 // ============================================================
 const mockNegHistoryPage = {
@@ -1239,12 +1625,11 @@ describe('Mock C4: OTC Inter-bank Offers', () => {
     cy.contains('BANKA3 / buyer-2').should('be.visible');
   });
 
-  // TODO: mock data nesinhronizovan sa FE myCode pattern ('C-1' iz user.id=1) +
-  // OUR_BANK_CODE='RN-222' default. mockOtcRemoteOffers koristi buyerUserId='buyer-1'
-  // i buyerBankCode='BANKA1' — getMyRole() vraca null pa "Prihvati" dugme nije
-  // visible jer myTurn samo ako sam BUYER ili SELLER. FE tim da popravi mock data
-  // ili Cypress beforeEach koji intercept-uje /config.js + setuje window._env_.
-  it.skip('S43: Prihvati - PATCH /accept + account selector', () => {
+  // FIXED 03.06: mock fixture (remote-offer-green) sad sinhronizovan sa FE myCode
+  // pattern — buyerBankCode='RN-222' (OUR_BANK_CODE default) + buyerUserId='C-1'
+  // (setupClientSession user.id=1 -> C-1). computeMyRoleInOffer vraca 'BUYER',
+  // myTurn:true -> "Prihvati" dugme je vidljivo. Vidi komentar u mockOtcRemoteOffers[0].
+  it('S43: Prihvati - PATCH /accept + account selector', () => {
     openRemoteOffersTab();
 
     cy.contains('tr', 'AAPL').within(() => {

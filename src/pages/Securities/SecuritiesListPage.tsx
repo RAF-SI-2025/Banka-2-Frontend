@@ -3,9 +3,6 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/lib/notify';
 import {
-  LineChart, Line, ResponsiveContainer,
-} from 'recharts';
-import {
   TrendingUp,
   TrendingDown,
   Search,
@@ -62,7 +59,11 @@ const TAB_ICONS: Record<ListingTab, string> = {
 
 const PAGE_SIZE = 20;
 
-type SortField = 'price' | 'volume' | 'maintenanceMargin' | null;
+// R1 726/726b: sort key se zove `imc` jer kolona PRIKAZUJE Initial Margin Cost
+// (getInitialMarginCost), a ne maintenance margin. Ranije je kljuc bio
+// `maintenanceMargin` (sortiralo po MM) — order je isti (IMC = MM × 1.1, monotono),
+// ali je naziv kljuca bio u neskladu sa prikazom i navodio na pogresan zakljucak.
+type SortField = 'price' | 'volume' | 'imc' | null;
 type SortDirection = 'asc' | 'desc';
 
 function getMaintenanceMargin(listing: Listing, activeTab: ListingTab): number {
@@ -78,38 +79,28 @@ function getInitialMarginCost(listing: Listing, activeTab: ListingTab): number {
   return getMaintenanceMargin(listing, activeTab) * 1.1;
 }
 
-// Deterministic sparkline based on ticker string so it doesn't change on re-render
-function generateStableSparkline(ticker: string, price: number): number[] {
-  const seed = ticker.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  const points: number[] = [];
-  let p = price * 0.98;
-  let s = seed;
-  for (let i = 0; i < 7; i++) {
-    s = (s * 9301 + 49297) % 233280;
-    const rnd = s / 233280;
-    p += (rnd - 0.48) * price * 0.02;
-    points.push(Math.round(p * 100) / 100);
-  }
-  return points;
-}
-
-function MiniSparkline({ data, positive }: { data: number[]; positive: boolean }) {
-  const chartData = data.map((v, i) => ({ v, i }));
-  const color = positive ? '#10B981' : '#EF4444';
+// Trend indikator zasnovan na STVARNOJ dnevnoj promeni (changePercent) sa BE-a.
+// Lista nema istoriju cena po redu (N round-trip-ova bi bilo skupo), pa ovde
+// NE crtamo sparkline od izmisljenih tacaka ("ne lazni podaci") — prikazujemo
+// pravac stvarne promene. Za detaljan grafik korisnik otvara detalj-stranu
+// (koja ucitava stvarnu istoriju preko GET /listings/{id}/history).
+function TrendIndicator({ changePct }: { changePct: number }) {
+  const positive = changePct >= 0;
   return (
-    <div className="w-[60px] h-[30px]">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData}>
-          <Line
-            type="monotone"
-            dataKey="v"
-            stroke={color}
-            strokeWidth={1.5}
-            dot={false}
-            isAnimationActive={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+    <div className="flex items-center justify-center gap-1" title="Dnevna promena">
+      {positive ? (
+        <TrendingUp className="h-4 w-4 text-emerald-500" />
+      ) : (
+        <TrendingDown className="h-4 w-4 text-red-500" />
+      )}
+      <span
+        className={`font-mono text-[11px] tabular-nums ${
+          positive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+        }`}
+      >
+        {positive ? '+' : ''}
+        {changePct.toFixed(2)}%
+      </span>
     </div>
   );
 }
@@ -315,7 +306,7 @@ export default function SecuritiesListPage() {
         let valA = 0, valB = 0;
         if (sortBy === 'price') { valA = a.price ?? 0; valB = b.price ?? 0; }
         else if (sortBy === 'volume') { valA = a.volume ?? 0; valB = b.volume ?? 0; }
-        else if (sortBy === 'maintenanceMargin') { valA = getMaintenanceMargin(a, activeTab); valB = getMaintenanceMargin(b, activeTab); }
+        else if (sortBy === 'imc') { valA = getInitialMarginCost(a, activeTab); valB = getInitialMarginCost(b, activeTab); }
         return sortDirection === 'asc' ? valA - valB : valB - valA;
       });
     }
@@ -787,8 +778,8 @@ export default function SecuritiesListPage() {
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 text-right cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort('volume')}>
                       <span className="inline-flex items-center justify-end">Volume{getSortIcon('volume')}</span>
                     </TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 text-right cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort('maintenanceMargin')}>
-                      <span className="inline-flex items-center justify-end" title="Initial Margin Cost">IMC{getSortIcon('maintenanceMargin')}</span>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 text-right cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort('imc')}>
+                      <span className="inline-flex items-center justify-end" title="Initial Margin Cost">IMC{getSortIcon('imc')}</span>
                     </TableHead>
                     {activeTab === 'FUTURES' && <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Istek</TableHead>}
                     {activeTab === 'FOREX' && <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Par</TableHead>}
@@ -800,7 +791,6 @@ export default function SecuritiesListPage() {
                     const change = listing.priceChange ?? 0;
                     const changePct = listing.changePercent ?? 0;
                     const isPositive = change >= 0;
-                    const sparkData = generateStableSparkline(listing.ticker, listing.price);
 
                     return (
                       <TableRow
@@ -843,11 +833,9 @@ export default function SecuritiesListPage() {
                             </span>
                           </div>
                         </TableCell>
-                        {/* Mini sparkline */}
+                        {/* Trend (real daily change) */}
                         <TableCell className="py-3">
-                          <div className="flex justify-center">
-                            <MiniSparkline data={sparkData} positive={isPositive} />
-                          </div>
+                          <TrendIndicator changePct={changePct} />
                         </TableCell>
                         {/* Bid */}
                         <TableCell className="text-right py-3">

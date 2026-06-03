@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { cardService } from '@/services/cardService';
 import { accountService } from '@/services/accountService';
 import type { Card, Account, AuthorizedPerson } from '@/types/celina2';
-import { asArray, formatAmount, formatDate, getErrorMessage, isBusinessAccountType, maskCardNumber } from '@/utils/formatters';
+import { asArray, formatAmount, formatDate, getErrorMessage, isBusinessAccountType } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Card as UICard, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import {
   CARD_STATUS_LABELS,
   CARD_STATUS_BADGE_VARIANT,
+  computeCardUsage,
 } from '@/utils/cardLabels';
 
 function statusBadgeVariant(status: string): 'success' | 'warning' | 'secondary' {
@@ -211,9 +212,11 @@ function CreditCardVisual({ card }: { card: Card }) {
           <CardChip />
         </div>
 
-        {/* Card number */}
+        {/* Card number — BE vec vraca maskiran broj (5798********5571, Celina 2 §321).
+            Ne re-maskiramo na FE-u: re-maskiranje je lomljivo (zavisi od toga da BE
+            zadrzi prve+zadnje 4 vidljive). Prikazujemo BE vrednost direktno. */}
         <p className="relative font-mono text-[22px] tracking-[0.22em] drop-shadow-md mt-3">
-          {maskCardNumber(card.cardNumber, { showFirst4: true })}
+          {card.cardNumber || '—'}
         </p>
 
         {/* Bottom details */}
@@ -289,6 +292,9 @@ export default function CardListPage() {
   const [cardCategory, setCardCategory] = useState<'DEBIT' | 'CREDIT' | 'INTERNET_PREPAID'>('DEBIT');
   const [creditLimit, setCreditLimit] = useState<string>('50000');
   const [confirmBlockCardId, setConfirmBlockCardId] = useState<number | null>(null);
+  // ACCEPTED-DEVIATION (user-directed 03.06): zahtev za karticu se podnosi jednim
+  // korakom, bez email verifikacionog koda (uklonjen C2 Sc28 §308 OTP gate). OTP
+  // ostaje SAMO na placanju i transferu (money-out).
   // Top-up / withdraw za INTERNET_PREPAID kartice
   const [topUpCardId, setTopUpCardId] = useState<number | null>(null);
   const [topUpDirection, setTopUpDirection] = useState<'top-up' | 'withdraw'>('top-up');
@@ -338,12 +344,25 @@ export default function CardListPage() {
     }
   }, [selectedAccountId, isBizAccount, selectedAccount?.accountNumber]);
 
-  const handleCreateCard = async () => {
+  const resetNewCardForm = () => {
+    setShowNewCard(false);
+    setSelectedAccountId('');
+    setNewCardLimit('100000');
+    setCardRecipient('self');
+    setSelectedAuthorizedPersonId('');
+    setShowNewAuthorizedPerson(false);
+    setNewApFirstName('');
+    setNewApLastName('');
+    setNewApEmail('');
+    setNewApPhone('');
+  };
+
+  /** Validacija forme pre podnosenja zahteva za karticu. */
+  const validateNewCardForm = (): boolean => {
     if (!selectedAccountId) {
       toast.error('Izaberite racun za karticu.');
-      return;
+      return false;
     }
-
     const acct = accounts.find((a) => String(a.id) === selectedAccountId);
     const cardsForAccount = asArray<Card>(cards).filter(
       (c) => c.accountNumber === acct?.accountNumber && c.status !== 'DEACTIVATED'
@@ -356,21 +375,28 @@ export default function CardListPage() {
           ? 'Poslovni racun moze imati maksimalno 1 karticu po ovlascenom licu.'
           : 'Licni racun moze imati maksimalno 2 kartice.'
       );
-      return;
+      return false;
     }
-
-    // Validate authorized person for business accounts
     if (isBusiness && cardRecipient === 'authorized') {
       if (showNewAuthorizedPerson) {
         if (!newApFirstName.trim() || !newApLastName.trim() || !newApEmail.trim() || !newApPhone.trim()) {
           toast.error('Popunite sve podatke o ovlascenom licu.');
-          return;
+          return false;
         }
       } else if (!selectedAuthorizedPersonId) {
         toast.error('Izaberite ovlasceno lice.');
-        return;
+        return false;
       }
     }
+    return true;
+  };
+
+  // ACCEPTED-DEVIATION (user-directed 03.06): jednostavan submit bez OTP/email koda.
+  const handleCreateCard = async () => {
+    if (!validateNewCardForm()) return;
+
+    const acct = accounts.find((a) => String(a.id) === selectedAccountId);
+    const isBusiness = isBusinessAccountType(acct?.accountType);
 
     setCreatingCard(true);
     try {
@@ -399,16 +425,7 @@ export default function CardListPage() {
 
       await cardService.submitRequest(requestData);
       toast.success('Zahtev za karticu je uspesno podnet! Ceka odobrenje zaposlenog.');
-      setShowNewCard(false);
-      setSelectedAccountId('');
-      setNewCardLimit('100000');
-      setCardRecipient('self');
-      setSelectedAuthorizedPersonId('');
-      setShowNewAuthorizedPerson(false);
-      setNewApFirstName('');
-      setNewApLastName('');
-      setNewApEmail('');
-      setNewApPhone('');
+      resetNewCardForm();
     } catch (err) {
       toast.error(getErrorMessage(err, 'Podnosenje zahteva nije uspelo.'));
     } finally {
@@ -529,7 +546,7 @@ export default function CardListPage() {
               <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
               <CardTitle>Zahtev za novu karticu</CardTitle>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setShowNewCard(false)}>Otkazi</Button>
+            <Button variant="outline" size="sm" onClick={resetNewCardForm}>Otkazi</Button>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
@@ -692,13 +709,16 @@ export default function CardListPage() {
               </div>
             )}
 
+            {/* ACCEPTED-DEVIATION (user-directed 03.06): jednokoracni submit zahteva
+                za karticu — bez email verifikacionog koda. OTP samo na placanju/transferu. */}
             <Button
               onClick={handleCreateCard}
               disabled={creatingCard || !selectedAccountId}
+              data-testid="card-submit-request-button"
               className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all"
             >
               {creatingCard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-              {creatingCard ? 'Kreiranje...' : 'Kreiraj karticu'}
+              {creatingCard ? 'Slanje zahteva...' : 'Zatrazi novu karticu'}
             </Button>
           </CardContent>
         </UICard>
@@ -764,7 +784,12 @@ export default function CardListPage() {
                     <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Racun</p>
                     <p className="font-mono text-sm font-medium mt-0.5">{card.accountNumber}</p>
                   </div>
-                  <LimitRing used={0} total={card.cardLimit ?? card.limit ?? 100000} />
+                  {/* R1-548: prsten samo kad postoji stvarna iskoriscenost (CREDIT/PREPAID);
+                      za DEBIT nema spending podataka pa ne prikazujemo lazni 0%. */}
+                  {(() => {
+                    const usage = computeCardUsage(card);
+                    return usage ? <LimitRing used={usage.used} total={usage.total} /> : null;
+                  })()}
                 </div>
 
                 {/* Limit text */}

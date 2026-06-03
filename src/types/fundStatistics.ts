@@ -11,6 +11,23 @@
  * Metrike su `null` kada nema dovoljno istorijskih snimaka da bi bile
  * smislene (BE prag: MIN_SNAPSHOTS_REQUIRED = 30).
  */
+/**
+ * P1-fe-contracts-1: sirovi BE odgovor (`FundStatisticsDto.java`). BE kljucevi
+ * su `annualizedReturn`/`volatility`/`maxDrawdown`/`rewardToVariability` (bez
+ * `Percent`/`Ratio` sufiksa) — `fundStatisticsService` ih normalizuje u
+ * FE-friendly {@link FundStatisticsDto}. Bez mapiranja sve metrike su bile `—`.
+ */
+export interface FundStatisticsRawDto {
+  fundId: number;
+  fundName: string;
+  snapshotCount: number;
+  sufficientHistory: boolean;
+  annualizedReturn: number | null;
+  volatility: number | null;
+  maxDrawdown: number | null;
+  rewardToVariability: number | null;
+}
+
 export interface FundStatisticsDto {
   fundId: number;
   fundName: string;

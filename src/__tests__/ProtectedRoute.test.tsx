@@ -22,6 +22,7 @@ function renderRoute(
     employeeOnly?: boolean;
     supervisorOnly?: boolean;
     noAgentOnly?: boolean;
+    tradeGate?: boolean;
     requiredPermission?: Permission;
   } = {},
   initialPath = '/protected'
@@ -414,5 +415,157 @@ describe('ProtectedRoute', () => {
 
     renderRoute({ noAgentOnly: true });
     expect(screen.getByTestId('child')).toBeTruthy();
+  });
+
+  // ---------------------------------------------------------------------------
+  // tradeGate (1761) — kreiranje naloga: admin/supervizor ILI klijent sa
+  // TRADE_STOCKS. Klijent bez permisije / cist employee / agent → /403.
+  // ---------------------------------------------------------------------------
+
+  it('tradeGate: redirects to /403 for client WITHOUT TRADE_STOCKS', () => {
+    mockUseAuth.mockReturnValue({
+      user: { email: 'klijent@banka.rs', role: 'CLIENT', permissions: [] },
+      isLoading: false,
+      hasPermission: () => false,
+      isAdmin: false,
+      isSupervisor: false,
+      isAgent: false,
+    });
+
+    renderRoute({ tradeGate: true });
+    expect(screen.getByTestId('forbidden-page')).toBeTruthy();
+  });
+
+  it('tradeGate: renders children for client WITH TRADE_STOCKS', () => {
+    mockUseAuth.mockReturnValue({
+      user: { email: 'klijent@banka.rs', role: 'CLIENT', permissions: [Permission.TRADE_STOCKS] },
+      isLoading: false,
+      hasPermission: (p: Permission) => p === Permission.TRADE_STOCKS,
+      isAdmin: false,
+      isSupervisor: false,
+      isAgent: false,
+    });
+
+    renderRoute({ tradeGate: true });
+    expect(screen.getByTestId('child')).toBeTruthy();
+  });
+
+  it('tradeGate: renders children for supervisor (buys in name of fund, no TRADE_STOCKS perm)', () => {
+    mockUseAuth.mockReturnValue({
+      user: { email: 'supervisor@banka.rs', role: 'EMPLOYEE', permissions: [Permission.SUPERVISOR] },
+      isLoading: false,
+      hasPermission: (p: Permission) => p === Permission.SUPERVISOR,
+      isAdmin: false,
+      isSupervisor: true,
+      isAgent: false,
+    });
+
+    renderRoute({ tradeGate: true });
+    expect(screen.getByTestId('child')).toBeTruthy();
+  });
+
+  it('tradeGate: renders children for admin', () => {
+    mockUseAuth.mockReturnValue({
+      user: { email: 'admin@banka.rs', role: 'ADMIN', permissions: [Permission.ADMIN] },
+      isLoading: false,
+      hasPermission: () => false,
+      isAdmin: true,
+      isSupervisor: true,
+      isAgent: false,
+    });
+
+    renderRoute({ tradeGate: true });
+    expect(screen.getByTestId('child')).toBeTruthy();
+  });
+
+  it('tradeGate: redirects to /403 for plain employee without supervisor/admin/trade', () => {
+    mockUseAuth.mockReturnValue({
+      user: { email: 'agent@banka.rs', role: 'EMPLOYEE', permissions: [Permission.AGENT] },
+      isLoading: false,
+      hasPermission: (p: Permission) => p === Permission.AGENT,
+      isAdmin: false,
+      isSupervisor: false,
+      isAgent: true,
+    });
+
+    renderRoute({ tradeGate: true });
+    expect(screen.getByTestId('forbidden-page')).toBeTruthy();
+  });
+
+  // ---------------------------------------------------------------------------
+  // TEST-fe-authz-1 — isSupervisor string-coupling drift NE sme tiho da
+  // demotuje supervizora na supervisorOnly rutama. AuthContext izvodi
+  // isSupervisor iz dediciranog `position` polja (P1-fe-mobile-authz-1 1760)
+  // PORED Permission.SUPERVISOR string-a. Ovde pinemo da ProtectedRoute postuje
+  // taj derived flag: kad je isSupervisor=true (preko position=SUPERVISOR), a
+  // permissions lista NE sadrzi literal "SUPERVISOR" string, ruta i dalje
+  // renderuje child (ne /403). Time se brani od BE schema drift-a.
+  // ---------------------------------------------------------------------------
+
+  it('supervisorOnly: renders child when isSupervisor is true via position-drift (permissions lacks SUPERVISOR string)', () => {
+    // Schema drift: BE poslao position=SUPERVISOR (AuthContext -> isSupervisor=true),
+    // ali permissions lista NE sadrzi Permission.SUPERVISOR string (samo TRADE_STOCKS).
+    mockUseAuth.mockReturnValue({
+      user: {
+        email: 'supervisor@banka.rs',
+        role: 'EMPLOYEE',
+        position: 'SUPERVISOR',
+        permissions: [Permission.TRADE_STOCKS], // <-- SUPERVISOR string fali
+      },
+      isLoading: false,
+      hasPermission: (p: Permission) => p === Permission.TRADE_STOCKS,
+      isAdmin: false,
+      isSupervisor: true, // <-- derived iz position-a, ne iz permissions string-a
+      isAgent: false,
+    });
+
+    renderRoute({ supervisorOnly: true });
+    // NIJE demotovan na /403 — derived isSupervisor flag se postuje.
+    expect(screen.getByTestId('child')).toBeTruthy();
+    expect(screen.queryByTestId('forbidden-page')).toBeNull();
+  });
+
+  it('noAgentOnly: renders child when isSupervisor is true via position-drift (dual agent+supervisor not demoted)', () => {
+    // position=SUPERVISOR + AGENT permisija — supervisor status pobedjuje,
+    // OTP/noAgentOnly ruta ostaje dostupna iako permissions NEMA SUPERVISOR string.
+    mockUseAuth.mockReturnValue({
+      user: {
+        email: 'dual@banka.rs',
+        role: 'EMPLOYEE',
+        position: 'SUPERVISOR',
+        permissions: [Permission.AGENT],
+      },
+      isLoading: false,
+      hasPermission: (p: Permission) => p === Permission.AGENT,
+      isAdmin: false,
+      isSupervisor: true,
+      isAgent: false, // AuthContext: isAgent je false kad je isSupervisor true
+    });
+
+    renderRoute({ noAgentOnly: true });
+    expect(screen.getByTestId('child')).toBeTruthy();
+    expect(screen.queryByTestId('forbidden-page')).toBeNull();
+  });
+
+  it('supervisorOnly: still redirects to /403 when isSupervisor is false (genuine non-supervisor, no false grant)', () => {
+    // Kontra-test: obican EMPLOYEE bez supervizor-statusa (position=AGENT) NE sme
+    // proci supervisorOnly rutu — derived-flag mehanizam ne sme over-grant-ovati.
+    mockUseAuth.mockReturnValue({
+      user: {
+        email: 'agent@banka.rs',
+        role: 'EMPLOYEE',
+        position: 'AGENT',
+        permissions: [Permission.AGENT, Permission.TRADE_STOCKS],
+      },
+      isLoading: false,
+      hasPermission: (p: Permission) => [Permission.AGENT, Permission.TRADE_STOCKS].includes(p),
+      isAdmin: false,
+      isSupervisor: false,
+      isAgent: true,
+    });
+
+    renderRoute({ supervisorOnly: true });
+    expect(screen.getByTestId('forbidden-page')).toBeTruthy();
+    expect(screen.queryByTestId('child')).toBeNull();
   });
 });

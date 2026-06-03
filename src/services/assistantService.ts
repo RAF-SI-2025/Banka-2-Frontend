@@ -327,12 +327,6 @@ export function deleteConversation(uuid: string): Promise<void> {
   return authedJson<void>(`/assistant/conversations/${uuid}`, { method: 'DELETE' });
 }
 
-export function clearConversation(uuid: string): Promise<void> {
-  return authedJson<void>(`/assistant/conversations/${uuid}/clear`, {
-    method: 'POST',
-  });
-}
-
 /* ============================== AGENTIC MODE (Phase 4 v3.5) ============================== */
 
 /**
@@ -356,14 +350,6 @@ export function rejectAgentAction(actionUuid: string): Promise<AgentActionResult
   return authedJson<AgentActionResult>(`/assistant/actions/${actionUuid}/reject`, {
     method: 'POST',
   });
-}
-
-export function fetchAgentAction(actionUuid: string): Promise<unknown> {
-  return authedJson<unknown>(`/assistant/actions/${actionUuid}`);
-}
-
-export function fetchPendingActions(): Promise<unknown[]> {
-  return authedJson<unknown[]>('/assistant/actions');
 }
 
 /* ============================== WIZARD (Phase 4.5) ============================== */

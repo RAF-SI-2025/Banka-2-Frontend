@@ -301,4 +301,60 @@ describe('OrdersListPage', () => {
 
     expect(screen.getByText('+30 min/fill')).toBeInTheDocument();
   });
+
+  // ---------- TEST-fe-trading-7 (OT-1224): settlement-passed order ----------
+  // Za PENDING order ciji je listingSettlementDate prosao: Approve dugme se
+  // sakriva (expired -> izvrsenje nema smisla), ali Decline ("Odbij") ostaje
+  // dostupno da agent moze rucno da odbije zaglavljeni nalog.
+
+  it('hides Approve but keeps Decline for a PENDING order whose settlement date has passed', async () => {
+    const expiredPending: Order = {
+      ...mockOrders[0],
+      id: 1,
+      status: 'PENDING',
+      listingSettlementDate: '2020-01-10', // proslost
+    };
+    mockGetAll.mockResolvedValue({
+      content: [expiredPending],
+      totalPages: 1,
+      totalElements: 1,
+      number: 0,
+      size: 20,
+    });
+
+    renderWithProviders(<OrdersListPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('AAPL')).toBeInTheDocument();
+    });
+
+    // Approve sakriveno (settlement prosao), Decline i dalje prisutan.
+    expect(screen.queryByText('Odobri')).not.toBeInTheDocument();
+    expect(screen.getByText('Odbij')).toBeInTheDocument();
+  });
+
+  it('shows both Approve and Decline for a PENDING order with a future settlement date', async () => {
+    const futurePending: Order = {
+      ...mockOrders[0],
+      id: 1,
+      status: 'PENDING',
+      listingSettlementDate: '2099-01-10', // buducnost
+    };
+    mockGetAll.mockResolvedValue({
+      content: [futurePending],
+      totalPages: 1,
+      totalElements: 1,
+      number: 0,
+      size: 20,
+    });
+
+    renderWithProviders(<OrdersListPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('AAPL')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Odobri')).toBeInTheDocument();
+    expect(screen.getByText('Odbij')).toBeInTheDocument();
+  });
 });

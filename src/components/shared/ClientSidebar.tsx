@@ -78,24 +78,6 @@ export default function ClientSidebar() {
     return 'Klijent';
   };
 
-  const clientLinks: SidebarItem[] = useMemo(
-    () => [
-      { label: 'Racuni', path: '/accounts', icon: <Wallet className="h-4 w-4" /> },
-      { label: 'Placanja', path: '/payments/new', icon: <Receipt className="h-4 w-4" /> },
-      { label: 'Primaoci', path: '/payments/recipients', icon: <BookUser className="h-4 w-4" /> },
-      { label: 'Prenosi', path: '/transfers', icon: <ArrowLeftRight className="h-4 w-4" /> },
-      { label: 'Istorija prenosa', path: '/transfers/history', icon: <ArrowLeftRight className="h-4 w-4" /> },
-      { label: 'Istorija placanja', path: '/payments/history', icon: <History className="h-4 w-4" /> },
-      { label: 'Menjacnica', path: '/exchange', icon: <RefreshCw className="h-4 w-4" /> },
-      { label: 'Kartice', path: '/cards', icon: <CreditCard className="h-4 w-4" /> },
-      { label: 'Krediti', path: '/loans', icon: <FileText className="h-4 w-4" /> },
-      { label: 'Marzni racuni', path: '/margin-accounts', icon: <Landmark className="h-4 w-4" /> },
-      { label: 'Stednja', path: '/savings', icon: <PiggyBank className="h-4 w-4" /> },
-      { label: 'Lokacije', path: '/branches', icon: <MapPin className="h-4 w-4" /> },
-    ],
-    []
-  );
-
   // OTC linkovi: po Celini 4 (Nova) §145-148, samo SUPERVIZORI (od zaposlenih)
   // i KLIJENTI sa permisijom TRADE_STOCKS smeju da vide. Agenti ne.
   // T4A-017 fix: klijent sad mora imati eksplicitnu TRADE_STOCKS permisiju
@@ -117,15 +99,49 @@ export default function ClientSidebar() {
   // supervizori i admin. Agenti su iskljuceni po istom pravilu kao OTC.
   const canAccessTradingFeatures = !agentBlocked && (isSupervisor || isAdmin || clientCanTrade);
 
-  const tradingLinks: SidebarItem[] = useMemo(
+  // R2-388: "Marzni racuni" je trgovinski feature (margin trading) — klijent BEZ
+  // TRADE_STOCKS ne moze da otvori margin racun ni da trguje preko njega, pa link
+  // ne treba da vidi. Gejtujemo ga iza `canAccessTradingFeatures` (isto pravilo
+  // kao Berza/Portfolio); ostali finansijski linkovi su za sve klijente.
+  const clientLinks: SidebarItem[] = useMemo(
     () => {
-      const base: SidebarItem[] = [
-        { label: 'Berza', path: '/securities', icon: <TrendingUp className="h-4 w-4" /> },
-        { label: 'Portfolio', path: '/portfolio', icon: <Briefcase className="h-4 w-4" /> },
-        { label: 'Moji orderi', path: '/orders/my', icon: <ShoppingCart className="h-4 w-4" /> },
+      const links: SidebarItem[] = [
+        { label: 'Racuni', path: '/accounts', icon: <Wallet className="h-4 w-4" /> },
+        { label: 'Placanja', path: '/payments/new', icon: <Receipt className="h-4 w-4" /> },
+        { label: 'Primaoci', path: '/payments/recipients', icon: <BookUser className="h-4 w-4" /> },
+        { label: 'Prenosi', path: '/transfers', icon: <ArrowLeftRight className="h-4 w-4" /> },
+        { label: 'Istorija prenosa', path: '/transfers/history', icon: <ArrowLeftRight className="h-4 w-4" /> },
+        { label: 'Istorija placanja', path: '/payments/history', icon: <History className="h-4 w-4" /> },
+        { label: 'Menjacnica', path: '/exchange', icon: <RefreshCw className="h-4 w-4" /> },
+        { label: 'Kartice', path: '/cards', icon: <CreditCard className="h-4 w-4" /> },
+        { label: 'Krediti', path: '/loans', icon: <FileText className="h-4 w-4" /> },
       ];
       if (canAccessTradingFeatures) {
+        links.push({ label: 'Marzni racuni', path: '/margin-accounts', icon: <Landmark className="h-4 w-4" /> });
+      }
+      links.push(
+        { label: 'Stednja', path: '/savings', icon: <PiggyBank className="h-4 w-4" /> },
+        { label: 'Lokacije', path: '/branches', icon: <MapPin className="h-4 w-4" /> },
+      );
+      return links;
+    },
+    [canAccessTradingFeatures]
+  );
+
+  const tradingLinks: SidebarItem[] = useMemo(
+    () => {
+      const base: SidebarItem[] = [];
+      // P1-fe-mobile-authz-1 (1761): Berza/Portfolio/Moji-orderi su RANIJE bili
+      // UVEK vidljivi (cak i klijentu bez TRADE_STOCKS) dok su Watchlist/OTC bili
+      // skriveni za istog klijenta — kontradikcija koja je vodila klijenta kroz
+      // ceo order+OTP flow do BE 403. Sad su i base linkovi uslovljeni
+      // `canAccessTradingFeatures` (isto pravilo kao rute: admin/supervizor ili
+      // klijent sa TRADE_STOCKS; agenti iskljuceni).
+      if (canAccessTradingFeatures) {
         base.push(
+          { label: 'Berza', path: '/securities', icon: <TrendingUp className="h-4 w-4" /> },
+          { label: 'Portfolio', path: '/portfolio', icon: <Briefcase className="h-4 w-4" /> },
+          { label: 'Moji orderi', path: '/orders/my', icon: <ShoppingCart className="h-4 w-4" /> },
           { label: 'Watchlist', path: '/watchlist', icon: <Bookmark className="h-4 w-4" /> },
           { label: 'Cenovni alarmi', path: '/price-alerts', icon: <BellRing className="h-4 w-4" /> },
           { label: 'Trajni nalozi', path: '/recurring-orders', icon: <Repeat className="h-4 w-4" /> },
@@ -136,11 +152,22 @@ export default function ClientSidebar() {
           { label: 'OTC trgovina', path: '/otc', icon: <Handshake className="h-4 w-4" /> },
         );
       }
+      // Investicioni fondovi: discovery & details su za SVE role (i agente, i
+      // klijente bez TRADE_STOCKS) — uvek vidljivo.
       base.push({ label: 'Investicioni fondovi', path: '/funds', icon: <PiggyBank className="h-4 w-4" /> });
       return base;
     },
     [canAccessOtc, canAccessTradingFeatures]
   );
+
+  // R2-389: "Berza" sekcija se ranije renderovala UVEK — pa je i obican zaposleni
+  // (EMPLOYEE bez supervisor/admin/aktuar uloge), koji nije trgovinska rola, video
+  // sekciju iako za njega nema relevantnog sadrzaja. Sada:
+  //  - klijenti je uvek vide (Investicioni fondovi su za sve + njihovi trgovinski
+  //    linkovi ako mogu da trguju),
+  //  - od zaposlenih je vide samo supervizor/admin (koji realno koriste Berza/OTC/
+  //    Profit), ne i obican zaposleni.
+  const showTradingSection = !isEmployeeOrAdmin || isSupervisor;
 
   const employeeLinks: SidebarItem[] = useMemo(
     () => {
@@ -189,9 +216,12 @@ export default function ClientSidebar() {
         );
       }
 
-      // W3-T3: Spark output exposure (analytics + fraud alerts) — samo admin/supervizor
-      // koji su ujedno i admini (BE rute su adminOnly da bi se zadrzao tight permission scope).
-      if (isAdmin) {
+      // R1 534 (P2-authz-method-1): Spark output exposure (analytics + fraud alerts).
+      // BE matcher /admin/analytics/** i /admin/fraud-alerts/** je ADMIN+SUPERVISOR
+      // (deliberate W3-T2, paritet sa /audit/**), pa link prikazujemo supervizorima
+      // (isSupervisor ukljucuje admina). Ranije adminOnly → supervizor (legitiman po
+      // BE-u) nije video link ni stranicu; sad FE+BE konzistentni (paritet sa Audit log).
+      if (isSupervisor) {
         links.push(
           { label: 'Analitike', path: '/admin/analytics', icon: <BarChart3 className="h-4 w-4" /> },
           { label: 'Fraud alerts', path: '/admin/fraud-alerts', icon: <ShieldAlert className="h-4 w-4" /> },
@@ -315,6 +345,7 @@ export default function ClientSidebar() {
           </div>
           )}
 
+          {showTradingSection && (
           <div className="space-y-2">
             <p className="px-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
               Berza
@@ -334,6 +365,7 @@ export default function ClientSidebar() {
               ))}
             </div>
           </div>
+          )}
 
           {isEmployeeOrAdmin && (
             <div className="space-y-2">

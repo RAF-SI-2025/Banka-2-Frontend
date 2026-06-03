@@ -4,15 +4,9 @@ import {
   exchangeSchema,
   createRecipientSchema,
   editRecipientSchema,
-  newCardSchema,
-  cardLimitSchema,
-  accountLimitSchema,
-  accountRenameSchema,
   loanApplicationSchema,
   createAccountSchema,
-  editClientSchema,
   verificationSchema,
-  transactionFilterSchema,
   REPAYMENT_PERIODS,
 } from './validationSchemas.celina2';
 
@@ -66,8 +60,29 @@ describe('newPaymentSchema', () => {
     expect(newPaymentSchema.safeParse({ ...valid, paymentPurpose: '' }).success).toBe(false);
   });
 
-  it('rejects paymentPurpose over 256 chars', () => {
+  // R1-328: BE payments.purpose kolona je length=200 (@Size(max=200)).
+  it('accepts paymentPurpose at exactly 200 chars (R1-328 boundary)', () => {
+    expect(newPaymentSchema.safeParse({ ...valid, paymentPurpose: 'x'.repeat(200) }).success).toBe(true);
+  });
+
+  it('rejects paymentPurpose over 200 chars (R1-328)', () => {
+    expect(newPaymentSchema.safeParse({ ...valid, paymentPurpose: 'x'.repeat(201) }).success).toBe(false);
     expect(newPaymentSchema.safeParse({ ...valid, paymentPurpose: 'x'.repeat(257) }).success).toBe(false);
+  });
+
+  // R1-551: primalac moze biti racun druge banke (ne mora biti tacno 18 cifara).
+  it('accepts inter-bank recipient toAccountNumber with non-18 digit length (R1-551)', () => {
+    expect(newPaymentSchema.safeParse({ ...valid, toAccountNumber: '333123456789' }).success).toBe(true); // 12 cifara
+    expect(newPaymentSchema.safeParse({ ...valid, toAccountNumber: '3'.repeat(34) }).success).toBe(true);
+  });
+
+  it('still rejects recipient toAccountNumber that is too short or non-numeric (R1-551)', () => {
+    expect(newPaymentSchema.safeParse({ ...valid, toAccountNumber: '12345' }).success).toBe(false); // <9
+    expect(newPaymentSchema.safeParse({ ...valid, toAccountNumber: 'ABCDEFGHIJKL' }).success).toBe(false);
+  });
+
+  it('still requires fromAccountNumber to be exactly 18 digits (R1-551 scope)', () => {
+    expect(newPaymentSchema.safeParse({ ...valid, fromAccountNumber: '333123456789' }).success).toBe(false);
   });
 });
 
@@ -99,8 +114,13 @@ describe('exchangeSchema', () => {
     expect(exchangeSchema.safeParse(valid).success).toBe(true);
   });
 
-  it('accepts with optional accountNumber', () => {
-    expect(exchangeSchema.safeParse({ ...valid, accountNumber: acct18 }).success).toBe(true);
+  it('R1-671: ignorise viskove kljuceve (accountNumber vise nije deo seme)', () => {
+    const parsed = exchangeSchema.safeParse({ ...valid, accountNumber: acct18 });
+    expect(parsed.success).toBe(true);
+    // zod strip-uje nepoznate kljuceve — accountNumber se ne pojavljuje u rezultatu
+    if (parsed.success) {
+      expect('accountNumber' in parsed.data).toBe(false);
+    }
   });
 
   it('rejects same currencies', () => {
@@ -137,82 +157,6 @@ describe('editRecipientSchema', () => {
 
   it('rejects empty name', () => {
     expect(editRecipientSchema.safeParse({ name: '', accountNumber: acct18 }).success).toBe(false);
-  });
-});
-
-describe('newCardSchema', () => {
-  it('accepts valid card request', () => {
-    expect(newCardSchema.safeParse({ accountNumber: acct18, cardType: 'VISA' }).success).toBe(true);
-  });
-
-  it('accepts MASTERCARD', () => {
-    expect(newCardSchema.safeParse({ accountNumber: acct18, cardType: 'MASTERCARD' }).success).toBe(true);
-  });
-
-  it('accepts DINACARD', () => {
-    expect(newCardSchema.safeParse({ accountNumber: acct18, cardType: 'DINACARD' }).success).toBe(true);
-  });
-
-  it('accepts AMERICAN_EXPRESS', () => {
-    expect(newCardSchema.safeParse({ accountNumber: acct18, cardType: 'AMERICAN_EXPRESS' }).success).toBe(true);
-  });
-
-  it('rejects invalid card type', () => {
-    expect(newCardSchema.safeParse({ accountNumber: acct18, cardType: 'INVALID' }).success).toBe(false);
-  });
-
-  it('accepts optional authorizedPersonId', () => {
-    expect(newCardSchema.safeParse({ accountNumber: acct18, cardType: 'VISA', authorizedPersonId: 5 }).success).toBe(true);
-  });
-});
-
-describe('cardLimitSchema', () => {
-  it('accepts valid limit', () => {
-    expect(cardLimitSchema.safeParse({ limit: 50000 }).success).toBe(true);
-  });
-
-  it('accepts zero limit', () => {
-    expect(cardLimitSchema.safeParse({ limit: 0 }).success).toBe(true);
-  });
-
-  it('rejects negative limit', () => {
-    expect(cardLimitSchema.safeParse({ limit: -1 }).success).toBe(false);
-  });
-
-  it('rejects non-number', () => {
-    expect(cardLimitSchema.safeParse({ limit: 'abc' }).success).toBe(false);
-  });
-});
-
-describe('accountLimitSchema', () => {
-  it('accepts valid limits', () => {
-    expect(accountLimitSchema.safeParse({ dailyLimit: 1000, monthlyLimit: 30000 }).success).toBe(true);
-  });
-
-  it('accepts only dailyLimit', () => {
-    expect(accountLimitSchema.safeParse({ dailyLimit: 500 }).success).toBe(true);
-  });
-
-  it('accepts empty object (both optional)', () => {
-    expect(accountLimitSchema.safeParse({}).success).toBe(true);
-  });
-
-  it('rejects negative dailyLimit', () => {
-    expect(accountLimitSchema.safeParse({ dailyLimit: -1 }).success).toBe(false);
-  });
-});
-
-describe('accountRenameSchema', () => {
-  it('accepts valid name', () => {
-    expect(accountRenameSchema.safeParse({ name: 'Moj racun' }).success).toBe(true);
-  });
-
-  it('rejects empty name', () => {
-    expect(accountRenameSchema.safeParse({ name: '' }).success).toBe(false);
-  });
-
-  it('rejects name over 100 chars', () => {
-    expect(accountRenameSchema.safeParse({ name: 'x'.repeat(101) }).success).toBe(false);
   });
 });
 
@@ -457,34 +401,6 @@ describe('createAccountSchema', () => {
   });
 });
 
-describe('editClientSchema', () => {
-  const valid = {
-    firstName: 'Marko',
-    lastName: 'Petrovic',
-    email: 'marko@banka.rs',
-    phoneNumber: '+381641234567',
-    address: 'Bulevar 1',
-    dateOfBirth: '1990-01-01',
-    gender: 'M',
-  };
-
-  it('accepts valid client data', () => {
-    expect(editClientSchema.safeParse(valid).success).toBe(true);
-  });
-
-  it('rejects empty firstName', () => {
-    expect(editClientSchema.safeParse({ ...valid, firstName: '' }).success).toBe(false);
-  });
-
-  it('rejects invalid email', () => {
-    expect(editClientSchema.safeParse({ ...valid, email: 'invalid' }).success).toBe(false);
-  });
-
-  it('rejects empty address', () => {
-    expect(editClientSchema.safeParse({ ...valid, address: '' }).success).toBe(false);
-  });
-});
-
 describe('verificationSchema', () => {
   it('accepts valid 6-digit code', () => {
     expect(verificationSchema.safeParse({ code: '123456' }).success).toBe(true);
@@ -504,26 +420,5 @@ describe('verificationSchema', () => {
 
   it('rejects code with non-digit characters', () => {
     expect(verificationSchema.safeParse({ code: 'abcdef' }).success).toBe(false);
-  });
-});
-
-describe('transactionFilterSchema', () => {
-  it('accepts empty filters', () => {
-    expect(transactionFilterSchema.safeParse({}).success).toBe(true);
-  });
-
-  it('accepts all filter fields', () => {
-    expect(transactionFilterSchema.safeParse({
-      accountNumber: acct18,
-      status: 'COMPLETED',
-      dateFrom: '2025-01-01',
-      dateTo: '2025-12-31',
-      amountMin: 100,
-      amountMax: 50000,
-    }).success).toBe(true);
-  });
-
-  it('accepts partial filters', () => {
-    expect(transactionFilterSchema.safeParse({ status: 'PENDING' }).success).toBe(true);
   });
 });

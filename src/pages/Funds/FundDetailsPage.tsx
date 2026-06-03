@@ -907,7 +907,7 @@ export default function FundDetailsPage() {
               </Button>
               <Button
                 variant="outline"
-                disabled={!myPosition || (myPosition.totalInvested ?? 0) <= 0}
+                disabled={!myPosition || (myPosition.currentValue ?? 0) <= 0}
                 onClick={() => setWithdrawMode('self')}
               >
                 Povuci iz fonda
@@ -921,7 +921,7 @@ export default function FundDetailsPage() {
               </Button>
               <Button
                 variant="outline"
-                disabled={!bankPosition || (bankPosition.totalInvested ?? 0) <= 0}
+                disabled={!bankPosition || (bankPosition.currentValue ?? 0) <= 0}
                 onClick={() => setWithdrawMode('bank')}
               >
                 Povuci u ime banke

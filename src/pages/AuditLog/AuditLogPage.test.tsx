@@ -87,10 +87,11 @@ describe('AuditLogPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renderuje 4 filter polja sa data-testid-evima', async () => {
+  it('renderuje filter polja sa data-testid-evima (ukljucujuci ime aktera — Sc45)', async () => {
     renderPage();
     expect(await screen.findByTestId('audit-filter-action')).toBeInTheDocument();
     expect(screen.getByTestId('audit-filter-actor')).toBeInTheDocument();
+    expect(screen.getByTestId('audit-filter-actor-name')).toBeInTheDocument();
     expect(screen.getByTestId('audit-filter-from')).toBeInTheDocument();
     expect(screen.getByTestId('audit-filter-to')).toBeInTheDocument();
     expect(screen.getByTestId('audit-filter-apply')).toBeInTheDocument();
@@ -141,7 +142,8 @@ describe('AuditLogPage', () => {
     mockedQuery.mockClear();
 
     await user.selectOptions(screen.getByTestId('audit-filter-action'), 'ORDER_APPROVED');
-    await user.type(screen.getByTestId('audit-filter-actor'), 'marko@banka.rs');
+    // R1 569: filter aktera je sad numericki actorId (BE podrzava samo actorId).
+    await user.type(screen.getByTestId('audit-filter-actor'), '42');
     await user.click(screen.getByTestId('audit-filter-apply'));
 
     await waitFor(() => {
@@ -150,9 +152,82 @@ describe('AuditLogPage', () => {
     const lastCall = mockedQuery.mock.calls[mockedQuery.mock.calls.length - 1]?.[0];
     expect(lastCall).toMatchObject({
       actionType: 'ORDER_APPROVED',
-      actorEmail: 'marko@banka.rs',
+      actorId: 42,
       page: 0,
     });
+    // Email se vise NE salje (bio tihi no-op).
+    expect(lastCall).not.toHaveProperty('actorEmail');
+  });
+
+  it('Sc45 — filter po IMENU aktera salje actorName queryAuditLogs-u', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => {
+      expect(mockedQuery).toHaveBeenCalledTimes(1);
+    });
+    mockedQuery.mockClear();
+
+    await user.type(screen.getByTestId('audit-filter-actor-name'), 'Nikola Milenkovic');
+    await user.click(screen.getByTestId('audit-filter-apply'));
+
+    await waitFor(() => {
+      expect(mockedQuery).toHaveBeenCalled();
+    });
+    const lastCall = mockedQuery.mock.calls[mockedQuery.mock.calls.length - 1]?.[0];
+    expect(lastCall).toMatchObject({
+      actorName: 'Nikola Milenkovic',
+      page: 0,
+    });
+    expect(lastCall).not.toHaveProperty('actorId');
+  });
+
+  it('odbija nevalidan ID aktera (0 / nepozitivan) bez poziva queryAuditLogs', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => {
+      expect(mockedQuery).toHaveBeenCalledTimes(1);
+    });
+    mockedQuery.mockClear();
+
+    await user.type(screen.getByTestId('audit-filter-actor'), '0');
+    await user.click(screen.getByTestId('audit-filter-apply'));
+
+    expect(mockedToast.error).toHaveBeenCalled();
+    expect(mockedQuery).not.toHaveBeenCalled();
+  });
+
+  it('dropdown nudi SAMO trading-service dostizne tipove (banka-core tipovi bi 400-ovali)', async () => {
+    renderPage();
+    const select = (await screen.findByTestId('audit-filter-action')) as HTMLSelectElement;
+    const values = Array.from(select.options).map((o) => o.value);
+    // "Sve" + 10 trading-service tipova = 11 opcija.
+    expect(select.options.length).toBe(11);
+    // Trading-dostizni tipovi su prisutni.
+    expect(values).toContain('FUND_INVEST');
+    expect(values).toContain('ORDER_APPROVED');
+    expect(values).toContain('USED_LIMIT_RESET_ALL');
+    // banka-core-only tipovi NISU u dropdown-u (rutiranje na trading-service ->
+    // valueOf bi bacio 400 "Unknown actionType").
+    expect(values).not.toContain('LOAN_INSTALLMENT_PAID');
+    expect(values).not.toContain('CARD_DEACTIVATED');
+    expect(values).not.toContain('PAYMENT_CREATED');
+  });
+
+  it('400 "Unknown actionType" daje konkretnu poruku (nije generic)', async () => {
+    mockedQuery.mockRejectedValueOnce({
+      response: { status: 400, data: { message: 'Unknown actionType: LOAN_APPROVED' } },
+    });
+    renderPage();
+
+    await waitFor(() => {
+      expect(mockedToast.error).toHaveBeenCalledWith(
+        'Izabrani tip akcije nije podrzan za ovaj revizioni izvor.'
+      );
+    });
+    expect(await screen.findByTestId('audit-error')).toHaveTextContent(
+      /nije podrzan za ovaj revizioni izvor/i
+    );
   });
 
   it('klik na "Resetuj filtere" cisti polja i ponovo poziva queryAuditLogs', async () => {
@@ -164,8 +239,8 @@ describe('AuditLogPage', () => {
     });
 
     const actorInput = screen.getByTestId('audit-filter-actor') as HTMLInputElement;
-    await user.type(actorInput, 'test@banka.rs');
-    expect(actorInput.value).toBe('test@banka.rs');
+    await user.type(actorInput, '99');
+    expect(actorInput.value).toBe('99');
 
     mockedQuery.mockClear();
     await user.click(screen.getByTestId('audit-filter-reset'));
@@ -176,7 +251,7 @@ describe('AuditLogPage', () => {
     });
     const lastCall = mockedQuery.mock.calls[mockedQuery.mock.calls.length - 1]?.[0];
     expect(lastCall).toMatchObject({ page: 0 });
-    expect(lastCall).not.toHaveProperty('actorEmail');
+    expect(lastCall).not.toHaveProperty('actorId');
   });
 
   it('paginacija: klik "Sledeca" inkrementira page parametar', async () => {

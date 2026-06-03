@@ -21,7 +21,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import VerificationModal from '@/components/shared/VerificationModal';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/lib/notify';
 import { cn } from '@/lib/utils';
@@ -30,7 +29,7 @@ import { currencyService } from '@/services/currencyService';
 import exchangeManagementService from '@/services/exchangeManagementService';
 import investmentFundService from '@/services/investmentFundService';
 import listingService from '@/services/listingService';
-import marginService, { type MarginAccount } from '@/services/marginService';
+import marginService, { type MarginAccount, MARGIN_CURRENCY } from '@/services/marginService';
 import orderService from '@/services/orderService';
 import { Permission } from '@/types';
 import { Currency, type Account } from '@/types/celina2';
@@ -275,8 +274,6 @@ export default function CreateOrderPage() {
   const [exchangeApiOpen, setExchangeApiOpen] = useState<{ isOpen: boolean; name: string } | null>(null);
   const [exchangeApiLoading, setExchangeApiLoading] = useState(false);
   const [invalidListingRequested, setInvalidListingRequested] = useState(false);
-  const [showVerification, setShowVerification] = useState(false);
-  const [confirmedDto, setConfirmedDto] = useState<CreateOrderRequest | null>(null);
   const [marginAccounts, setMarginAccounts] = useState<MarginAccount[]>([]);
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   const [exchangeRateLoading, setExchangeRateLoading] = useState(false);
@@ -667,18 +664,33 @@ export default function CreateOrderPage() {
 
   const settlementBlocksSubmit = settlementInfo?.isPast === true;
 
-  const canCompareBalance = Boolean(
-    selectedAccount?.currency && selectedAccount.currency === pricingCurrency
-  );
-
   // Approximate price converted to account currency (for dual-currency display)
   const approximatePriceInAccount =
     exchangeRate && Number.isFinite(exchangeRate) ? approximatePrice * exchangeRate : approximatePrice;
 
+  // R1-257/R4-1759: procena ukupnog ODLIVA u valuti racuna.
+  // - Same-currency: approxPrice + provizija ordera (totalAmount).
+  // - Cross-currency (npr. RSD racun / US hartija): sve konvertujemo u valutu
+  //   racuna i dodajemo menjacnicku proviziju (fxCommissionInAccount), jer BE
+  //   bas to debituje. Ranije se ovaj (dominantan) put NIJE proveravao
+  //   (canCompareBalance=false) pa je UI-zelen order BE odbio tek posle OTP-a.
+  const estimatedDebitInAccount = needsFxConversion
+    ? approximatePriceInAccount + commission * (exchangeRate && Number.isFinite(exchangeRate) ? exchangeRate : 1) + fxCommissionInAccount
+    : totalAmount;
+
+  // Provera sredstava se primenjuje SAMO na BUY — SELL puni racun (prodaja
+  // hartija), pokrice je vlasnistvo hartije i resava ga order engine, pa SELL
+  // nije smeo da bude blokiran "Nedovoljno sredstava".
+  const canEstimateDebit = Boolean(
+    selectedAccount &&
+      (needsFxConversion ? exchangeRate != null && Number.isFinite(exchangeRate) : selectedAccount.currency === pricingCurrency)
+  );
+
   const insufficientFunds =
     !isEmployeeUi &&
-    canCompareBalance &&
-    totalAmount > Number(selectedAccount?.availableBalance ?? 0);
+    direction === OrderDirection.BUY &&
+    canEstimateDebit &&
+    estimatedDebitInAccount > Number(selectedAccount?.availableBalance ?? 0);
 
   const confirmationListing = useMemo(
     () =>
@@ -762,8 +774,9 @@ export default function CreateOrderPage() {
     setIsConfirmOpen(true);
   };
 
-  // Step 1: user clicks "Potvrdi" in the confirmation dialog -> build DTO, open OTP modal
-  const handleConfirmOrder = () => {
+  // ACCEPTED-DEVIATION (user-directed 03.06): nalog se salje direktno iz potvrdnog
+  // dijaloga, bez OTP verifikacije. OTP ostaje SAMO na placanju i transferu.
+  const handleConfirmOrder = async () => {
     if (!pendingOrder) return;
 
     const dto: CreateOrderRequest = {
@@ -780,27 +793,19 @@ export default function CreateOrderPage() {
       accountId: pendingOrder.accountId,
     };
 
-    setConfirmedDto(dto);
-    setIsConfirmOpen(false);
-    setShowVerification(true);
-  };
-
-  // Step 2: OTP verified -> actually POST /orders with otpCode
-  const handleOtpVerified = async (otpCode: string) => {
-    if (!confirmedDto) throw new Error('Nedostaju podaci naloga.');
-
     setIsSubmitting(true);
     try {
-      // Let VerificationModal handle thrown errors to track attempts and display message
-      await orderService.create({ ...confirmedDto, otpCode });
+      await orderService.create(dto);
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Kreiranje naloga nije uspelo.'));
+      return;
     } finally {
       setIsSubmitting(false);
     }
 
     toast.success('Nalog je uspešno kreiran.');
 
-    setShowVerification(false);
-    setConfirmedDto(null);
+    setIsConfirmOpen(false);
     setPendingOrder(null);
 
     reset({
@@ -1173,7 +1178,7 @@ export default function CreateOrderPage() {
                           {!activeMargin
                             ? 'Nemate aktivan margin račun.'
                             : margin
-                            ? `Margin uključen (${activeMargin.currency}).`
+                            ? `Margin uključen (${MARGIN_CURRENCY}).`
                             : 'Margin je dostupan, ali trenutno nije uključen.'}
                         </p>
                       </div>
@@ -1769,15 +1774,6 @@ export default function CreateOrderPage() {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-
-      <VerificationModal
-        isOpen={showVerification}
-        onClose={() => {
-          setShowVerification(false);
-          setConfirmedDto(null);
-        }}
-        onVerified={handleOtpVerified}
-      />
     </>
   );
 }

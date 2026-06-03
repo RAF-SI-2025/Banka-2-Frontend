@@ -688,7 +688,13 @@ describe('Live C4: Admin Fund Reassign', () => {
     });
   });
 
-  it('L41: Reassign endpoint je registrovan (POST /funds/{id}/reassign-manager)', () => {
+  it('L41: Reassign endpoint za nepostojeci fond vraca 404 (deterministicki)', () => {
+    // Deterministicki preduslov: admin (auth prolazi), fond 999999 NE postoji.
+    // BE: InvestmentFundService.reassignSingleFundManager radi findById pre
+    // validacije managera -> EntityNotFoundException -> InvestmentFundExceptionHandler
+    // mapira na 404. Dakle pravi ishod je TACNO 404 (ne "bilo koji od [200,400,403,404]").
+    // 405 bi znacio da endpoint uopste nije registrovan; 403 bi znacio da je auth
+    // pao (regresija u @PreAuthorize). Oba su sad eksplicitno nepozeljna.
     loginAdmin('/home');
     cy.wait(2000);
     cy.window().then((win) => {
@@ -700,8 +706,7 @@ describe('Live C4: Admin Fund Reassign', () => {
         body: { newManagerEmployeeId: 1 },
         failOnStatusCode: false,
       }).then((resp) => {
-        expect(resp.status).to.not.equal(405);
-        expect(resp.status).to.be.oneOf([200, 400, 403, 404]);
+        expect(resp.status, 'reassign nepostojeceg fonda mora biti 404 (endpoint registrovan + auth ok)').to.eq(404);
       });
     });
   });
@@ -727,26 +732,44 @@ describe('Live C4: Inter-bank Payments', () => {
   }
 
   it('L42: Placanje na 111... racun - inter-bank routing', () => {
+    // Inter-bank 2PC COMMITTED ishod zavisi od EKSTERNOG partner-banka (Tim 1),
+    // pa puni success path nije deterministicki seedabilan ovde. ALI je
+    // deterministicki da klik na "Potvrdi" inicira POST /api/payments ka BE-u
+    // (inter-bank inicijacija). Gate-ujemo na verifikacioni modal (OTP korak);
+    // kad je dostupan, tvrdimo PRAVI ishod: request je poslat i BE je vratio
+    // non-5xx odgovor (inicijacija primljena, ne server crash). Vise NE
+    // prihvatamo goli naslov stranice kao "prolaz".
     cy.intercept('POST', '/api/payments').as('interbankInit');
     cy.visit('/payments/new');
     fillPaymentForm('111000000000000001');
 
+    cy.get('[data-testid="verification-modal"]', { timeout: 15000 }).should('exist');
     cy.get('body').then(($body) => {
-      if ($body.find('[data-testid="verification-modal"]').length > 0) {
-        if ($body.text().match(/Pending|Greška|Greska|nije uspelo/i)) {
-          cy.contains(/Pending|Greška|Greska|nije uspelo/i).should('be.visible');
-        } else {
-          if ($body.find('button:contains("Popuni")').length > 0) cy.contains('button', 'Popuni').click();
-          cy.contains('button', 'Potvrdi').last().click({ force: true });
-          cy.wait('@interbankInit', { timeout: 15000 });
-        }
+      if ($body.text().match(/Pending|Greška|Greska|nije uspelo/i)) {
+        // BE/partner je vec vratio gresku pre OTP-a — prikazi je eksplicitno.
+        cy.contains(/Pending|Greška|Greska|nije uspelo/i).should('be.visible');
       } else {
-        cy.contains(/Novi platni nalog|Greška|Greska/i).should('be.visible');
+        if ($body.find('button:contains("Popuni")').length > 0) cy.contains('button', 'Popuni').click();
+        cy.contains('button', 'Potvrdi').last().click({ force: true });
+        // Realan ishod: POST /api/payments je stvarno poslat i BE odgovorio
+        // non-5xx statusom (inter-bank inicijacija primljena).
+        cy.wait('@interbankInit', { timeout: 15000 }).then((ix) => {
+          expect(ix.request.body, 'payment payload sadrzi 111... primaoca')
+            .to.have.property('toAccount', '111000000000000001');
+          expect(ix.response?.statusCode, 'BE primio inter-bank inicijaciju (non-5xx)')
+            .to.be.lessThan(500);
+        });
       }
     });
   });
 
   it('L43: Modal prikazuje fazu (INITIATED → COMMITTED)', () => {
+    // 2PC fazni prelaz zavisi od EKSTERNOG partner-banka (Tim 1) — terminalni
+    // status nije deterministicki seedabilan ovde. Gate na checked precondition:
+    // ako se "Inter-bank status" panel pojavi, tvrdimo PRAVI ishod (validan
+    // 2PC fazni enum). Ako BE/partner pre-OTP vrati gresku, prikazi je. Ako
+    // NISTA od toga nije dostupno (partner nedostupan) → skip sa logom; NE
+    // prihvatamo goli naslov stranice kao "prolaz".
     cy.visit('/payments/new');
     fillPaymentForm('111000000000000002');
 
@@ -754,37 +777,52 @@ describe('Live C4: Inter-bank Payments', () => {
       if ($body.text().includes('Inter-bank status')) {
         cy.contains('Inter-bank status').should('be.visible');
         cy.contains(/INITIATED|PREPARING|PREPARED|COMMITTING|COMMITTED|ABORTED|STUCK/).should('exist');
-      } else if ($body.find('[data-testid="verification-modal"]').length > 0) {
+      } else if ($body.find('[data-testid="verification-modal"]').length > 0
+                 && $body.text().match(/Pending|Greška|Greska|nije uspelo/i)) {
         cy.contains(/Pending|Greška|Greska|nije uspelo/i).should('be.visible');
       } else {
-        cy.contains(/Novi platni nalog|Greška|Greska/i).should('be.visible');
+        cy.log('PRECONDITION NOT MET: inter-bank 2PC panel nije dostupan (partner-bank nedostupan) — skip.');
       }
     });
   });
 
   it('L44: Placanje na 222... racun - intra-bank (ne inter)', () => {
+    // Deterministicki: racun koji pocinje sa 222... je INTRA-bank (nasa banka),
+    // pa FE ne sme da pokrene inter-bank 2PC status polling (GET /api/payments/{id}).
+    // Gate na verifikacioni modal; kad submitujemo OTP, intra-bank put salje
+    // POST /api/payments ka 222... primaocu i NIKAD ne poll-uje inter-bank
+    // status. Tvrdimo OBA prava ishoda: (1) intra-bank POST je stvarno poslat
+    // ka 222... racunu i BE odgovorio non-5xx, (2) 0 inter-bank status GET-ova.
+    // (Field je `toAccount` za oba puta — distinkcija je u routing ponasanju,
+    // ne u imenu polja.)
     cy.intercept('GET', /\/api\/payments\/\d+$/).as('interbankStatus');
     cy.intercept('POST', '/api/payments').as('intraPayment');
     cy.visit('/payments/new');
     fillPaymentForm('222000000000000001');
 
+    cy.get('[data-testid="verification-modal"]', { timeout: 15000 }).should('exist');
     cy.get('body').then(($body) => {
-      if ($body.find('[data-testid="verification-modal"]').length > 0) {
-        if ($body.find('button:contains("Popuni")').length > 0) cy.contains('button', 'Popuni').click();
-        cy.contains('button', 'Potvrdi').last().click({ force: true });
-      }
+      if ($body.find('button:contains("Popuni")').length > 0) cy.contains('button', 'Popuni').click();
+    });
+    cy.contains('button', 'Potvrdi').last().click({ force: true });
+
+    // Realan ishod 1: intra-bank POST je poslat ka 222... racunu, BE non-5xx.
+    cy.wait('@intraPayment', { timeout: 15000 }).then((ix) => {
+      expect(ix.request.body, 'intra-bank payload ide ka 222... racunu')
+        .to.have.property('toAccount', '222000000000000001');
+      expect(ix.response?.statusCode, 'BE primio intra-bank placanje (non-5xx)').to.be.lessThan(500);
     });
 
-    cy.wait(1000);
+    // Realan ishod 2: NIJEDAN inter-bank 2PC status GET nije pokrenut za 222... racun.
     cy.get('@interbankStatus.all').should('have.length', 0);
-    cy.get('@intraPayment.all').then((calls) => {
-      if (!calls || calls.length === 0) {
-        cy.contains(/Pending|Greška|Greska|nije uspelo|Novi platni nalog/i).should('be.visible');
-      }
-    });
   });
 
   it('L45: ABORTED flow - prikazuje grešku', () => {
+    // ABORTED ishod 2PC-a zavisi od EKSTERNOG partner-banka (Tim 1) — nije
+    // deterministicki seedabilan ovde. Gate na checked precondition: ako se
+    // ABORTED ili failure poruka pojavi, tvrdimo PRAVI ishod (greska je
+    // prikazana korisniku). Ako nista nije dostupno (partner nedostupan) →
+    // skip sa logom; NE prihvatamo goli naslov stranice kao "prolaz".
     cy.visit('/payments/new');
     fillPaymentForm('111000000000000003');
 
@@ -794,7 +832,7 @@ describe('Live C4: Inter-bank Payments', () => {
       } else if ($body.text().match(/failureReason|nije uspelo|Greška|Greska|Pending/i)) {
         cy.contains(/failureReason|nije uspelo|Greška|Greska|Pending/i).should('be.visible');
       } else {
-        cy.contains(/Novi platni nalog|Inter-bank status/i).should('be.visible');
+        cy.log('PRECONDITION NOT MET: inter-bank ABORTED/failure stanje nije dostupno (partner-bank nedostupan) — skip.');
       }
     });
   });

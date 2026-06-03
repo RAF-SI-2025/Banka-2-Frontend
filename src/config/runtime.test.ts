@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getApiUrl, getOurBankCode, getEnv } from './runtime';
+import { getApiUrl, getOurBankCode, getOurAccountPrefix, getEnv } from './runtime';
 
 describe('runtime config', () => {
   let originalEnv: Window['_env_'];
@@ -39,6 +39,23 @@ describe('runtime config', () => {
     it('falls back to RN-222 when missing', () => {
       window._env_ = undefined;
       expect(getOurBankCode()).toBe('RN-222');
+    });
+  });
+
+  describe('getOurAccountPrefix', () => {
+    it('derives 3-digit account prefix from bank code (RN-222 -> 222)', () => {
+      window._env_ = { API_URL: '/api', OUR_BANK_CODE: 'RN-222', ENV: 'test' };
+      expect(getOurAccountPrefix()).toBe('222');
+    });
+
+    it('tracks a different bank code (RN-333 -> 333)', () => {
+      window._env_ = { API_URL: '/api', OUR_BANK_CODE: 'RN-333', ENV: 'test' };
+      expect(getOurAccountPrefix()).toBe('333');
+    });
+
+    it('falls back to default (RN-222 -> 222) when missing', () => {
+      window._env_ = undefined;
+      expect(getOurAccountPrefix()).toBe('222');
     });
   });
 

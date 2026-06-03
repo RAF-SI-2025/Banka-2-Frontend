@@ -40,6 +40,25 @@ vi.mock('@/lib/notify', () => ({
   },
 }));
 
+// Mock dialoge: prikazi dugme koje odmah zove onSuccess (da testiramo
+// ProfitBank cache-invalidaciju posle mutacije — R1 560).
+vi.mock('@/pages/Funds/FundWithdrawDialog', () => ({
+  default: ({ open, onSuccess }: { open: boolean; onSuccess: (t: unknown) => void }) =>
+    open ? (
+      <button type="button" data-testid="mock-withdraw-success" onClick={() => onSuccess({})}>
+        confirm-withdraw
+      </button>
+    ) : null,
+}));
+vi.mock('@/pages/Funds/FundInvestDialog', () => ({
+  default: ({ open, onSuccess }: { open: boolean; onSuccess: () => void }) =>
+    open ? (
+      <button type="button" data-testid="mock-invest-success" onClick={() => onSuccess()}>
+        confirm-invest
+      </button>
+    ) : null,
+}));
+
 import profitBankService from '@/services/profitBankService';
 import investmentFundService from '@/services/investmentFundService';
 import { accountService } from '@/services/accountService';
@@ -69,7 +88,7 @@ describe('ProfitBankPage', () => {
         fundId: 5,
         fundName: 'Alpha Fund',
         userId: 99,
-        userRole: 'BANK',
+        userRole: 'CLIENT',
         userName: 'Banka 2',
         totalInvested: 100000,
         currentValue: 120000,
@@ -246,5 +265,48 @@ describe('ProfitBankPage', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('bank-fund-breakdown-5')).not.toBeInTheDocument();
     });
+  });
+
+  // R1 560: posle withdraw mutacije keshirani fund detail mora biti re-fetch-ovan.
+  it('invalidira fund detail cache posle withdraw-a (re-fetch dok je red otvoren)', async () => {
+    useAuthMock.mockReturnValue({ isSupervisor: true, isAdmin: false });
+    mockedInvestmentFundService.get.mockResolvedValue({
+      id: 5,
+      name: 'Alpha Fund',
+      description: '',
+      managerName: 'Marko',
+      managerEmployeeId: 1,
+      fundValue: 800000,
+      liquidAmount: 200000,
+      profit: 50000,
+      minimumContribution: 1000,
+      accountNumber: '222001100000000005',
+      holdings: [],
+      performance: [],
+      inceptionDate: '2026-01-01',
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText('Profit Banke');
+    await user.click(screen.getByRole('tab', { name: /Pozicije u fondovima/i }));
+    await screen.findByText('Alpha Fund');
+
+    // Otvori detalj (keshira get(5) — poziv #1).
+    await user.click(screen.getByTestId('bank-fund-expand-5'));
+    await waitFor(() => {
+      expect(mockedInvestmentFundService.get).toHaveBeenCalledTimes(1);
+    });
+
+    // Otvori withdraw dialog i potvrdi (onSuccess → invalidateFundDetail).
+    await user.click(screen.getByRole('button', { name: /Povuci u ime banke/i }));
+    await user.click(await screen.findByTestId('mock-withdraw-success'));
+
+    // Cache invalidiran + red je otvoren → get(5) ponovo pozvan (poziv #2).
+    await waitFor(() => {
+      expect(mockedInvestmentFundService.get).toHaveBeenCalledTimes(2);
+    });
+    expect(mockedProfitBankService.listBankFundPositions).toHaveBeenCalled();
   });
 });

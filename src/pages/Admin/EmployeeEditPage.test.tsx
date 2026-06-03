@@ -192,11 +192,14 @@ describe('EmployeeEditPage', () => {
       expect(screen.getByTestId('employee-edit-form')).toBeInTheDocument();
     });
 
-    // Select all
+    // R3 1628: "Selektuj sve" NE ukljucuje ADMIN → 6 od 7 (sve sem ADMIN-a).
     await user.click(screen.getByText(/selektuj sve/i));
     await waitFor(() => {
-      expect(screen.getByText(/7 od 7 selektovano/)).toBeInTheDocument();
+      expect(screen.getByText(/6 od 7 selektovano/)).toBeInTheDocument();
     });
+    // ADMIN checkbox ostaje neoznacen posle bulk select-a.
+    const adminCheckbox = screen.getByLabelText('ADMIN') as HTMLInputElement;
+    expect(adminCheckbox).not.toBeChecked();
 
     // Deselect all
     await user.click(screen.getByText(/ponisti sve/i));

@@ -229,8 +229,18 @@ export default function WatchlistPage() {
   async function handleRemoveItem(item: WatchlistItemDto) {
     if (selectedId === null) return;
     try {
-      await watchlistService.removeItem(selectedId, item.id);
+      // P1-fe-contracts-1: BE ruta brise po listingId, ne po item PK.
+      await watchlistService.removeItem(selectedId, item.listingId);
       setItems((prev) => prev.filter((i) => i.id !== item.id));
+      // R1 854: optimisticki azuriraj `itemCount` badge u listi watchlista —
+      // pre fix-a je ostajao zastareo (vecdi broj) dok se cela lista ne refetch-uje.
+      setWatchlists((prev) =>
+        prev.map((w) =>
+          w.id === selectedId
+            ? { ...w, itemCount: Math.max(0, (w.itemCount ?? 0) - 1) }
+            : w
+        )
+      );
       toast.success(`${item.listingTicker} uklonjeno`);
     } catch {
       toast.error('Neuspeh uklanjanja');

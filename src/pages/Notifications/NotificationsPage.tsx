@@ -38,37 +38,49 @@ const PAGE_SIZE = 20;
 
 type FilterMode = 'ALL' | 'UNREAD';
 
-const ICON_BY_TYPE: Record<NotificationType, React.ComponentType<{ className?: string }>> = {
-  PAYMENT_RECEIVED: Banknote,
-  PAYMENT_SENT: Banknote,
-  ORDER_FILLED: ShoppingCart,
+// P1-fe-contracts-1: kljucevi su sad STVARNA BE NotificationType imena.
+const ICON_BY_TYPE: Partial<Record<NotificationType, React.ComponentType<{ className?: string }>>> = {
+  PAYMENT: Banknote,
+  TRANSFER: Banknote,
+  LIMIT_CHANGE: FileText,
+  ORDER_PENDING: ShoppingCart,
+  ORDER_APPROVED: ShoppingCart,
   ORDER_DECLINED: ShoppingCart,
-  OTC_OFFER_RECEIVED: Handshake,
-  OTC_OFFER_ACCEPTED: Handshake,
-  OTC_OFFER_DECLINED: Handshake,
-  OTC_CONTRACT_EXERCISED: Handshake,
-  OTC_CONTRACT_EXPIRED: Handshake,
-  FUND_INTEREST_PAID: PiggyBank,
-  FUND_DEPOSIT_MATURED: PiggyBank,
+  ORDER_EXECUTED: ShoppingCart,
+  ORDER_PARTIAL_FILL: ShoppingCart,
+  ORDER_CANCELLED: ShoppingCart,
+  OTC_COUNTER_OFFER: Handshake,
+  OTC_ACCEPTED: Handshake,
+  OTC_DECLINED: Handshake,
+  OTC_CONTRACT_EXPIRING: Handshake,
+  PRICE_ALERT_TRIGGERED: PiggyBank,
+  RECURRING_ORDER_SKIPPED: PiggyBank,
+  LOAN_CREATED: FileText,
   LOAN_APPROVED: FileText,
-  LOAN_DECLINED: FileText,
-  LOAN_PAYMENT_DUE: FileText,
+  LOAN_REJECTED: FileText,
   CARD_BLOCKED: CreditCard,
   CARD_UNBLOCKED: CreditCard,
   ACCOUNT_LOCKED: Lock,
-  GENERIC: Bell,
+  GENERAL: Bell,
 };
 
 function resolveDeepLink(n: NotificationDto): string | null {
-  const t = n.relatedEntityType?.toUpperCase();
+  // P1-fe-contracts-1: BE polja su `referenceType`/`referenceId` (ne `relatedEntity*`).
+  const t = n.referenceType?.toUpperCase();
   if (!t) return null;
-  if (t === 'PAYMENT') return '/payments/history';
+  if (t === 'PAYMENT' || t === 'TRANSFER') return '/payments/history';
   if (t === 'ORDER') return '/orders/my';
-  if (t === 'OTC_OFFER' || t === 'OTC_CONTRACT') return '/otc';
-  if (t === 'FUND') return n.relatedEntityId ? `/funds/${n.relatedEntityId}` : '/funds';
+  if (t === 'OTC_OFFER' || t === 'OTC_CONTRACT' || t === 'OTC') return '/otc';
+  if (t === 'FUND') return n.referenceId ? `/funds/${n.referenceId}` : '/funds';
   if (t === 'CARD') return '/cards';
-  if (t === 'LOAN') return '/loans';
+  if (t === 'LOAN' || t === 'LOAN_REQUEST') return '/loans';
   if (t === 'ACCOUNT') return '/accounts';
+  // R1 689: BE emituje i RECURRING_ORDER / PRICE_ALERT reference (RecurringOrderScheduler,
+  // PriceAlertService) — bez ovih grana te notifikacije nisu bile klikabilne.
+  if (t === 'RECURRING_ORDER') return '/recurring-orders';
+  if (t === 'PRICE_ALERT') return '/price-alerts';
+  // TAX notifikacija (poreski obracun) nema klijentski-vidljivu rutu (TaxPortal je
+  // employee-only) → namerno bez deep-link-a; klijent prati naplatu kroz /accounts.
   return null;
 }
 
@@ -101,11 +113,11 @@ export default function NotificationsPage() {
       setLoading(true);
       setError(null);
       try {
-        const params: { read?: boolean; page: number; size: number } = {
+        const params: { onlyUnread?: boolean; page: number; size: number } = {
           page: targetPage,
           size: PAGE_SIZE,
         };
-        if (mode === 'UNREAD') params.read = false;
+        if (mode === 'UNREAD') params.onlyUnread = true;
         const data = await notificationService.listNotifications(params);
         setItems(data.content ?? []);
         setTotalPages(data.totalPages ?? 0);
@@ -322,13 +334,23 @@ function NotificationRow({
   item: NotificationDto;
   onClick: () => void;
 }) {
-  const Icon = ICON_BY_TYPE[item.type] ?? Bell;
+  const Icon = ICON_BY_TYPE[item.type as NotificationType] ?? Bell;
   return (
     <Card
       onClick={onClick}
+      onKeyDown={(e) => {
+        // R7 2036: klikabilan Card mora biti dostupan i tastaturom (Enter/Space).
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Obavestenje: ${item.title}`}
       data-testid={`notification-row-${item.id}`}
       className={cn(
-        'p-4 flex gap-3 cursor-pointer transition-colors hover:bg-accent/40',
+        'p-4 flex gap-3 cursor-pointer transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50',
         !item.read && 'border-indigo-500/40'
       )}
     >
@@ -353,11 +375,11 @@ function NotificationRow({
             {item.title}
           </span>
           <Badge variant="secondary" className="ml-auto shrink-0 text-[10px]">
-            {NOTIFICATION_TYPE_LABEL_SR[item.type] ?? 'Obavestenje'}
+            {NOTIFICATION_TYPE_LABEL_SR[item.type as NotificationType] ?? 'Obavestenje'}
           </Badge>
         </div>
         <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-          {item.message}
+          {item.body}
         </p>
         <p className="text-xs text-muted-foreground/70 mt-1">
           {formatDateTime(item.createdAt)}

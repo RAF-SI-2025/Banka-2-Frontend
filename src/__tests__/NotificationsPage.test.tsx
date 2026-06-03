@@ -41,9 +41,9 @@ const mockMarkAll = vi.mocked(notificationService.markAllAsRead);
 function makeItem(id: number, overrides: Partial<NotificationDto> = {}): NotificationDto {
   return {
     id,
-    type: 'GENERIC',
+    type: 'GENERAL',
     title: `Naslov ${id}`,
-    message: `Poruka ${id}`,
+    body: `Poruka ${id}`,
     read: false,
     createdAt: '2026-05-25T10:00:00Z',
     ...overrides,
@@ -84,8 +84,8 @@ describe('NotificationsPage', () => {
   it('renders list of notifications', async () => {
     mockList.mockResolvedValue({
       content: [
-        makeItem(1, { type: 'ORDER_FILLED', title: 'Order #5 izvrsen', read: false }),
-        makeItem(2, { type: 'PAYMENT_RECEIVED', title: 'Stigla uplata', read: true }),
+        makeItem(1, { type: 'ORDER_EXECUTED', title: 'Order #5 izvrsen', read: false }),
+        makeItem(2, { type: 'PAYMENT', title: 'Stigla uplata', read: true }),
       ],
       totalElements: 2,
       totalPages: 1,
@@ -124,7 +124,7 @@ describe('NotificationsPage', () => {
     await user.click(screen.getByTestId('filter-unread'));
     await waitFor(() => {
       const lastCall = mockList.mock.calls[mockList.mock.calls.length - 1];
-      expect(lastCall?.[0]).toMatchObject({ read: false });
+      expect(lastCall?.[0]).toMatchObject({ onlyUnread: true });
     });
   });
 
@@ -179,10 +179,10 @@ describe('NotificationsPage', () => {
     mockList.mockResolvedValue({
       content: [
         makeItem(7, {
-          type: 'ORDER_FILLED',
+          type: 'ORDER_EXECUTED',
           read: false,
-          relatedEntityType: 'ORDER',
-          relatedEntityId: 99,
+          referenceType: 'ORDER',
+          referenceId: 99,
         }),
       ],
       totalElements: 1,
@@ -207,7 +207,7 @@ describe('NotificationsPage', () => {
       content: [
         makeItem(8, {
           read: true,
-          relatedEntityType: 'PAYMENT',
+          referenceType: 'PAYMENT',
         }),
       ],
       totalElements: 1,

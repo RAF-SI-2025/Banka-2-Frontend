@@ -80,14 +80,8 @@ vi.mock('../../services/orderService', () => ({
   },
 }));
 
-vi.mock('../../components/shared/VerificationModal', () => ({
-  default: ({
-    isOpen,
-    onVerified,
-  }: { isOpen: boolean; onVerified: (otpCode: string) => Promise<void> | void }) => (
-    isOpen ? <button onClick={() => onVerified('123456')}>Mock OTP Confirm</button> : null
-  ),
-}));
+// ACCEPTED-DEVIATION (user-directed 03.06): kreiranje naloga je bez OTP modala —
+// "Potvrdi" u dijalogu salje order direktno.
 
 const mockFundList = vi.fn().mockResolvedValue([]);
 const mockFundGet = vi.fn();
@@ -116,6 +110,15 @@ vi.mock('../../services/exchangeManagementService', () => ({
   },
 }));
 
+// TEST-fe-trading-8: cross-currency (RSD racun / USD hartija) zahteva FX kurs.
+const mockConvert = vi.fn();
+vi.mock('../../services/currencyService', () => ({
+  currencyService: {
+    convert: (...args: unknown[]) => mockConvert(...args),
+    getExchangeRates: vi.fn().mockResolvedValue([]),
+  },
+}));
+
 // Margin checkbox je onemogucen dok klijent nema aktivan margin account —
 // test za toggle ocekuje postojeci aktivni account.
 vi.mock('../../services/marginService', () => ({
@@ -131,6 +134,7 @@ vi.mock('../../services/marginService', () => ({
       },
     ]),
   },
+  MARGIN_CURRENCY: 'RSD',
 }));
 
 describe('CreateOrderPage', () => {
@@ -152,6 +156,14 @@ describe('CreateOrderPage', () => {
     mockGetMyAccounts.mockResolvedValue(mockAccounts);
     mockFundList.mockResolvedValue([]);
     mockFundGet.mockResolvedValue(null);
+    // Default: same-currency (USD/USD) racun ne triggeruje FX poziv; testovi koji
+    // testiraju cross-currency override-uju mockConvert eksplicitno.
+    mockConvert.mockResolvedValue({
+      convertedAmount: 1,
+      exchangeRate: 1,
+      fromCurrency: 'USD',
+      toCurrency: 'USD',
+    });
   });
 
   it('renders the page header', async () => {
@@ -459,6 +471,47 @@ describe('CreateOrderPage', () => {
     });
   });
 
+  // ---------- insufficientFunds: SELL exclusion + FX (R1-257 / R4-1759) ----------
+
+  it('BUY over balance shows "Nedovoljno sredstava"', async () => {
+    // Racun sa malim stanjem (100 USD) — jedna AAPL akcija (~178.55) ga prelazi.
+    mockGetMyAccounts.mockResolvedValue([
+      { ...mockAccounts[0], balance: 100, availableBalance: 100 },
+    ]);
+    renderWithProviders(<CreateOrderPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Podaci naloga')).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Nedovoljno sredstava')).toBeInTheDocument();
+    });
+  });
+
+  it('SELL over balance does NOT show "Nedovoljno sredstava"', async () => {
+    const user = userEvent.setup();
+    mockGetMyAccounts.mockResolvedValue([
+      { ...mockAccounts[0], balance: 100, availableBalance: 100 },
+    ]);
+    renderWithProviders(<CreateOrderPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Podaci naloga')).toBeInTheDocument();
+    });
+
+    // BUY (default) → prikazuje nedovoljno; prebacimo na Prodaju
+    await waitFor(() => expect(screen.getByText('Nedovoljno sredstava')).toBeInTheDocument());
+
+    const prodajaLabel = screen.getAllByText('Prodaja')[0].closest('label');
+    if (prodajaLabel) await user.click(prodajaLabel);
+
+    // SELL ne sme da blokira na "Nedovoljno sredstava" (prodaja puni racun).
+    await waitFor(() => {
+      expect(screen.queryByText('Nedovoljno sredstava')).not.toBeInTheDocument();
+    });
+  });
+
   // ---------- Quantity validation ----------
 
   it('has quantity field with default value of 1', async () => {
@@ -590,8 +643,8 @@ describe('CreateOrderPage', () => {
     await user.selectOptions(screen.getByLabelText('Tip ordera'), 'MARKET');
     await user.type(screen.getByLabelText(/Količina/i), '{selectall}2');
     await user.click(screen.getByRole('button', { name: /Nastavi na potvrdu/i }));
+    // ACCEPTED-DEVIATION (user-directed 03.06): "Potvrdi" salje order direktno (bez OTP).
     await user.click(screen.getByRole('button', { name: /Potvrdi/i }));
-    await user.click(screen.getByRole('button', { name: /Mock OTP Confirm/i }));
 
     await waitFor(() => {
       expect(mockCreate).toHaveBeenCalled();
@@ -603,5 +656,80 @@ describe('CreateOrderPage', () => {
         accountId: 1,
       })
     );
+    // OTP se vise ne salje uz order.
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.not.objectContaining({ otpCode: expect.anything() })
+    );
+  });
+
+  // ---------- TEST-fe-trading-8 (R1-257 / R4-1759): cross-currency coverage ----------
+  // Klijent kupuje USD hartiju iz RSD racuna. Provera pokrica MORA da ukljuci
+  // menjacnicku proviziju (fxCommission) — `estimatedDebitInAccount`, ne goli
+  // `totalAmount`. Inace bi UI bio zelen a BE bi order odbio tek posle OTP-a.
+  //
+  // Matematika (MARKET BUY 1 AAPL, ask 178.55, kurs 100 RSD/USD):
+  //   approxPriceInAccount = 178.55 * 100 = 17855
+  //   commission(USD) = min(178.55*0.14, 7) = 7 ; *kurs = 700
+  //   fxCommission = (178.55 + 7) * 100 * 0.01 = 185.55
+  //   estimatedDebitInAccount = 17855 + 700 + 185.55 = 18740.55
+  // Bez fxCommission bilo bi 18555.
+
+  const rsdAccount: Account = {
+    ...mockAccounts[0],
+    id: 1,
+    currency: 'RSD',
+    balance: 18600,
+    availableBalance: 18600, // > 18555 (bez fx) ali < 18740.55 (sa fx)
+  } as Account;
+
+  it('cross-currency BUY: insufficientFunds includes FX commission in the coverage check', async () => {
+    mockGetMyAccounts.mockResolvedValue([rsdAccount]);
+    mockConvert.mockResolvedValue({
+      convertedAmount: 100,
+      exchangeRate: 100,
+      fromCurrency: 'USD',
+      toCurrency: 'RSD',
+    });
+
+    renderWithProviders(<CreateOrderPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Podaci naloga')).toBeInTheDocument();
+    });
+
+    // Stanje (18600) pokriva approx+commission (18555) ali NE i + fxCommission
+    // (18740.55). Posto pokrice ukljucuje fxCommission, mora se prikazati
+    // "Nedovoljno sredstava".
+    await waitFor(() => {
+      expect(screen.getByText('Nedovoljno sredstava')).toBeInTheDocument();
+    });
+    // Sanity: FX kurs je zatrazen za par USD->RSD.
+    expect(mockConvert).toHaveBeenCalledWith(
+      expect.objectContaining({ fromCurrency: 'USD', toCurrency: 'RSD' }),
+    );
+  });
+
+  it('cross-currency BUY: sufficient balance (incl. FX) does not show insufficientFunds', async () => {
+    mockGetMyAccounts.mockResolvedValue([
+      { ...rsdAccount, balance: 25000, availableBalance: 25000 },
+    ]);
+    mockConvert.mockResolvedValue({
+      convertedAmount: 100,
+      exchangeRate: 100,
+      fromCurrency: 'USD',
+      toCurrency: 'RSD',
+    });
+
+    renderWithProviders(<CreateOrderPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Podaci naloga')).toBeInTheDocument();
+    });
+
+    // Stanje 25000 > 18740.55 -> dovoljno; ne sme biti "Nedovoljno sredstava".
+    await waitFor(() => {
+      expect(mockConvert).toHaveBeenCalled();
+    });
+    expect(screen.queryByText('Nedovoljno sredstava')).not.toBeInTheDocument();
   });
 });

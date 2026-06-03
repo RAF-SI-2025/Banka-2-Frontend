@@ -160,6 +160,14 @@ export interface UpdateActuaryLimit {
 export interface PortfolioItem {
   id: number;
   listingId: number;
+  /*
+   * [OT-1218 — REKLASIFIKOVANO] Portfolio NIKAD ne predstavlja opcione pozicije:
+   * ListingType = {STOCK, FUTURES, FOREX} (nema OPTION), a BE jedini producer
+   * (OptionService.updatePortfolioBuy) upisuje ticker/tip OSNOVNE akcije. Plain
+   * opcija se izvrsava iz lanca opcija (SecuritiesDetailsPage — OptionItem.id =
+   * pravi Option.id), NE iz portfolija. Ranije `optionId?` polje (uvek null u
+   * runtime-u) uklonjeno kao dead-contract.
+   */
   listingTicker: string;
   listingName: string;
   listingType: ListingType;
@@ -266,7 +274,13 @@ export interface Exchange {
 
 // --- Opcije ---
 
-interface OptionItem {
+/**
+ * Jedna opcija (CALL ili PUT) u lancu opcija. `id` je PRAVI Option.id —
+ * exercise plain-opcije (aktuar/admin) ide BAS na POST /options/{id}/exercise
+ * sa ovim id-em. Ovo je jedini ispravan exercise entry point (opcione pozicije
+ * NE postoje kao portfolio redovi — vidi PortfolioItem napomenu / OT-1218).
+ */
+export interface OptionItem {
   id: number;
   strikePrice: number;
   bid: number;
@@ -365,6 +379,24 @@ export interface OtcContract {
   status: OtcContractStatus;
   createdAt: string;
   exercisedAt?: string;
+}
+
+/**
+ * Odgovor na `POST /otc/contracts/{id}/exercise` — BE ga sprovodi kroz Model-B
+ * SAGA orkestrator (BE: `OtcExerciseResultDto`). SAGA se izvrsava sinhrono;
+ * odgovor nosi terminalni ishod (`sagaStatus` COMPLETED/COMPENSATED, `status`
+ * EXERCISED na uspeh / ACTIVE na rollback).
+ *
+ * R1 784: posto je exercise SINHRON, web FE NE poll-uje `GET /otc/saga/{sagaId}` —
+ * ishod je vec u ovom odgovoru. `sagaId` je informativni handle (dijagnostika /
+ * Mobile polling), pa web `otcService` namerno nema `getSagaStatus` metodu.
+ */
+export interface OtcExerciseResult {
+  sagaId: string;
+  sagaStatus: string;
+  currentStep: number;
+  id: number;
+  status: string;
 }
 
 export interface CreateOtcOfferRequest {

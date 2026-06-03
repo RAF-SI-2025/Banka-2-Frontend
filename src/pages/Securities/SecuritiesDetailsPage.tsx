@@ -17,14 +17,17 @@ import {
   Link2,
   RefreshCw,
   BellRing,
+  Zap,
 } from 'lucide-react';
 import PriceAlertDialog from '@/components/pricealert/PriceAlertDialog';
 import AddToWatchlistButton from '@/components/watchlist/AddToWatchlistButton';
 import { PredictionWidget } from '@/components/PredictionWidget';
-import type { Listing, ListingDailyPrice, OptionChain } from '@/types/celina3';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
+import type { Listing, ListingDailyPrice, OptionChain, OptionItem } from '@/types/celina3';
 import listingService from '@/services/listingService';
+import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/lib/notify';
-import { formatPrice, formatVolumeCompact, toIsoDateOnly } from '@/utils/formatters';
+import { formatPrice, formatVolumeCompact } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -54,72 +57,6 @@ const PERIODS = [
   { key: 'ALL', label: 'Sve', days: 3650 },
 ] as const;
 
-
-function generateFakeHistory(basePrice: number, days: number): ListingDailyPrice[] {
-  const data: ListingDailyPrice[] = [];
-  // Geometric Brownian Motion simulation for realistic stock prices
-  const annualVolatility = 0.30; // 30% annual volatility (typical for stocks)
-  const annualDrift = 0.08; // 8% annual drift (expected return)
-  const dailyVol = annualVolatility / Math.sqrt(252);
-  const dailyDrift = annualDrift / 252;
-  const avgVolume = Math.max(50000, Math.floor(basePrice * 800));
-
-  // Start from an earlier price, working backwards from current
-  let price = basePrice * (0.85 + Math.random() * 0.1);
-
-  // Add momentum and mean-reversion regimes
-  let momentum = 0;
-  const regimeLength = Math.max(5, Math.floor(days * 0.15)); // regime changes every ~15% of period
-
-  for (let i = days; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-
-    // Regime changes: trending or mean-reverting
-    if (i % regimeLength === 0) {
-      momentum = (Math.random() - 0.5) * dailyVol * 2;
-    }
-
-    // Mean reversion toward basePrice (stronger as we get closer to today)
-    const distanceToEnd = i / Math.max(days, 1);
-    const meanReversion = (basePrice - price) * (0.02 + (1 - distanceToEnd) * 0.08);
-
-    // Random component (log-normal)
-    const z = (Math.random() + Math.random() + Math.random() - 1.5) * 1.22; // ~normal approx
-    const randomReturn = dailyDrift + momentum + z * dailyVol;
-    const change = price * randomReturn + meanReversion;
-
-    price = Math.max(price + change, basePrice * 0.3);
-
-    // Intraday range: higher on volatile days
-    const intraVol = Math.abs(z) * 0.5 + 0.3;
-    const dayRange = price * dailyVol * intraVol * 2;
-    const high = price + dayRange * (0.5 + Math.random() * 0.5);
-    const low = price - dayRange * (0.5 + Math.random() * 0.5);
-
-    // Volume: mean-reverting with volatility correlation
-    const volShock = Math.abs(z) * 1.5 + 0.5; // higher volume on big moves
-    const dayOfWeek = date.getDay();
-    const weekendFactor = (dayOfWeek === 0 || dayOfWeek === 6) ? 0.3 : 1.0;
-    const volume = Math.floor(avgVolume * volShock * weekendFactor * (0.7 + Math.random() * 0.6));
-
-    data.push({
-      date: toIsoDateOnly(date),
-      price: Math.round(price * 100) / 100,
-      high: Math.round(Math.max(high, price) * 100) / 100,
-      low: Math.round(Math.max(Math.min(low, price), price * 0.9) * 100) / 100,
-      change: Math.round(change * 100) / 100,
-      volume: Math.max(volume, 100),
-    });
-  }
-
-  // Ensure last point matches current price
-  if (data.length > 0) {
-    data[data.length - 1].price = basePrice;
-  }
-
-  return data;
-}
 
 const TYPE_LABELS: Record<string, string> = {
   STOCK: 'Akcija',
@@ -152,6 +89,12 @@ function StatItem({ label, value, sub, highlight }: StatItemProps) {
 export default function SecuritiesDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAdmin, isAgent, isSupervisor } = useAuth();
+  // [OT-1218] Exercise plain-opcije je aktuar/admin operacija (BE
+  // OptionService.ensureUserCanExerciseOptions enforce-uje aktuar/admin).
+  // FE prikazuje exercise akciju samo zaposlenima; BE je merodavan.
+  const isEmployee = isAdmin || isAgent || isSupervisor;
+
   const [listing, setListing] = useState<Listing | null>(null);
   const [period, setPeriod] = useState('MONTH');
   const [loading, setLoading] = useState(true);
@@ -167,8 +110,22 @@ export default function SecuritiesDetailsPage() {
   const [selectedSettlementDate, setSelectedSettlementDate] = useState<string>('');
   const [strikeCountFilter, setStrikeCountFilter] = useState<string>('ALL');
 
+  // [OT-1218] Exercise opcije iz lanca — PRAVI exercise entry point (opcione
+  // pozicije NE postoje kao portfolio redovi). `confirmExercise` drzi opciju
+  // (CALL/PUT) koja ceka potvrdu; exercise ide na POST /options/{Option.id}/exercise.
+  const [confirmExercise, setConfirmExercise] = useState<
+    { option: OptionItem; kind: 'CALL' | 'PUT' } | null
+  >(null);
+  const [exercisingId, setExercisingId] = useState<number | null>(null);
+
   // Price alert dialog state.
   const [alertOpen, setAlertOpen] = useState(false);
+
+  // Real OHLCV price history (GET /listings/{id}/history). "Ne lazni podaci":
+  // grafik prikazuje ISKLJUCIVO stvarne dnevne cene sa BE-a; ako za izabrani
+  // period nema (dovoljno) podataka — prikazuje se prazno stanje, NE simulacija.
+  const [history, setHistory] = useState<ListingDailyPrice[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -203,6 +160,32 @@ export default function SecuritiesDetailsPage() {
       setRefreshing(false);
     }
   }, [id]);
+
+  // Load REAL price history for the chart (GET /listings/{id}/history).
+  // Re-fetch on period change. Empty result -> empty-state (no fake fallback).
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    const loadHistory = async () => {
+      setHistoryLoading(true);
+      try {
+        const data = await listingService.getHistory(Number(id), period);
+        if (!cancelled) {
+          // BE vraca DESC (najnovije prvo) — grafik trazi hronoloski rastuce.
+          const sorted = Array.isArray(data)
+            ? [...data].sort((a, b) => a.date.localeCompare(b.date))
+            : [];
+          setHistory(sorted);
+        }
+      } catch {
+        if (!cancelled) setHistory([]);
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
+      }
+    };
+    loadHistory();
+    return () => { cancelled = true; };
+  }, [id, period]);
 
   // Load options chain for stocks
   useEffect(() => {
@@ -260,17 +243,45 @@ export default function SecuritiesDetailsPage() {
     };
   }, [selectedChain, strikeCountFilter]);
 
-  // Build chart data: always generate simulation based on current price + period
-  // API history is too sparse (typically 1-6 points) for a smooth chart
-  const chartData = useMemo(() => {
-    const periodDays = PERIODS.find(p => p.key === period)?.days ?? 30;
-    if (!listing) return [];
-    return generateFakeHistory(listing.price, Math.max(periodDays, 7));
-  }, [listing, period]);
+  // [OT-1218] Osvezi lanac opcija (npr. posle exercise-a, da openInterest sleti).
+  const reloadOptions = useCallback(async () => {
+    if (!id) return;
+    try {
+      const data = await listingService.getOptions(Number(id));
+      setOptionChains(Array.isArray(data) ? data : []);
+    } catch {
+      // tih fail — lanac ostaje prethodno stanje, korisnik moze rucno refreshovati
+    }
+  }, [id]);
 
-  // Chart always uses simulation (API returns too few data points for smooth chart)
-  // But listing price/bid/ask data in the stats section is from the API (live)
-  const isChartSimulated = true;
+  // [OT-1218] Exercise plain-opcije — PRAVI entry point. `option.id` je pravi
+  // Option.id (NE listingId akcije ni portfolio-row id): BE
+  // OptionService.exerciseOption(optionId) ucitava opciju BAS po tom id-u.
+  const runExerciseOption = async (option: OptionItem) => {
+    setConfirmExercise(null);
+    setExercisingId(option.id);
+    try {
+      await listingService.exerciseOption(option.id);
+      toast.success('Opcija je uspešno iskorišćena.');
+      await reloadOptions();
+    } catch (err: unknown) {
+      const error = err as { response?: { status?: number; data?: { error?: string; message?: string } } };
+      const status = error.response?.status;
+      if (status === 403) {
+        toast.error('Samo aktuar/admin može da izvrši opciju.');
+      } else {
+        const msg = error.response?.data?.error || error.response?.data?.message;
+        toast.error(msg || 'Izvršavanje opcije nije uspelo. Pokušajte ponovo.');
+      }
+    } finally {
+      setExercisingId(null);
+    }
+  };
+
+  // Chart koristi ISKLJUCIVO stvarne dnevne cene sa BE-a (history). Bez
+  // simulacije/Math.random — "ne lazni podaci". Treba bar 2 tacke za liniju.
+  const chartData = useMemo(() => history, [history]);
+  const hasChartData = chartData.length >= 2;
 
   const chartDirection = useMemo(() => {
     if (chartData.length < 2) return true;
@@ -401,15 +412,10 @@ export default function SecuritiesDetailsPage() {
                     <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
                     Kretanje cene
                   </CardTitle>
-                  {isChartSimulated ? (
-                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 font-mono text-amber-600 dark:text-amber-400 border-amber-400/40 bg-amber-500/5 gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse inline-block" />
-                      SIMULIRANI PODACI
-                    </Badge>
-                  ) : (
+                  {hasChartData && (
                     <Badge variant="outline" className="text-[10px] px-2 py-0.5 font-mono text-emerald-600 dark:text-emerald-400 border-emerald-400/40 bg-emerald-500/5 gap-1">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                      LIVE
+                      STVARNI PODACI
                     </Badge>
                   )}
                 </div>
@@ -444,7 +450,26 @@ export default function SecuritiesDetailsPage() {
               </div>
             </CardHeader>
             <CardContent className="p-4 pt-2">
-              <div className="bg-muted/20 dark:bg-slate-900/40 rounded-xl p-3">
+              {historyLoading ? (
+                <div
+                  className="bg-muted/20 dark:bg-slate-900/40 rounded-xl h-[424px] animate-pulse"
+                  data-testid="securities-chart-loading"
+                />
+              ) : !hasChartData ? (
+                <div
+                  className="bg-muted/20 dark:bg-slate-900/40 rounded-xl h-[424px] flex flex-col items-center justify-center text-center px-6"
+                  data-testid="securities-chart-empty"
+                >
+                  <BarChart3 className="h-10 w-10 text-muted-foreground/40 mb-3" />
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Nema dovoljno istorijskih podataka o ceni za izabrani period.
+                  </p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">
+                    Podaci o ceni, bid/ask i volume u sekcijama ispod su stvarni.
+                  </p>
+                </div>
+              ) : (
+              <div className="bg-muted/20 dark:bg-slate-900/40 rounded-xl p-3" data-testid="securities-chart">
                 <ResponsiveContainer width="100%" height={400}>
                   <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
@@ -503,10 +528,6 @@ export default function SecuritiesDetailsPage() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-              {isChartSimulated && (
-                <p className="text-[10px] text-amber-600/60 dark:text-amber-400/50 text-center mt-2 font-mono">
-                  * Grafik koristi simulirane podatke (GBM model, 30% godisnja volatilnost) na osnovu trenutne trzisne cene. Podaci o ceni, bid/ask i volume u sekcijama ispod su stvarni.
-                </p>
               )}
             </CardContent>
           </Card>
@@ -700,6 +721,12 @@ export default function SecuritiesDetailsPage() {
                             const strike = strikes[i];
                             const call = callMap.get(strike);
                             const put = putMap.get(strike);
+                            // R1 758: ITM se ovde racuna ISKLJUCIVO za bojenje option-chain
+                            // tabele (spec Celina 3 linija 467-471 — cetvrtine oko shared price).
+                            // Ovo NIJE money-odluka i NEMA BE ekvivalentni flag (OptionDto ne
+                            // nosi ITM) — exercise dozvoljava i OTM po BE-STK-02 (kupac ima pravo
+                            // da iskoristi opciju i van novca). CALL je ITM kad je strike ispod
+                            // trenutne cene, PUT kad je strike iznad — iskljucivo za prikaz.
                             const callITM = strike < currentPrice;
                             const putITM = strike > currentPrice;
 
@@ -748,7 +775,23 @@ export default function SecuritiesDetailsPage() {
                                   {call ? formatPrice(call.ask) : '-'}
                                 </TableCell>
                                 <TableCell className={`text-center font-mono text-xs tabular-nums font-semibold ${callCellBg}`}>
-                                  {call ? formatPrice(call.price) : '-'}
+                                  <div className="flex flex-col items-center gap-1">
+                                    <span>{call ? formatPrice(call.price) : '-'}</span>
+                                    {/* [OT-1218] Pravi exercise entry point — salje Option.id (call.id). */}
+                                    {isEmployee && call && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 px-2 text-[10px]"
+                                        data-testid={`option-exercise-call-${call.id}`}
+                                        disabled={exercisingId === call.id}
+                                        onClick={() => setConfirmExercise({ option: call, kind: 'CALL' })}
+                                      >
+                                        <Zap className="mr-1 h-3 w-3" />
+                                        {exercisingId === call.id ? '...' : 'Izvrši'}
+                                      </Button>
+                                    )}
+                                  </div>
                                 </TableCell>
                                 <TableCell className={`text-center font-mono text-xs tabular-nums ${callCellBg}`}>
                                   {call ? formatVolumeCompact(call.volume) : '-'}
@@ -780,7 +823,23 @@ export default function SecuritiesDetailsPage() {
                                   {put ? formatPrice(put.ask) : '-'}
                                 </TableCell>
                                 <TableCell className={`text-center font-mono text-xs tabular-nums font-semibold ${putCellBg}`}>
-                                  {put ? formatPrice(put.price) : '-'}
+                                  <div className="flex flex-col items-center gap-1">
+                                    <span>{put ? formatPrice(put.price) : '-'}</span>
+                                    {/* [OT-1218] Pravi exercise entry point — salje Option.id (put.id). */}
+                                    {isEmployee && put && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 px-2 text-[10px]"
+                                        data-testid={`option-exercise-put-${put.id}`}
+                                        disabled={exercisingId === put.id}
+                                        onClick={() => setConfirmExercise({ option: put, kind: 'PUT' })}
+                                      >
+                                        <Zap className="mr-1 h-3 w-3" />
+                                        {exercisingId === put.id ? '...' : 'Izvrši'}
+                                      </Button>
+                                    )}
+                                  </div>
                                 </TableCell>
                                 <TableCell className={`text-center font-mono text-xs tabular-nums ${putCellBg}`}>
                                   {put ? formatVolumeCompact(put.volume) : '-'}
@@ -1013,6 +1072,23 @@ export default function SecuritiesDetailsPage() {
           </Card>
         </div>
       </div>
+
+      {/* [OT-1218] Potvrda izvrsavanja opcije (aktuar/admin) — exercise ide na
+          POST /options/{Option.id}/exercise sa pravim Option.id. */}
+      <ConfirmDialog
+        open={confirmExercise !== null}
+        onOpenChange={(o) => { if (!o) setConfirmExercise(null); }}
+        title="Izvršavanje opcije"
+        description={
+          confirmExercise
+            ? `Da li ste sigurni da želite da izvršite ${confirmExercise.kind} opciju `
+              + `(strike ${formatPrice(confirmExercise.option.strikePrice)})?`
+            : undefined
+        }
+        confirmLabel="Izvrši"
+        busy={exercisingId !== null}
+        onConfirm={() => { if (confirmExercise) void runExerciseOption(confirmExercise.option); }}
+      />
     </div>
   );
 }

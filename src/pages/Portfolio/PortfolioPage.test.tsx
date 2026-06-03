@@ -16,6 +16,21 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
+// PortfolioPage vise ne cita useAuth (OT-1218 reklasifikovano — exercise je
+// izmesten na SecuritiesDetailsPage), ali zadrzavamo mock jer pojedini testovi
+// renderuju kao zaposleni i da bismo eksplicitno pinovali da portfolio strana
+// NEMA exercise dugme cak ni za zaposlenog.
+const mockUseAuth = vi.fn();
+vi.mock('../../context/AuthContext', async () => {
+  const actual = await vi.importActual<typeof import('../../context/AuthContext')>(
+    '../../context/AuthContext',
+  );
+  return {
+    ...actual,
+    useAuth: () => mockUseAuth(),
+  };
+});
+
 const mockSummary: PortfolioSummary = {
   totalValue: 150000.0,
   totalProfit: 12500.0,
@@ -86,12 +101,6 @@ vi.mock('../../services/portfolioService', () => ({
   },
 }));
 
-vi.mock('../../services/listingService', () => ({
-  default: {
-    exerciseOption: vi.fn().mockResolvedValue(undefined),
-  },
-}));
-
 vi.mock('../../services/dividendService', () => ({
   default: {
     getMyDividends: vi.fn(),
@@ -118,9 +127,29 @@ vi.mock('recharts', () => ({
   CartesianGrid: () => null,
 }));
 
+function anonAuth() {
+  return {
+    user: null,
+    isAuthenticated: false,
+    isLoading: false,
+    login: vi.fn(),
+    logout: vi.fn(),
+    hasPermission: () => false,
+    isAdmin: false,
+    isAgent: false,
+    isSupervisor: false,
+    isEmployee: false,
+  };
+}
+
+function employeeAuth() {
+  return { ...anonAuth(), user: { id: 7, role: 'EMPLOYEE' }, isAuthenticated: true, isSupervisor: true, isEmployee: true };
+}
+
 describe('PortfolioPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseAuth.mockReturnValue(anonAuth());
     mockGetSummary.mockResolvedValue(mockSummary);
     mockGetMyPortfolio.mockResolvedValue(mockItems);
     mockGetDividendsByPosition.mockResolvedValue([]);
@@ -407,5 +436,46 @@ describe('PortfolioPage', () => {
     // Tax-exempt red prikazuje '—' umesto iznosa poreza.
     const table = screen.getByTestId('dividend-history-table');
     expect(within(table).getByText('—')).toBeInTheDocument();
+  });
+
+  // ===========================================================================
+  // OT-1218 — REKLASIFIKOVANO (reviewer-blocker close).
+  // Domenski model NE predstavlja opcione pozicije kao portfolio redove:
+  // ListingType = {STOCK, FUTURES, FOREX} (nema OPTION), a BE producer upisuje
+  // ticker/tip OSNOVNE akcije. Ranija portfolio-strana "Iskoristi opciju" grana
+  // se NIKAD nije renderovala u proizvodnji (dead wiring) — uklonjena je. Pravi
+  // exercise entry point je lanac opcija na SecuritiesDetailsPage (OptionItem.id =
+  // pravi Option.id) — pokriveno SecuritiesDetailsPage.test.tsx.
+  // Ovaj test pinuje da portfolio strana VISE NEMA exercise dugme, cak ni za
+  // zaposlenog sa profitabilnom FUTURES pozicijom (settlement-dated, ITM).
+  // ===========================================================================
+  it('OT-1218 reklasifikovano: portfolio strana NEMA "Iskoristi opciju" dugme (dead-wiring uklonjen)', async () => {
+    mockUseAuth.mockReturnValue(employeeAuth());
+
+    const itmFutures: PortfolioItem = {
+      id: 558,
+      listingId: 45,
+      listingTicker: 'ES=F',
+      listingName: 'E-mini S&P 500',
+      listingType: 'FUTURES',
+      quantity: 2,
+      averageBuyPrice: 5000,
+      currentPrice: 5300,
+      profit: 600,
+      profitPercent: 6,
+      publicQuantity: 0,
+      lastModified: '2026-03-20T10:00:00Z',
+      settlementDate: '2099-12-31', // u buducnosti, ITM
+      inTheMoney: true,
+    };
+    mockGetMyPortfolio.mockResolvedValue([itmFutures]);
+
+    renderWithProviders(<PortfolioPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('E-mini S&P 500')).toBeInTheDocument();
+    });
+    // Nikakvog exercise dugmeta na portfolio strani (ni za zaposlenog, ni ITM).
+    expect(screen.queryByText('Iskoristi opciju')).not.toBeInTheDocument();
   });
 });

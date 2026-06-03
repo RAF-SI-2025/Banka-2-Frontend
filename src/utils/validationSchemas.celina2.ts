@@ -1,5 +1,5 @@
 ﻿import { z } from 'zod';
-import { phoneSchema, nameSchema, emailSchema, dateOfBirthSchema } from './validationSchemas';
+import { phoneSchema, nameSchema, emailSchema } from './validationSchemas';
 
 // ============================================================
 // Validacione seme za Banka 2025 - Celina 2: Osnovno poslovanje
@@ -11,6 +11,15 @@ const accountNumberSchema = z
   .string()
   .min(1, 'Broj racuna je obavezan')
   .regex(/^\d{18}$/, 'Broj racuna mora imati tacno 18 cifara');
+
+// R1-551: Broj racuna PRIMAOCA u placanju moze biti i racun druge banke (inter-bank),
+// koja ne mora koristiti nas 18-cifreni format. Nase racune i dalje validiramo na 18
+// cifara (fromAccountNumber), ali primaoca otpustamo na razuman opseg cifara (9-34, IBAN-ish)
+// da inter-bank placanja ne padnu na FE validaciji pre nego sto BE/2PC odluci.
+const recipientAccountNumberSchema = z
+  .string()
+  .min(1, 'Broj racuna je obavezan')
+  .regex(/^\d{9,34}$/, 'Broj racuna mora imati izmedju 9 i 34 cifre');
 
 // T2-014 fix: strozija validacija — bar 0.01, max 99,999,999.99 (8 cifara + 2 decimale).
 // Iznad toga BE BigDecimal moze prihvatiti, ali UI bi prikazao overflow i smatra se nerazumno.
@@ -29,11 +38,14 @@ const paymentCodeSchema = z
 
 export const newPaymentSchema = z.object({
   fromAccountNumber: accountNumberSchema,
-  toAccountNumber: accountNumberSchema,
+  // R1-551: primalac moze biti racun druge banke (inter-bank) → laksa validacija.
+  toAccountNumber: recipientAccountNumberSchema,
   amount: positiveAmountSchema,
   recipientName: nameSchema,
   paymentCode: paymentCodeSchema,
-  paymentPurpose: z.string().min(1, 'Svrha placanja je obavezna').max(256, 'Maksimalno 256 karaktera'),
+  // R1-328: BE kolona payment.purpose je length=200 (@Size(max=200)); FE je pre
+  // dozvoljavao 256 pa je unos 201-256 dobijao 400 od BE-a. Poravnato na 200.
+  paymentPurpose: z.string().min(1, 'Svrha placanja je obavezna').max(200, 'Maksimalno 200 karaktera'),
   referenceNumber: z.string().optional(),
   model: z.string().optional(),
   callNumber: z.string().optional(),
@@ -58,7 +70,7 @@ export const exchangeSchema = z.object({
   fromCurrency: z.string().min(1, 'Izaberite valutu'),
   toCurrency: z.string().min(1, 'Izaberite valutu'),
   amount: positiveAmountSchema,
-  accountNumber: z.string().optional(),
+  // R1-671: dead `accountNumber` polje uklonjeno (kalkulator ga ne salje/ne cita).
 }).refine((data) => data.fromCurrency !== data.toCurrency, {
   message: 'Valute moraju biti razlicite',
   path: ['toCurrency'],
@@ -80,35 +92,15 @@ export const editRecipientSchema = z.object({
 export type EditRecipientFormData = z.infer<typeof editRecipientSchema>;
 
 // --- Kartice ---
+// R1-634: `newCardSchema` je uklonjen — forma za izdavanje kartice (CardListPage)
+// koristi lokalni React state, ne ovu shemu; uz to shema nije imala cardCategory/
+// creditLimit pa nije ni odgovarala BE CreateCardRequestDto ugovoru. Nije imala 0
+// importera u src/ (samo sopstveni test).
 
-export const newCardSchema = z.object({
-  accountNumber: accountNumberSchema,
-  cardType: z.enum(['VISA', 'MASTERCARD', 'DINACARD', 'AMERICAN_EXPRESS'], {
-    message: 'Izaberite tip kartice',
-  }),
-  authorizedPersonId: z.number().optional(), // Za poslovni racun
-});
-export type NewCardFormData = z.infer<typeof newCardSchema>;
-
-export const cardLimitSchema = z.object({
-  limit: z.number({ message: 'Limit mora biti broj' }).min(0, 'Limit ne moze biti negativan'),
-});
-export type CardLimitFormData = z.infer<typeof cardLimitSchema>;
-
-// --- Promena limita racuna ---
-
-export const accountLimitSchema = z.object({
-  dailyLimit: z.number({ message: 'Limit mora biti broj' }).min(0, 'Limit ne moze biti negativan').optional(),
-  monthlyLimit: z.number({ message: 'Limit mora biti broj' }).min(0, 'Limit ne moze biti negativan').optional(),
-});
-export type AccountLimitFormData = z.infer<typeof accountLimitSchema>;
-
-// --- Promena naziva racuna ---
-
-export const accountRenameSchema = z.object({
-  name: z.string().min(1, 'Naziv racuna je obavezan').max(100, 'Maksimalno 100 karaktera'),
-});
-export type AccountRenameFormData = z.infer<typeof accountRenameSchema>;
+// R1-DCE: `cardLimitSchema` / `accountLimitSchema` / `accountRenameSchema` su
+// uklonjeni — forme (CardListPage limit, AccountDetailsPage limit/rename)
+// koriste lokalni React state, ne ove seme; nisu imale 0 importera u src/
+// (samo sopstveni test, kao raniji `newCardSchema`).
 
 // --- Zahtev za kredit ---
 
@@ -234,18 +226,8 @@ export const createAccountSchema = z
   });
 export type CreateAccountFormData = z.infer<typeof createAccountSchema>;
 
-// --- Izmena klijenta (employee portal) ---
-
-export const editClientSchema = z.object({
-  firstName: nameSchema,
-  lastName: nameSchema,
-  email: emailSchema,
-  phoneNumber: phoneSchema,
-  address: z.string().min(1, 'Adresa je obavezna'),
-  dateOfBirth: dateOfBirthSchema,
-  gender: z.string().min(1, 'Pol je obavezan'),
-});
-export type EditClientFormData = z.infer<typeof editClientSchema>;
+// R1-DCE: `editClientSchema` uklonjen — ClientsPortalPage (izmena klijenta)
+// koristi lokalni React state, ne ovu semu; 0 importera u src/ (samo test).
 
 // --- Verifikacija transakcije ---
 
@@ -257,14 +239,5 @@ export const verificationSchema = z.object({
 });
 export type VerificationFormData = z.infer<typeof verificationSchema>;
 
-// --- Filter seme ---
-
-export const transactionFilterSchema = z.object({
-  accountNumber: z.string().optional(),
-  status: z.string().optional(),
-  dateFrom: z.string().optional(),
-  dateTo: z.string().optional(),
-  amountMin: z.number().optional(),
-  amountMax: z.number().optional(),
-});
-export type TransactionFilterFormData = z.infer<typeof transactionFilterSchema>;
+// R1-DCE: `transactionFilterSchema` uklonjen — transaction filter koristi
+// lokalni React state, ne ovu semu; 0 importera u src/ (samo test).

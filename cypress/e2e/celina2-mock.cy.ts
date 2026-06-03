@@ -468,8 +468,10 @@ describe('Placanja > Novo placanje', () => {
   });
 
   it('S12: Placanje u razlicitim valutama - konverzija', () => {
+    // R1-677: mock uskladjen sa BE CalculateExchangeResponseDto (convertedAmount/exchangeRate/
+    // fromCurrency/toCurrency) — BE nema 'rate'/'commission' polja.
     cy.intercept('GET', '**/api/exchange/calculate*', {
-      statusCode: 200, body: { convertedAmount: 42.55, rate: 117.5, commission: 2.5 },
+      statusCode: 200, body: { convertedAmount: 42.55, exchangeRate: 117.5, fromCurrency: 'EUR', toCurrency: 'RSD' },
     });
 
     cy.visit('/payments/new', { onBeforeLoad: setupClientSession });
@@ -708,8 +710,9 @@ describe('Transferi', () => {
   });
 
   it('S18: Konverzija valute prikazuje kurs i proviziju', () => {
+    // R1-677: BE DTO shape (convertedAmount/exchangeRate/fromCurrency/toCurrency).
     cy.intercept('GET', '**/api/exchange/calculate*', {
-      statusCode: 200, body: { convertedAmount: 425.53, rate: 117.5, commission: 250 },
+      statusCode: 200, body: { convertedAmount: 425.53, exchangeRate: 117.5, fromCurrency: 'EUR', toCurrency: 'RSD' },
     }).as('convert');
 
     cy.visit('/transfers', { onBeforeLoad: setupClientSession });
@@ -736,8 +739,9 @@ describe('Transferi', () => {
   });
 
   it('S26: Konverzija valute tokom transfera - kursna konverzija', () => {
+    // R1-677: BE DTO shape (convertedAmount/exchangeRate/fromCurrency/toCurrency).
     cy.intercept('GET', '**/api/exchange/calculate*', {
-      statusCode: 200, body: { convertedAmount: 42.55, rate: 117.5, commission: 25 },
+      statusCode: 200, body: { convertedAmount: 42.55, exchangeRate: 117.5, fromCurrency: 'EUR', toCurrency: 'RSD' },
     });
     cy.visit('/transfers', { onBeforeLoad: setupClientSession });
     // FX transfer should show conversion details
@@ -798,8 +802,9 @@ describe('Menjacnica', () => {
   });
 
   it('S25: Kalkulator konverzije', () => {
+    // R1-677: BE DTO shape (convertedAmount/exchangeRate/fromCurrency/toCurrency).
     cy.intercept('GET', '**/api/exchange/calculate*', {
-      statusCode: 200, body: { convertedAmount: 851.06, rate: 117.5, commission: 0 },
+      statusCode: 200, body: { convertedAmount: 851.06, exchangeRate: 117.5, fromCurrency: 'RSD', toCurrency: 'EUR' },
     }).as('convert');
 
     cy.visit('/exchange', { onBeforeLoad: setupClientSession });

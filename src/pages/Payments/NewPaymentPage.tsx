@@ -8,7 +8,7 @@
 // - Otvara VerificationModal za OTP potvrdu
 // - Spec: "Novi platni nalog" stranica iz Celine 2
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -24,6 +24,7 @@ import {
   type InterbankPaymentInitiateRequest,
 } from '@/types/celina4';
 import { newPaymentSchema, type NewPaymentFormData } from '@/utils/validationSchemas.celina2';
+import { getOurAccountPrefix } from '@/config/runtime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,8 +32,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import VerificationModal from '@/components/shared/VerificationModal';
 import { SendHorizonal, Wallet, ArrowRight, ArrowLeftRight, User, FileText, Hash, BookUser, CheckCircle2, X, Globe, Loader2, XCircle, AlertTriangle } from 'lucide-react';
 import { asArray, formatAmount, getErrorMessage } from '@/utils/formatters';
+import { INTERBANK_STEPS, getInterbankStepState } from './interbankStepper';
 
-const OUR_BANK_PREFIX = '222';
 const INTERBANK_POLL_MS = 3000;
 const INTERBANK_MAX_POLLS = 40;
 // Spec Celina 5 (Nova) Sc 5/11 indirect FE coverage: kad korisnik reloaduje
@@ -41,60 +42,92 @@ const INTERBANK_MAX_POLLS = 40;
 // ali ne zatvaranje tab-a (sigurnosni princip kao i sa JWT-om).
 const INTERBANK_ACTIVE_TX_KEY = 'interbank-active-tx';
 
+// R1-325: BE prihvata SAMO fiksni skup sifri placanja (PaymentCode enum 220-290).
+// Free-text input je dozvoljavao da korisnik ukuca npr. "200" ili "299" koje BE
+// odbije (IllegalArgumentException → 400) tek posle submit-a. Dropdown sa validnim
+// kodovima + citljivim labelama za najcesce; default 289 (placanje po ugovoru/ostalo).
+const PAYMENT_CODES: { value: string; label: string }[] = [
+  { value: '220', label: '220 — Promet robe i usluga' },
+  { value: '221', label: '221 — Avansi za promet robe i usluga' },
+  { value: '222', label: '222 — Komisiona i konsignaciona prodaja' },
+  { value: '223', label: '223 — Naplata cekova gradjana' },
+  { value: '224', label: '224 — Naplata kupona, gotovina' },
+  { value: '225', label: '225 — Prenos sredstava po platnim karticama' },
+  { value: '226', label: '226 — Plate, naknade plata' },
+  { value: '227', label: '227 — Druga primanja iz radnog odnosa' },
+  { value: '228', label: '228 — Penzije' },
+  { value: '231', label: '231 — Naknade po osnovu socijalnog osiguranja' },
+  { value: '240', label: '240 — Premije osiguranja' },
+  { value: '241', label: '241 — Stipendije i krediti ucenicima/studentima' },
+  { value: '242', label: '242 — Clanarine, doprinosi, kazne' },
+  { value: '244', label: '244 — Komunalne usluge' },
+  { value: '245', label: '245 — Zakup nepokretnosti' },
+  { value: '246', label: '246 — Pretplata' },
+  { value: '247', label: '247 — Donacije i sponzorstva' },
+  { value: '248', label: '248 — Otplata kredita' },
+  { value: '249', label: '249 — Depoziti gradjana' },
+  { value: '253', label: '253 — Uplata javnih prihoda' },
+  { value: '254', label: '254 — Porez na dodatu vrednost (PDV)' },
+  { value: '257', label: '257 — Carine i druge uvozne dazbine' },
+  { value: '258', label: '258 — Administrativne takse' },
+  { value: '260', label: '260 — Sudske takse' },
+  { value: '261', label: '261 — Doprinosi za penzijsko osiguranje' },
+  { value: '262', label: '262 — Doprinosi za zdravstveno osiguranje' },
+  { value: '263', label: '263 — Doprinosi za slucaj nezaposlenosti' },
+  { value: '264', label: '264 — Ostali doprinosi' },
+  { value: '265', label: '265 — Placanje robe/usluga gotovinom' },
+  { value: '266', label: '266 — Polog dnevnog pazara' },
+  { value: '270', label: '270 — Kratkorocni krediti' },
+  { value: '271', label: '271 — Dugorocni krediti' },
+  { value: '272', label: '272 — Investiciona ulaganja' },
+  { value: '273', label: '273 — Garantni depoziti' },
+  { value: '275', label: '275 — Naplata hartija od vrednosti' },
+  { value: '276', label: '276 — Ucesce u kapitalu' },
+  { value: '277', label: '277 — Tekuci transferi' },
+  { value: '278', label: '278 — Kapitalni transferi' },
+  { value: '279', label: '279 — Ostali transferi' },
+  { value: '280', label: '280 — Devizni priliv' },
+  { value: '281', label: '281 — Devizni odliv' },
+  { value: '282', label: '282 — Kupovina/prodaja deviza' },
+  { value: '283', label: '283 — Menjacki poslovi' },
+  { value: '284', label: '284 — Platni promet sa inostranstvom' },
+  { value: '285', label: '285 — Ostali devizni poslovi' },
+  { value: '286', label: '286 — Interni prenos sredstava' },
+  { value: '287', label: '287 — Storno transakcije' },
+  { value: '288', label: '288 — Korekcija greske' },
+  { value: '289', label: '289 — Prenos sredstava (ostalo)' },
+  { value: '290', label: '290 — Ostala placanja' },
+];
+
 function isInterbank(accountNumber: string): boolean {
-  return accountNumber.length >= 3 && accountNumber.slice(0, 3) !== OUR_BANK_PREFIX;
+  // R3-1592: prefiks nase banke citamo iz runtime configa (getOurAccountPrefix),
+  // ne iz hardkodiranog '222' — deploy sa drugim bank code-om bi inace svako
+  // intra placanje detektovao kao inter (pogresan 2PC flow).
+  return accountNumber.length >= 3 && accountNumber.slice(0, 3) !== getOurAccountPrefix();
 }
 
-// Spec Celina 5 (Nova) 2PC flow — 4 faze koje user vidi u stepper-u:
-//   1. Inicijalizacija (INITIATED)
-//   2. Prepare (PREPARING / PREPARED) — Banka A salje, Banka B priprema
-//   3. Commit (COMMITTING) — sredstva idu sa A na B
-//   4. Zavrseno (COMMITTED)
-//
-// Terminal statusi ABORTED i STUCK markiraju gde je flow stao + prikazuju
-// failureReason ako BE pruzi.
-const INTERBANK_STEPS = [
-  { key: 'INITIATED', label: 'Inicijalizacija', description: 'Transakcija pokrenuta' },
-  { key: 'PREPARED', label: 'Prepare', description: 'Banka primaoca proverava racun' },
-  { key: 'COMMITTING', label: 'Commit', description: 'Prenos sredstava' },
-  { key: 'COMMITTED', label: 'Zavrseno', description: 'Sredstva preneta primaocu' },
-] as const;
-
-type InterbankStepState = 'pending' | 'active' | 'done' | 'failed';
-
-function getInterbankStepState(stepKey: string, status: string): InterbankStepState {
-  // Mapa: koji step-index ce biti "active" za svaki status
-  const stepIndex: Record<string, number> = {
-    INITIATED: 0,
-    PREPARING: 1,
-    PREPARED: 1,
-    COMMITTING: 2,
-    ABORTING: 2,
-    COMMITTED: 3,
-    ABORTED: -1, // failed at last active step
-    STUCK: -1,
-  };
-  const targetKeys: readonly string[] = INTERBANK_STEPS.map((s) => s.key);
-  const stepKeyIndex = targetKeys.indexOf(stepKey);
-  const activeIndex = stepIndex[status] ?? 0;
-
-  if (status === 'COMMITTED') {
-    return 'done'; // svi koraci zavrseni
+/**
+ * Spec Celina 2 Sc11: kada BE javi "racun primaoca ne postoji" za intra-bank
+ * placanje, polje primaoca mora da se ocisti (uneti broj racuna je nevalidan).
+ * BE vraca poslovnu gresku kao 404 sa porukom oblika "... racun ... ne postoji ..."
+ * (npr. "Racun primaoca ne postoji."). Detekciju radimo na poruci (message body)
+ * uz potvrdu 404 statusa, da ne brisemo polje na nepovezanim 404-ovima.
+ */
+function isAccountNotFoundError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null || !('response' in error)) {
+    return false;
   }
-
-  if (status === 'ABORTED' || status === 'STUCK') {
-    // Faza koja je pokusana ali nije uspela — uzimamo poslednje viđeno stanje.
-    // Posto BE moze poslati ABORTING pre ABORTED, koristimo ABORTING-step kao
-    // "failed marker"; ali ako je vec ABORTED bez ABORTING, padamo na PREPARING.
-    // U praksi: ako je ABORTED, oznaci poslednji "active" step kao failed.
-    if (stepKeyIndex < 2) return 'done'; // INITIATED, PREPARED se smatraju zavrsenim
-    if (stepKeyIndex === 2) return 'failed'; // COMMITTING/ABORTING marker
-    return 'pending'; // COMMITTED nije dosegnuto
-  }
-
-  if (stepKeyIndex < activeIndex) return 'done';
-  if (stepKeyIndex === activeIndex) return 'active';
-  return 'pending';
+  const response = (error as {
+    response?: { status?: number; data?: { error?: string; message?: string } };
+  }).response;
+  if (!response) return false;
+  const message = response.data?.message ?? response.data?.error ?? '';
+  // "racun ... ne postoji" (latinica, case-insensitive) — pokriva i
+  // "Racun primaoca ne postoji." i varijante poruke iz BE-a.
+  const matchesMessage = /ra[cč]un[\s\S]*ne\s+postoji/i.test(message);
+  // 404 je ocekivan status, ali oslanjamo se prevashodno na poruku jer je
+  // ona deterministicki ugovor (getErrorMessage vec citira message body).
+  return matchesMessage && (response.status === undefined || response.status === 404);
 }
 
 export default function NewPaymentPage() {
@@ -228,105 +261,11 @@ export default function NewPaymentPage() {
     return isInterbank(watchedTo);
   }, [watchedTo]);
 
-  // Spec Celina 5 (Nova) Sc 11 indirect FE coverage: ako user reloaduje
-  // stranicu dok je inter-bank placanje u toku, transakcija je vec
-  // inicirana na BE-u i nastavlja u retry scheduler-u. Rehydrate-ujemo
-  // tracking modal: fetchujemo status, prikazujemo modal i resume-ujemo
-  // polling. Ako BE vrati 404 (npr. txId iz davnijeg ciscenja), tihi
-  // cleanup sessionStorage.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const savedTxId = window.sessionStorage.getItem(INTERBANK_ACTIVE_TX_KEY);
-    if (!savedTxId) return;
-
-    let cancelled = false;
-    void (async () => {
-      try {
-        const status = await interbankPaymentService.getStatus(savedTxId);
-        if (cancelled) return;
-        setInterbankTracking(status);
-        if (INTERBANK_TERMINAL_STATUSES.includes(status.status)) {
-          window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
-          return;
-        }
-        toast.info('Nastavljam pracenje inter-bank transakcije iz prethodne sesije...');
-        try {
-          const finalStatus = await pollInterbankUntilDone(savedTxId);
-          if (cancelled) return;
-          if (finalStatus.status === 'COMMITTED') {
-            toast.success('Inter-bank placanje je uspesno izvrseno.');
-            window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
-          } else if (finalStatus.failureReason) {
-            toast.error(finalStatus.failureReason);
-            if (INTERBANK_TERMINAL_STATUSES.includes(finalStatus.status)) {
-              window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
-            }
-          }
-        } catch {
-          if (cancelled) return;
-          toast.error('Nastavak pracenja statusa nije uspeo.');
-        }
-      } catch {
-        if (!cancelled) {
-          window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Spec Celina 5 (Nova): "Sistem ce automatski pokusati ponovno povezivanje"
-  // za STUCK transakcije. User moze rucno triggerovati retry — fetcha status
-  // jos jednom (BE moze u medjuvremenu vec resiti) i resume polling-a ako
-  // je status izasao iz STUCK-a.
-  const handleRetryStuck = async () => {
-    if (!interbankTracking) return;
-    setRetryingStuck(true);
-    try {
-      const refreshed = await interbankPaymentService.getStatus(interbankTracking.transactionId);
-      setInterbankTracking(refreshed);
-      if (refreshed.status === 'STUCK') {
-        toast.info('Transakcija je i dalje zaglavljena. Pokusajte ponovo za par sekundi.');
-      } else if (INTERBANK_TERMINAL_STATUSES.includes(refreshed.status)) {
-        if (refreshed.status === 'COMMITTED') {
-          toast.success('Transakcija je u medjuvremenu uspesno zavrsena.');
-        } else {
-          toast.error(refreshed.failureReason ?? 'Transakcija nije uspela.');
-        }
-        if (typeof window !== 'undefined') {
-          window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
-        }
-      } else {
-        // Vratila se u in-progress stanje (npr. PREPARING), nastavi polling
-        toast.info('Transakcija je nastavila — pratite napredak.');
-        try {
-          const finalStatus = await pollInterbankUntilDone(refreshed.transactionId);
-          if (finalStatus.status === 'COMMITTED') {
-            toast.success('Inter-bank placanje je uspesno izvrseno.');
-          } else if (finalStatus.failureReason) {
-            toast.error(finalStatus.failureReason);
-          }
-          if (
-            typeof window !== 'undefined' &&
-            INTERBANK_TERMINAL_STATUSES.includes(finalStatus.status)
-          ) {
-            window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
-          }
-        } catch {
-          toast.error('Polling statusa nije uspeo. Pogledajte istoriju placanja.');
-        }
-      }
-    } catch {
-      toast.error('Nije bilo moguce osveziti status. Banka primaoca jos nije dostupna.');
-    } finally {
-      setRetryingStuck(false);
-    }
-  };
-
-  const pollInterbankUntilDone = async (transactionId: string) => {
+  // R1-547: stabilna referenca (useCallback []) — funkcija ne zatvara nijedan
+  // komponentni state (samo stabilne setter-e/servise/konstante), pa je []
+  // korektno. Time rehydrate useEffect ispod dobija konzistentnu, ne-stale
+  // referencu i moze je drzati u dep-nizu bez ponovnog pokretanja.
+  const pollInterbankUntilDone = useCallback(async (transactionId: string) => {
     let attempts = 0;
     let lastStatus: InterbankPayment['status'] | null = null;
     while (attempts < INTERBANK_MAX_POLLS) {
@@ -384,7 +323,106 @@ export default function NewPaymentPage() {
     };
     setInterbankTracking(stuckStatus);
     return stuckStatus;
+  }, []);
+
+  // Spec Celina 5 (Nova) Sc 11 indirect FE coverage: ako user reloaduje
+  // stranicu dok je inter-bank placanje u toku, transakcija je vec
+  // inicirana na BE-u i nastavlja u retry scheduler-u. Rehydrate-ujemo
+  // tracking modal: fetchujemo status, prikazujemo modal i resume-ujemo
+  // polling. Ako BE vrati 404 (npr. txId iz davnijeg ciscenja), tihi
+  // cleanup sessionStorage.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const savedTxId = window.sessionStorage.getItem(INTERBANK_ACTIVE_TX_KEY);
+    if (!savedTxId) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const status = await interbankPaymentService.getStatus(savedTxId);
+        if (cancelled) return;
+        setInterbankTracking(status);
+        if (INTERBANK_TERMINAL_STATUSES.includes(status.status)) {
+          window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
+          return;
+        }
+        toast.info('Nastavljam pracenje inter-bank transakcije iz prethodne sesije...');
+        try {
+          const finalStatus = await pollInterbankUntilDone(savedTxId);
+          if (cancelled) return;
+          if (finalStatus.status === 'COMMITTED') {
+            toast.success('Inter-bank placanje je uspesno izvrseno.');
+            window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
+          } else if (finalStatus.failureReason) {
+            toast.error(finalStatus.failureReason);
+            if (INTERBANK_TERMINAL_STATUSES.includes(finalStatus.status)) {
+              window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
+            }
+          }
+        } catch {
+          if (cancelled) return;
+          toast.error('Nastavak pracenja statusa nije uspeo.');
+        }
+      } catch {
+        if (!cancelled) {
+          window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pollInterbankUntilDone]);
+
+  // Spec Celina 5 (Nova): "Sistem ce automatski pokusati ponovno povezivanje"
+  // za STUCK transakcije. User moze rucno triggerovati retry — fetcha status
+  // jos jednom (BE moze u medjuvremenu vec resiti) i resume polling-a ako
+  // je status izasao iz STUCK-a.
+  const handleRetryStuck = async () => {
+    if (!interbankTracking) return;
+    setRetryingStuck(true);
+    try {
+      const refreshed = await interbankPaymentService.getStatus(interbankTracking.transactionId);
+      setInterbankTracking(refreshed);
+      if (refreshed.status === 'STUCK') {
+        toast.info('Transakcija je i dalje zaglavljena. Pokusajte ponovo za par sekundi.');
+      } else if (INTERBANK_TERMINAL_STATUSES.includes(refreshed.status)) {
+        if (refreshed.status === 'COMMITTED') {
+          toast.success('Transakcija je u medjuvremenu uspesno zavrsena.');
+        } else {
+          toast.error(refreshed.failureReason ?? 'Transakcija nije uspela.');
+        }
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
+        }
+      } else {
+        // Vratila se u in-progress stanje (npr. PREPARING), nastavi polling
+        toast.info('Transakcija je nastavila — pratite napredak.');
+        try {
+          const finalStatus = await pollInterbankUntilDone(refreshed.transactionId);
+          if (finalStatus.status === 'COMMITTED') {
+            toast.success('Inter-bank placanje je uspesno izvrseno.');
+          } else if (finalStatus.failureReason) {
+            toast.error(finalStatus.failureReason);
+          }
+          if (
+            typeof window !== 'undefined' &&
+            INTERBANK_TERMINAL_STATUSES.includes(finalStatus.status)
+          ) {
+            window.sessionStorage.removeItem(INTERBANK_ACTIVE_TX_KEY);
+          }
+        } catch {
+          toast.error('Polling statusa nije uspeo. Pogledajte istoriju placanja.');
+        }
+      }
+    } catch {
+      toast.error('Nije bilo moguce osveziti status. Banka primaoca jos nije dostupna.');
+    } finally {
+      setRetryingStuck(false);
+    }
   };
+
 
   return (
     <div className="container mx-auto py-8 max-w-6xl space-y-8">
@@ -595,7 +633,16 @@ export default function NewPaymentPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="paymentCode" className="text-sm font-medium text-muted-foreground">Sifra placanja</Label>
-                  <Input id="paymentCode" className="h-11 rounded-xl font-mono" {...register('paymentCode')} placeholder="289" />
+                  {/* R1-325: dropdown validnih sifri (PaymentCode enum) umesto free-text. */}
+                  <select
+                    id="paymentCode"
+                    className="flex h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    {...register('paymentCode')}
+                  >
+                    {PAYMENT_CODES.map((pc) => (
+                      <option key={pc.value} value={pc.value}>{pc.label}</option>
+                    ))}
+                  </select>
                   {errors.paymentCode && <p className="text-sm text-destructive">{errors.paymentCode.message}</p>}
                 </div>
               </div>
@@ -966,6 +1013,14 @@ export default function NewPaymentPage() {
           // OTP je verifikovan - sada biramo flow: intra-bank ili inter-bank.
           try {
             const formData = getValues();
+            // R1-329: BE CreatePaymentRequestDto NE poznaje polja `model`/`callNumber`
+            // (Jackson ih tiho ignorise) — perzistira samo `referenceNumber`. "Poziv na
+            // broj" (model + poziv na broj) sklapamo u referenceNumber da unos ne nestane.
+            // Ako je korisnik eksplicitno popunio referentni broj, on ima prednost.
+            const composedReference =
+              formData.referenceNumber?.trim() ||
+              [formData.model?.trim(), formData.callNumber?.trim()].filter(Boolean).join(' ') ||
+              undefined;
             const paymentDto = {
               fromAccountNumber: formData.fromAccountNumber,
               toAccountNumber: formData.toAccountNumber,
@@ -975,7 +1030,7 @@ export default function NewPaymentPage() {
               paymentPurpose: formData.paymentPurpose,
               model: formData.model || undefined,
               callNumber: formData.callNumber || undefined,
-              referenceNumber: formData.referenceNumber || undefined,
+              referenceNumber: composedReference,
             };
 
             if (isInterbank(formData.toAccountNumber)) {
@@ -1037,6 +1092,19 @@ export default function NewPaymentPage() {
             }
           } catch (err) {
             toast.error(getErrorMessage(err, 'Kreiranje placanja nije uspelo.'));
+            // Spec Celina 2 Sc11: ako BE javi da racun primaoca ne postoji
+            // (intra-bank), ocisti prikazana polja primaoca — uneti broj racuna
+            // je nevalidan, pa nema smisla zadrzavati ga. Brisemo SAMO display
+            // polja primaoca (toAccountNumber + recipientName + eventualni
+            // save-recipient prompt); iznos/izvor/dispatch logika ostaje netaknuta.
+            // OTP atempte NE diramo (re-throw prepustamo VerificationModal-u koji
+            // po R1-253 ne dekrementira pokusaje na poslovnu gresku).
+            const formData = getValues();
+            if (!isInterbank(formData.toAccountNumber) && isAccountNotFoundError(err)) {
+              setValue('toAccountNumber', '', { shouldValidate: false });
+              setValue('recipientName', '', { shouldValidate: false });
+              setSaveRecipientPrompt(null);
+            }
             throw err;
           }
         }}
@@ -1092,7 +1160,10 @@ export default function NewPaymentPage() {
                 {/* 2PC stepper — vizualizuje napredak kroz 4 faze */}
                 <div className="space-y-2" data-testid="interbank-stepper">
                   {INTERBANK_STEPS.map((step, index) => {
-                    const state = getInterbankStepState(step.key, interbankTracking.status);
+                    const state = getInterbankStepState(step.key, interbankTracking.status, {
+                      preparedAt: interbankTracking.preparedAt,
+                      committedAt: interbankTracking.committedAt,
+                    });
                     const isLast = index === INTERBANK_STEPS.length - 1;
 
                     return (

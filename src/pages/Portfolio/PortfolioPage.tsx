@@ -7,7 +7,6 @@ import {
   Receipt,
   Wallet,
   ArrowRightLeft,
-  Zap,
   ChevronDown,
   ChevronRight,
   Coins,
@@ -19,10 +18,8 @@ import {
 import type { PieLabelRenderProps } from 'recharts';
 
 import portfolioService from '@/services/portfolioService';
-import listingService from '@/services/listingService';
 import taxService from '@/services/taxService';
 import dividendService from '@/services/dividendService';
-import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/lib/notify';
 import type { PortfolioItem, PortfolioSummary, TaxBreakdownItemDto } from '@/types/celina3';
 import type { DividendPayoutDto } from '@/types/dividend';
@@ -195,10 +192,6 @@ function getListingTypeBadgeVariant(
     default:
       return 'outline';
   }
-}
-
-function isOptionType(type: string): boolean {
-  return !['STOCK', 'FUTURES', 'FOREX'].includes(type);
 }
 
 function PortfolioProfitChart({ items }: { items: PortfolioItem[] }) {
@@ -402,8 +395,6 @@ function PortfolioDistributionChart({ items }: { items: PortfolioItem[] }) {
 
 export default function PortfolioPage() {
   const navigate = useNavigate();
-  const { isAdmin, isAgent, isSupervisor } = useAuth();
-  const isEmployee = isAdmin || isAgent || isSupervisor;
 
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [items, setItems] = useState<PortfolioItem[]>([]);
@@ -412,7 +403,6 @@ export default function PortfolioPage() {
 
   const [publicQuantities, setPublicQuantities] = useState<Record<number, string>>({});
   const [savingPublicId, setSavingPublicId] = useState<number | null>(null);
-  const [exercisingId, setExercisingId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'holdings' | 'funds' | 'tax'>('holdings');
 
   // P2.4 — per-listing porez breakdown za trenutnog korisnika.
@@ -555,28 +545,12 @@ export default function PortfolioPage() {
     }
   };
 
-  const handleExerciseOption = async (item: PortfolioItem) => {
-    if (!window.confirm(`Da li ste sigurni da želite da iskoristite opciju "${item.listingTicker}"?`)) {
-      return;
-    }
-    setExercisingId(item.id);
-    try {
-      await listingService.exerciseOption(item.id);
-      toast.success(`Opcija "${item.listingTicker}" je uspešno iskorišćena.`);
-      await loadPortfolio(false);
-    } catch (err: unknown) {
-      const error = err as { response?: { status?: number; data?: { error?: string; message?: string } } };
-      const status = error.response?.status;
-      if (status === 404) {
-        toast.error('Backend endpoint za izvršavanje opcije još nije dostupan.');
-      } else {
-        const msg = error.response?.data?.error || error.response?.data?.message;
-        toast.error(msg || 'Iskorišćavanje opcije nije uspelo. Pokušajte ponovo.');
-      }
-    } finally {
-      setExercisingId(null);
-    }
-  };
+  // [OT-1218 — REKLASIFIKOVANO] Exercise plain-opcije NE pripada portfolio strani:
+  // ListingType = {STOCK, FUTURES, FOREX} (nema OPTION) pa portfolio red nikad ne
+  // predstavlja opcionu poziciju. Pravi exercise entry point je lanac opcija na
+  // SecuritiesDetailsPage (OptionItem.id = pravi Option.id). Ranije dead-wiring
+  // (canExercise / "Iskoristi opciju" dugme + runExerciseOption) je uklonjen jer
+  // se nikad nije renderovao u proizvodnji.
 
   // FE4 (7.1) — expand/collapse istorije dividendi za STOCK poziciju.
   const toggleDividendHistory = (item: PortfolioItem) => {
@@ -809,12 +783,6 @@ export default function PortfolioPage() {
                     {items.map((item) => {
                       const isProfitPositive = item.profit >= 0;
                       const isStock = item.listingType === 'STOCK';
-                      const isOption = isOptionType(item.listingType);
-                      const isExpired = item.settlementDate
-                        ? new Date(item.settlementDate).getTime() < Date.now()
-                        : false;
-                      const canExercise =
-                        isOption && isEmployee && !isExpired && item.inTheMoney === true;
                       const isDividendsOpen = expandedDividends === item.id;
 
                       return (
@@ -946,17 +914,6 @@ export default function PortfolioPage() {
                                   </div>
                                 );
                               })()}
-                              {canExercise && (
-                                <Button
-                                  size="sm"
-                                  className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:from-indigo-600 hover:to-violet-700"
-                                  disabled={exercisingId === item.id}
-                                  onClick={() => handleExerciseOption(item)}
-                                >
-                                  <Zap className="mr-2 h-4 w-4" />
-                                  {exercisingId === item.id ? 'Iskorišćavanje...' : 'Iskoristi opciju'}
-                                </Button>
-                              )}
                             </div>
                           </TableCell>
                         </TableRow>

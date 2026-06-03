@@ -9,19 +9,42 @@ import type { ListingType } from './celina3';
 
 export type WatchlistOwnerType = 'CLIENT' | 'EMPLOYEE';
 
-/** Jedna lista pracenja (Watchlist) korisnika. */
+/**
+ * Jedna lista pracenja (Watchlist) korisnika.
+ * R1 811: polja oblikovana tacno po BE `WatchlistDto.java` (id/ownerId/ownerType/
+ * name/itemCount/createdAt). Ranija phantom polja `description`/`updatedAt` BE
+ * nikad ne salje — uklonjena.
+ */
 export interface WatchlistDto {
   id: number;
   ownerId: number;
   ownerType: WatchlistOwnerType;
   name: string;
-  description?: string;
   createdAt: string;
-  updatedAt?: string;
   itemCount?: number;
 }
 
-/** Stavka u listi pracenja (hartija + trzisni podaci). */
+/**
+ * Sirovi oblik BE odgovora (`WatchlistItemDto.java`) — kljucevi se razlikuju
+ * od FE-friendly oblika (BE: `ticker`/`securityType`/`exchangeName`, NEMA
+ * `dailyChangePercent` ni `currency`). `watchlistService` ga normalizuje u
+ * {@link WatchlistItemDto} pre nego sto stigne do stranice.
+ */
+export interface WatchlistItemRawDto {
+  id: number;
+  watchlistId: number;
+  listingId: number;
+  ticker?: string;
+  listingName?: string;
+  securityType?: ListingType | string;
+  exchangeName?: string;
+  currentPrice?: number | null;
+  dailyChange?: number | null;
+  volume?: number | null;
+  addedAt: string;
+}
+
+/** Stavka u listi pracenja (hartija + trzisni podaci) — FE-normalizovan oblik. */
 export interface WatchlistItemDto {
   id: number;
   watchlistId: number;

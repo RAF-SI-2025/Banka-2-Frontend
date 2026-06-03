@@ -315,4 +315,70 @@ describe('OtcInterBankContractsTab', () => {
       expect(mockedToast.error).toHaveBeenCalledWith('Partner banka odbila prenos hartija.');
     });
   });
+
+  // TEST-fe-otc-8 (OT-1234): getCurrentPhaseIndex ABORTED grana sa null currentPhase.
+  // Kad SAGA padne PRE nego sto BE objavi ijednu fazu (status ABORTED, currentPhase
+  // null), getCurrentPhaseIndex vraca null (ne COMMITTED, prazan phase) -> UI renderuje
+  // `currentPhaseIndex == null` alert sa failureReason umesto liste SAGA faza, i ne sme
+  // pogresno markirati nijednu fazu kao zavrsenu/aktivnu.
+  it('aborts with null currentPhase: shows failure alert without a mapped saga phase', async () => {
+    const user = userEvent.setup();
+
+    mockedInterbankOtcService.exerciseContract.mockResolvedValue({
+      id: 101,
+      transactionId: 'otc-tx-early-abort',
+      type: 'OTC',
+      status: 'INITIATED',
+      // bez currentPhase -> getCurrentPhaseIndex mora vratiti null
+      senderBankCode: 'BANKA1',
+      receiverBankCode: 'BANKA2',
+      amount: 800,
+      currency: 'USD',
+      createdAt: '2026-04-25T12:00:00Z',
+      retryCount: 0,
+    });
+    mockedApi.get.mockResolvedValueOnce({
+      data: {
+        id: 101,
+        transactionId: 'otc-tx-early-abort',
+        type: 'OTC',
+        status: 'ABORTED',
+        currentPhase: null, // pad pre prve faze
+        senderBankCode: 'BANKA1',
+        receiverBankCode: 'BANKA2',
+        amount: 800,
+        currency: 'USD',
+        createdAt: '2026-04-25T12:00:00Z',
+        abortedAt: '2026-04-25T12:00:05Z',
+        retryCount: 0,
+        failureReason: 'Rezervacija sredstava nije uspela.',
+      },
+    } as never);
+
+    render(<OtcInterBankContractsTab />);
+
+    const contractRow = (await screen.findByText('AAPL')).closest('tr');
+    await user.click(within(contractRow as HTMLElement).getByRole('button', { name: /Iskoristi/i }));
+    vi.useFakeTimers();
+    await act(async () => {
+      screen.getByRole('button', { name: /Potvrdi exercise/i }).click();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    vi.useRealTimers();
+
+    // failureReason je prikazan (null-phase alert grana: AlertDescription +
+    // lokalizovani saga-aborted-alert oba pokazuju razlog -> >=1 pojava).
+    await waitFor(() => {
+      expect(screen.getAllByText('Rezervacija sredstava nije uspela.').length).toBeGreaterThanOrEqual(1);
+    });
+    // Posto je currentPhase null, lista SAGA faza (Progress + koraci) se NE renderuje;
+    // ne sme se prikazati nijedan SAGA-phase korak ("Prenos vlasnistva" je faza 4).
+    expect(screen.queryByText('Prenos vlasnistva')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockedToast.error).toHaveBeenCalledWith('Rezervacija sredstava nije uspela.');
+    });
+  });
 });

@@ -711,6 +711,173 @@ describe('AuthContext', () => {
   // FE-SHR-01: AUTH_UNAUTHORIZED_EVENT listener cleans session + redirects
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // P1-fe-mobile-authz-1 (1560/1598): CLIENT /clients/me fail → FAIL-CLOSED
+  // ---------------------------------------------------------------------------
+
+  it('CLIENT whose /clients/me fails gets NO TRADE_STOCKS (fail-closed) and userId 0', async () => {
+    vi.mocked(authService.login).mockResolvedValue({
+      accessToken: 'tok',
+      refreshToken: 'r',
+      tokenType: 'Bearer',
+    });
+    vi.mocked(decodeJwt).mockReturnValue({
+      sub: 'klijent@x.rs',
+      role: 'CLIENT',
+      active: true,
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      iat: Math.floor(Date.now() / 1000),
+    });
+    // /clients/me pada (npr. 403 / timeout) — ranije bi vratio [TRADE_STOCKS]
+    vi.mocked(clientService.getMe).mockRejectedValue(new Error('boom'));
+
+    function ClientConsumer() {
+      const { user, hasPermission } = useAuth();
+      return (
+        <>
+          <span data-testid="client-id">{user?.id ?? -1}</span>
+          <span data-testid="can-trade">{String(hasPermission(Permission.TRADE_STOCKS))}</span>
+        </>
+      );
+    }
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+        <ClientConsumer />
+      </AuthProvider>
+    );
+
+    await act(async () => {
+      screen.getByTestId('login-btn').click();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('authenticated').textContent).toBe('true');
+    });
+    // FAIL-CLOSED: nema TRADE_STOCKS po default-u, userId 0 (nepoznat)
+    expect(screen.getByTestId('can-trade').textContent).toBe('false');
+    expect(screen.getByTestId('client-id').textContent).toBe('0');
+  });
+
+  // ---------------------------------------------------------------------------
+  // P1-fe-mobile-authz-1 (1760): isSupervisor iz dediciranog `position` polja
+  // ---------------------------------------------------------------------------
+
+  it('EMPLOYEE with position=SUPERVISOR is supervisor even when permissions lacks SUPERVISOR string', async () => {
+    vi.mocked(authService.login).mockResolvedValue({
+      accessToken: 'tok',
+      refreshToken: 'r',
+      tokenType: 'Bearer',
+    });
+    vi.mocked(decodeJwt).mockReturnValue({
+      sub: 'ana.jovic@banka.rs',
+      role: 'EMPLOYEE',
+      active: true,
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      iat: Math.floor(Date.now() / 1000),
+    });
+    // Schema drift: position kaze SUPERVISOR, ali permissions ne sadrzi literal
+    // "SUPERVISOR" (npr. samo TRADE_STOCKS). Ranije → tretiran kao EMPLOYEE.
+    vi.mocked(employeeService.getAll).mockResolvedValue({
+      content: [{
+        id: 42,
+        firstName: 'Ana',
+        lastName: 'Jovic',
+        email: 'ana.jovic@banka.rs',
+        position: 'SUPERVISOR',
+        permissions: [Permission.TRADE_STOCKS],
+      } as never],
+      totalElements: 1,
+      totalPages: 1,
+      number: 0,
+      size: 10,
+    } as never);
+
+    function RoleConsumer() {
+      const { isSupervisor, isAgent } = useAuth();
+      return (
+        <>
+          <span data-testid="is-supervisor">{String(isSupervisor)}</span>
+          <span data-testid="is-agent">{String(isAgent)}</span>
+        </>
+      );
+    }
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+        <RoleConsumer />
+      </AuthProvider>
+    );
+
+    await act(async () => {
+      screen.getByTestId('login-btn').click();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('authenticated').textContent).toBe('true');
+    });
+    expect(screen.getByTestId('is-supervisor').textContent).toBe('true');
+    expect(screen.getByTestId('is-agent').textContent).toBe('false');
+  });
+
+  it('EMPLOYEE with position=AGENT is agent and NOT supervisor', async () => {
+    vi.mocked(authService.login).mockResolvedValue({
+      accessToken: 'tok',
+      refreshToken: 'r',
+      tokenType: 'Bearer',
+    });
+    vi.mocked(decodeJwt).mockReturnValue({
+      sub: 'agent@banka.rs',
+      role: 'EMPLOYEE',
+      active: true,
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      iat: Math.floor(Date.now() / 1000),
+    });
+    vi.mocked(employeeService.getAll).mockResolvedValue({
+      content: [{
+        id: 7,
+        firstName: 'Agent',
+        lastName: 'X',
+        email: 'agent@banka.rs',
+        position: 'AGENT',
+        permissions: [Permission.TRADE_STOCKS],
+      } as never],
+      totalElements: 1,
+      totalPages: 1,
+      number: 0,
+      size: 10,
+    } as never);
+
+    function RoleConsumer() {
+      const { isSupervisor, isAgent } = useAuth();
+      return (
+        <>
+          <span data-testid="is-supervisor">{String(isSupervisor)}</span>
+          <span data-testid="is-agent">{String(isAgent)}</span>
+        </>
+      );
+    }
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+        <RoleConsumer />
+      </AuthProvider>
+    );
+
+    await act(async () => {
+      screen.getByTestId('login-btn').click();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('authenticated').textContent).toBe('true');
+    });
+    expect(screen.getByTestId('is-agent').textContent).toBe('true');
+    expect(screen.getByTestId('is-supervisor').textContent).toBe('false');
+  });
+
   it('handles auth:unauthorized event by clearing session and navigating to /login', async () => {
     const storedUser = {
       id: 1,

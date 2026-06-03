@@ -94,6 +94,21 @@ describe('WatchlistQuickAccess', () => {
     });
   });
 
+  // Bug 5: ticker (a ne samo cena) mora biti vidljivo prikazan u sidebar widget-u.
+  it('prikazuje ticker tekst stavke (ne samo iznos)', async () => {
+    mockList.mockResolvedValue([wl1]);
+    mockItems.mockResolvedValue(items);
+    renderWidget();
+    await waitFor(() => {
+      expect(screen.getByTestId('quick-access-item-AAPL')).toBeTruthy();
+    });
+    // Ticker tekst je vidljiv unutar stavke (ranije ga je truncate/grid gusio).
+    const aaplItem = screen.getByTestId('quick-access-item-AAPL');
+    expect(aaplItem).toHaveTextContent('AAPL');
+    const msftItem = screen.getByTestId('quick-access-item-MSFT');
+    expect(msftItem).toHaveTextContent('MSFT');
+  });
+
   it('renderuje "Sve" CTA link', async () => {
     mockList.mockResolvedValue([]);
     renderWidget();

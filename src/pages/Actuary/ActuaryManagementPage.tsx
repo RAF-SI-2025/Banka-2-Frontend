@@ -1,7 +1,9 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { useDebounce } from '@/hooks/useDebounce';
 import { percentOf } from '@/utils/numberUtils';
-import { Pencil, RefreshCw, Scale, Search, SlidersHorizontal, Users } from 'lucide-react';
+import { Pencil, RefreshCw, Scale, Search, SlidersHorizontal, Users, X } from 'lucide-react';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
 import actuaryService from '@/services/actuaryService';
 import type { ActuaryInfo } from '@/types/celina3';
 import { toast } from '@/lib/notify';
@@ -71,6 +73,8 @@ export default function ActuaryManagementPage() {
   const [editNeedApproval, setEditNeedApproval] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [resettingAgentId, setResettingAgentId] = useState<number | null>(null);
+  // R1 561: zamena native window.confirm za reset limita.
+  const [confirmResetAgent, setConfirmResetAgent] = useState<ActuaryInfo | null>(null);
 
   const loadAgents = useCallback(async () => {
     setLoading(true);
@@ -166,15 +170,13 @@ export default function ActuaryManagementPage() {
     }
   };
 
-  const handleResetLimit = async (agent: ActuaryInfo) => {
-    const confirmed = window.confirm(
-      `Da li ste sigurni da zelite da resetujete iskoriscen limit za ${agent.employeeName}?`
-    );
+  // R1 561: otvara ConfirmDialog umesto native window.confirm.
+  const handleResetLimit = (agent: ActuaryInfo) => {
+    setConfirmResetAgent(agent);
+  };
 
-    if (!confirmed) {
-      return;
-    }
-
+  const runResetLimit = async (agent: ActuaryInfo) => {
+    setConfirmResetAgent(null);
     setResettingAgentId(agent.employeeId);
     try {
       const updated = await actuaryService.resetLimit(agent.employeeId);
@@ -393,52 +395,85 @@ export default function ActuaryManagementPage() {
         </Table>
       </Card>
 
-      {editingAgent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <Card className="w-full max-w-md space-y-4 p-5">
-            <div>
-              <h3 className="flex items-center gap-2 text-lg font-semibold">
-                <Scale className="h-5 w-5 text-primary" />
-                Izmena limita
-              </h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {editingAgent.employeeName} ({editingAgent.employeeEmail})
-              </p>
-            </div>
+      {/* R1 562: edit-limit modal je sad pravi Radix Dialog (focus trap, Esc,
+          fokus restore) umesto sirovog `fixed inset-0` div-a. */}
+      <Dialog.Root
+        open={editingAgent !== null}
+        onOpenChange={(o) => { if (!o) closeEditDialog(); }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+          <Dialog.Content className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+            <Card className="space-y-4 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <Dialog.Title className="flex items-center gap-2 text-lg font-semibold">
+                    <Scale className="h-5 w-5 text-primary" />
+                    Izmena limita
+                  </Dialog.Title>
+                  <Dialog.Description className="mt-1 text-sm text-muted-foreground">
+                    {editingAgent?.employeeName} ({editingAgent?.employeeEmail})
+                  </Dialog.Description>
+                </div>
+                <Dialog.Close asChild>
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"
+                    aria-label="Zatvori"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </Dialog.Close>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="dailyLimit">Novi dnevni limit</Label>
-              <Input
-                id="dailyLimit"
-                type="number"
-                min={0}
-                value={editDailyLimit}
-                onChange={(e) => setEditDailyLimit(e.target.value)}
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="dailyLimit">Novi dnevni limit</Label>
+                <Input
+                  id="dailyLimit"
+                  type="number"
+                  min={0}
+                  value={editDailyLimit}
+                  onChange={(e) => setEditDailyLimit(e.target.value)}
+                />
+              </div>
 
-            <div className="flex items-center gap-3 rounded-md border p-3">
-              <Checkbox
-                id="needApproval"
-                checked={editNeedApproval}
-                onCheckedChange={(checked) => setEditNeedApproval(Boolean(checked))}
-              />
-              <Label htmlFor="needApproval" className="cursor-pointer">
-                Potrebno odobrenje supervizora
-              </Label>
-            </div>
+              <div className="flex items-center gap-3 rounded-md border p-3">
+                <Checkbox
+                  id="needApproval"
+                  checked={editNeedApproval}
+                  onCheckedChange={(checked) => setEditNeedApproval(Boolean(checked))}
+                />
+                <Label htmlFor="needApproval" className="cursor-pointer">
+                  Potrebno odobrenje supervizora
+                </Label>
+              </div>
 
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={closeEditDialog} disabled={savingEdit}>
-                Otkazi
-              </Button>
-              <Button onClick={() => void handleSaveEdit()} disabled={savingEdit}>
-                Sacuvaj
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={closeEditDialog} disabled={savingEdit}>
+                  Otkazi
+                </Button>
+                <Button onClick={() => void handleSaveEdit()} disabled={savingEdit}>
+                  Sacuvaj
+                </Button>
+              </div>
+            </Card>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <ConfirmDialog
+        open={confirmResetAgent !== null}
+        onOpenChange={(o) => { if (!o) setConfirmResetAgent(null); }}
+        title="Reset iskoriscenog limita"
+        description={
+          confirmResetAgent
+            ? `Da li ste sigurni da zelite da resetujete iskoriscen limit za ${confirmResetAgent.employeeName}?`
+            : undefined
+        }
+        confirmLabel="Resetuj"
+        busy={resettingAgentId !== null}
+        onConfirm={() => { if (confirmResetAgent) void runResetLimit(confirmResetAgent); }}
+      />
     </div>
   );
 }

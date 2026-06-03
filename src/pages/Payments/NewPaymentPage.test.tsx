@@ -48,16 +48,31 @@ vi.mock('@/components/shared/VerificationModal', () => ({
   }) =>
     isOpen ? (
       <div data-testid="verification-modal">
-        <button onClick={() => onVerified('123456')}>Potvrdi OTP</button>
+        {/* Pravi VerificationModal hvata onVerified reject u svom onSubmit-u
+            (prikaze gresku, dozvoli retry). Mock isto swallow-uje rejection da
+            ne procuri unhandled-rejection u testovima koji simuliraju BE gresku. */}
+        <button onClick={() => { void onVerified('123456').catch(() => {}); }}>Potvrdi OTP</button>
         <button onClick={onClose}>Otkazi</button>
       </div>
     ) : null,
+}));
+
+// toast je mock-ovan da bismo deterministicki proverili "Nastavljam pracenje..."
+// poruku pri rehydrate-u inter-bank transakcije iz prethodne sesije.
+vi.mock('@/lib/notify', () => ({
+  toast: {
+    error: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+  },
 }));
 
 import { accountService } from '@/services/accountService';
 import { paymentRecipientService } from '@/services/paymentRecipientService';
 import { transactionService } from '@/services/transactionService';
 import interbankPaymentService from '@/services/interbankPaymentService';
+import { toast } from '@/lib/notify';
 
 const mockAccountService = vi.mocked(accountService);
 const mockRecipientService = vi.mocked(paymentRecipientService);
@@ -256,7 +271,9 @@ describe('NewPaymentPage', () => {
 
   // ---------- Payment code field ----------
 
-  it('allows changing payment code value', async () => {
+  // R1-325: sifra placanja je sada dropdown validnih PaymentCode vrednosti (default 289),
+  // ne free-text — korisnik vise ne moze ukucati nevazecu sifru koju BE odbija.
+  it('allows changing payment code via dropdown (R1-325)', async () => {
     const user = userEvent.setup();
     renderPage();
 
@@ -264,10 +281,11 @@ describe('NewPaymentPage', () => {
       expect(screen.getByLabelText(/Sifra placanja/i)).toBeInTheDocument();
     });
 
-    const paymentCodeInput = screen.getByLabelText(/Sifra placanja/i) as HTMLInputElement;
-    await user.clear(paymentCodeInput);
-    await user.type(paymentCodeInput, '220');
-    expect(paymentCodeInput.value).toBe('220');
+    const paymentCodeSelect = screen.getByLabelText(/Sifra placanja/i) as HTMLSelectElement;
+    expect(paymentCodeSelect.tagName).toBe('SELECT');
+    expect(paymentCodeSelect.value).toBe('289'); // default
+    await user.selectOptions(paymentCodeSelect, '220');
+    expect(paymentCodeSelect.value).toBe('220');
   });
 
   // ---------- Recipient from saved list ----------
@@ -782,5 +800,209 @@ describe('NewPaymentPage', () => {
     });
 
     expect(screen.getByText(/zaglavljena/i)).toBeInTheDocument();
+  });
+
+  // ---------- G) Inter-bank rehydrate iz sessionStorage (Sc 11) ----------
+  // TEST-fe-banking-1: ako korisnik reloaduje stranicu dok je inter-bank
+  // placanje u toku, txId je perzistiran u sessionStorage. Na mount-u recovery
+  // useEffect fetch-uje status i prikazuje tracking modal. Pinujemo tri grane:
+  //   1) terminal status na rehydrate -> modal + key ocistjen (bez polling-a);
+  //   2) non-terminal -> modal + "Nastavljam pracenje" toast (resume);
+  //   3) getStatus 404/throw -> tihi cleanup key-a, bez modala.
+
+  it('rehydrates inter-bank tracking modal from sessionStorage on mount (terminal status)', async () => {
+    // Aktivan txId iz "prethodne sesije" + BE vraca terminal COMMITTED.
+    window.sessionStorage.setItem('interbank-active-tx', 'tx-77');
+    mockInterbankPaymentService.getStatus.mockResolvedValue({
+      id: 77,
+      transactionId: 'tx-77',
+      status: 'COMMITTED',
+      senderAccountNumber: '265000000000000001',
+      receiverAccountNumber: '444000000000000099',
+      amount: 5000,
+      currency: 'RSD',
+      createdAt: '2026-01-01T00:00:00',
+    });
+
+    renderPage();
+
+    // Recovery useEffect fetch-uje status sacuvanog txId-a...
+    await waitFor(() => {
+      expect(mockInterbankPaymentService.getStatus).toHaveBeenCalledWith('tx-77');
+    });
+
+    // ...i prikazuje tracking modal sa tim statusom.
+    await waitFor(() => {
+      expect(screen.getByTestId('interbank-status-modal')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('interbank-status-badge').textContent).toBe('COMMITTED');
+
+    // Terminal status -> aktivni txId je ocistjen iz sessionStorage.
+    await waitFor(() => {
+      expect(window.sessionStorage.getItem('interbank-active-tx')).toBeNull();
+    });
+  });
+
+  it('rehydrates and resumes polling (toast) when saved tx is still in-progress', async () => {
+    window.sessionStorage.setItem('interbank-active-tx', 'tx-88');
+    // Prvi getStatus (recovery) -> non-terminal PREPARED; svi naredni -> COMMITTED
+    // (zatvara polling loop bez beskonacnog cekanja).
+    mockInterbankPaymentService.getStatus
+      .mockResolvedValueOnce({
+        id: 88,
+        transactionId: 'tx-88',
+        status: 'PREPARED',
+        senderAccountNumber: '265000000000000001',
+        receiverAccountNumber: '444000000000000099',
+        amount: 5000,
+        currency: 'RSD',
+        createdAt: '2026-01-01T00:00:00',
+      })
+      .mockResolvedValue({
+        id: 88,
+        transactionId: 'tx-88',
+        status: 'COMMITTED',
+        senderAccountNumber: '265000000000000001',
+        receiverAccountNumber: '444000000000000099',
+        amount: 5000,
+        currency: 'RSD',
+        createdAt: '2026-01-01T00:00:00',
+      });
+
+    renderPage();
+
+    // Modal se pojavljuje u PREPARED (in-progress) stanju...
+    await waitFor(() => {
+      expect(screen.getByTestId('interbank-status-modal')).toBeInTheDocument();
+    });
+
+    // ...i resume toast je emitovan (pre nego sto polling krene).
+    await waitFor(() => {
+      expect(toast.info).toHaveBeenCalledWith(
+        expect.stringMatching(/Nastavljam pracenje inter-bank/i)
+      );
+    });
+  });
+
+  it('silently clears stale txId on mount when getStatus rejects (no modal)', async () => {
+    window.sessionStorage.setItem('interbank-active-tx', 'tx-stale');
+    mockInterbankPaymentService.getStatus.mockRejectedValue(new Error('404 not found'));
+
+    renderPage();
+
+    // Recovery fetch je pokusan...
+    await waitFor(() => {
+      expect(mockInterbankPaymentService.getStatus).toHaveBeenCalledWith('tx-stale');
+    });
+
+    // ...key je ocistjen, modal se NE prikazuje.
+    await waitFor(() => {
+      expect(window.sessionStorage.getItem('interbank-active-tx')).toBeNull();
+    });
+    expect(screen.queryByTestId('interbank-status-modal')).not.toBeInTheDocument();
+  });
+
+  // ---------- H) Sc11: praznjenje polja primaoca na intra-bank "racun ne postoji" ----------
+  // TEST-fe-banking-2 [SPEC Celina 2 Sc11]: kada BE javi da racun primaoca ne
+  // postoji za intra-bank placanje, polje primaoca (broj racuna + naziv) MORA
+  // da se ocisti — uneti broj racuna je nevalidan. NewPaymentPage onVerified
+  // catch detektuje "racun ... ne postoji" gresku (404 + message body) i prazni
+  // toAccountNumber/recipientName, uz toast i re-throw (da VerificationModal
+  // prikaze gresku; OTP pokusaji se NE dekrementiraju — R1-253).
+  // FIXED 03.06: catalog CODE_QUALITY.md `NewPaymentPage.tsx onVerified catch`.
+  it('[TEST-fe-banking-2] clears recipient fields on intra-bank "racun ne postoji" error', async () => {
+    // delay: null -> userEvent kuca sinhrono (bez per-char event-loop yield-a).
+    // Ovaj test kuca 18-cifreni racun + naziv + iznos + svrhu; pod paralelnim
+    // CPU load-om default delay je flake-ovao 5s timeout. Sinhroni unos uklanja
+    // scheduling overhead i drzi test deterministicki ispod limita.
+    const user = userEvent.setup({ delay: null });
+    // BE odbija intra-bank placanje (racun primaoca ne postoji).
+    mockTransactionService.createPayment.mockRejectedValue({
+      response: { status: 404, data: { message: 'Racun primaoca ne postoji.' } },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Iznos/i)).toBeInTheDocument();
+    });
+
+    const toAccountInput = screen.getByLabelText(/Racun primaoca/i) as HTMLInputElement;
+    await user.type(toAccountInput, '222000000000000099');
+    await user.type(screen.getByLabelText(/Naziv primaoca/i), 'Nepostojeci Primalac');
+    const amountInput = screen.getByLabelText(/Iznos/i);
+    await user.clear(amountInput);
+    await user.type(amountInput, '5000');
+    await user.type(screen.getByLabelText(/Svrha placanja/i), 'Test Sc11');
+
+    await submitAndConfirm(user);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('verification-modal')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Potvrdi OTP'));
+
+    // createPayment je pozvan i odbijen (404).
+    await waitFor(() => {
+      expect(mockTransactionService.createPayment).toHaveBeenCalled();
+    });
+
+    // Greska je surface-ovana korisniku.
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('Racun primaoca ne postoji.');
+    });
+
+    // Spec Sc11: polje broja racuna primaoca je ocisceno...
+    await waitFor(() => {
+      expect((screen.getByLabelText(/Racun primaoca/i) as HTMLInputElement).value).toBe('');
+    });
+    // ...kao i naziv primaoca.
+    expect((screen.getByLabelText(/Naziv primaoca/i) as HTMLInputElement).value).toBe('');
+  });
+
+  // TEST-fe-banking-2 (kontra-test): polje primaoca NE sme da se ocisti na
+  // nepovezanu gresku (npr. nedovoljno sredstava) — brisemo samo na
+  // "racun ne postoji". Stiti od over-eager clear-a.
+  it('[TEST-fe-banking-2] does NOT clear recipient fields on unrelated intra-bank error', async () => {
+    // delay: null -> sinhroni unos (vidi gornji test). Sprecava flaky 5s timeout
+    // pod paralelnim load-om (gate je ovde prijavio "Test timed out in 5000ms").
+    const user = userEvent.setup({ delay: null });
+    mockTransactionService.createPayment.mockRejectedValue({
+      response: { status: 400, data: { message: 'Nedovoljno sredstava na racunu.' } },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Iznos/i)).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText(/Racun primaoca/i), '222000000000000099');
+    await user.type(screen.getByLabelText(/Naziv primaoca/i), 'Validan Primalac');
+    const amountInput = screen.getByLabelText(/Iznos/i);
+    await user.clear(amountInput);
+    await user.type(amountInput, '5000');
+    await user.type(screen.getByLabelText(/Svrha placanja/i), 'Test Sc11 kontra');
+
+    await submitAndConfirm(user);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('verification-modal')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Potvrdi OTP'));
+
+    await waitFor(() => {
+      expect(mockTransactionService.createPayment).toHaveBeenCalled();
+    });
+
+    // Polje ostaje popunjeno — greska nije "racun ne postoji".
+    expect((screen.getByLabelText(/Racun primaoca/i) as HTMLInputElement).value).toBe(
+      '222000000000000099'
+    );
+    expect((screen.getByLabelText(/Naziv primaoca/i) as HTMLInputElement).value).toBe(
+      'Validan Primalac'
+    );
   });
 });

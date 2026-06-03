@@ -45,14 +45,24 @@ export default function MyFundsTab() {
   };
 
   const loadSupervisorData = async () => {
-    const allFunds = await investmentFundService.list();
+    // R1 852: ranije je supervizorski put dohvatao SVE fondove (`list()`) pa radio
+    // `get()` po SVAKOM fondu i klijentski filtrirao po manageru — N+1 nad celom
+    // bazom fondova. Sad koristimo BE-side `managerEmployeeId` filter (P2-perf-nplus1-1)
+    // da dobijemo samo fondove ovog supervizora; `get()` po fondu je sada ogranicen
+    // na taj (mali) skup — potreban je samo zbog `liquidAmount` koje summary DTO nema.
+    const managerId = user?.id;
+    if (managerId == null) {
+      setPositions([]);
+      setDetailsMap({});
+      return;
+    }
+    const managedSummaries = await investmentFundService.list({ managerEmployeeId: managerId });
     const detailedFunds = await Promise.all(
-      (allFunds ?? []).map(async (fund) => investmentFundService.get(fund.id))
+      (managedSummaries ?? []).map(async (fund) => investmentFundService.get(fund.id))
     );
-    const managedFunds = detailedFunds.filter((fund) => fund.managerEmployeeId === user?.id);
     setPositions([]);
     setDetailsMap(
-      Object.fromEntries(managedFunds.map((fund) => [fund.id, fund]))
+      Object.fromEntries(detailedFunds.map((fund) => [fund.id, fund]))
     );
   };
 

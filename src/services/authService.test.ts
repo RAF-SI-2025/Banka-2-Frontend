@@ -77,4 +77,20 @@ describe('authService', () => {
       expect(mockApi.post).toHaveBeenCalledWith('/auth-employee/activate', { token: 'tok', password: 'Pass12345' });
     });
   });
+
+  describe('resendActivation', () => {
+    it('sends POST to /auth-employee/resend-activation with the old token', async () => {
+      mockApi.post.mockResolvedValue({ data: undefined });
+
+      await authService.resendActivation('expired-tok');
+
+      expect(mockApi.post).toHaveBeenCalledWith('/auth-employee/resend-activation', { token: 'expired-tok' });
+    });
+
+    it('propagates API errors', async () => {
+      mockApi.post.mockRejectedValue(new Error('Network error'));
+
+      await expect(authService.resendActivation('expired-tok')).rejects.toThrow('Network error');
+    });
+  });
 });

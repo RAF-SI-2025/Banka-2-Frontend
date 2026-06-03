@@ -19,23 +19,25 @@ describe('notificationService', () => {
     expect(result.totalElements).toBe(0);
   });
 
-  it('listNotifications forwards read/page/size params', async () => {
+  // P1-fe-contracts-1: BE param je `onlyUnread` (ne `read`). `onlyUnread=false`
+  // se ne salje (omit = sve), a UNREAD filter salje `onlyUnread=true`.
+  it('listNotifications forwards page/size and omits onlyUnread when false', async () => {
     mockApi.get.mockResolvedValue({
       data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 10 },
     });
-    await notificationService.listNotifications({ read: false, page: 2, size: 10 });
+    await notificationService.listNotifications({ onlyUnread: false, page: 2, size: 10 });
     expect(mockApi.get).toHaveBeenCalledWith('/notifications', {
-      params: { read: false, page: 2, size: 10 },
+      params: { page: 2, size: 10 },
     });
   });
 
-  it('listNotifications passes only read=true filter', async () => {
+  it('listNotifications sends onlyUnread=true for the UNREAD filter', async () => {
     mockApi.get.mockResolvedValue({
       data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 },
     });
-    await notificationService.listNotifications({ read: true });
+    await notificationService.listNotifications({ onlyUnread: true });
     expect(mockApi.get).toHaveBeenCalledWith('/notifications', {
-      params: { read: true },
+      params: { onlyUnread: true },
     });
   });
 

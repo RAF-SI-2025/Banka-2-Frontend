@@ -18,6 +18,8 @@ interface AuthContextType {
   isAdmin: boolean;
   isSupervisor: boolean;
   isAgent: boolean;
+  /** True ako je korisnik zaposleni banke (role ADMIN ili EMPLOYEE), nije CLIENT. */
+  isEmployee: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -88,6 +90,7 @@ async function fetchEmployeePermissions(email: string): Promise<{
   userId: number;
   firstName?: string;
   lastName?: string;
+  position?: string;
 }> {
   try {
     const employeesResponse = await employeeService.getAll({ email, page: 0, limit: 1 });
@@ -100,6 +103,9 @@ async function fetchEmployeePermissions(email: string): Promise<{
         userId: emp.id,
         firstName: emp.firstName,
         lastName: emp.lastName,
+        // P1-fe-mobile-authz-1 (1760): dedicirano `position` polje (SUPERVISOR/AGENT)
+        // kao pouzdan izvor za isSupervisor/isAgent (vidi AuthUser.position).
+        position: emp.position,
       };
     }
   } catch {
@@ -129,8 +135,14 @@ async function fetchClientInfo(_email: string): Promise<{
       lastName: cli.lastName,
     };
   } catch {
-    // Lookup nije obavezan za login flow — ako padne, dajemo TRADE_STOCKS po default-u.
-    return { permissions: [Permission.TRADE_STOCKS], userId: 0 };
+    // P1-fe-mobile-authz-1 (1560/1598): FAIL-CLOSED. Ranije se ovde vracao
+    // `[TRADE_STOCKS]` po default-u → revokovan klijent (canTradeStocks=false)
+    // ciji `/clients/me` padne (ili je tek dobio 403/timeout) dobijao bi pun
+    // trading UI (OTC/Berza/orderi) + `userId:0` (sto otvara isMe-by-name footgun
+    // u otcUtils). BE je autoritativan i odbice trgovinu, ali UI ne sme da
+    // prikaze akcije koje korisnik nema pravo da koristi. Ako lookup padne ne
+    // dodeljujemo nijednu permisiju — korisnik vidi samo bankarski deo.
+    return { permissions: [], userId: 0 };
   }
 }
 
@@ -186,6 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let userId = 0;
       let firstName = fallbackFirstName;
       let lastName = fallbackLastName;
+      let position: string | undefined;
 
       if (payload.role === 'ADMIN' || payload.role === 'EMPLOYEE') {
         const empResult = await fetchEmployeePermissions(payload.sub);
@@ -193,6 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userId = empResult.userId;
         if (empResult.firstName) firstName = empResult.firstName;
         if (empResult.lastName) lastName = empResult.lastName;
+        position = empResult.position;
       } else if (payload.role === 'CLIENT') {
         const cliResult = await fetchClientInfo(payload.sub);
         fetchedPerms = cliResult.permissions;
@@ -211,6 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastName,
         role: payload.role,
         permissions,
+        position,
       };
 
       sessionStorage.setItem('user', JSON.stringify(authUser));
@@ -252,14 +267,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user?.role === 'ADMIN'
   );
 
+  // P1-fe-mobile-authz-1 (1760): izvodimo supervizor/agent flag iz DEDICIRANOG
+  // `position` polja (autoritativan izvor iz `/employees` DTO-a) PORED
+  // `permissions` liste. Ranije se oslanjalo iskljucivo na `Permission.SUPERVISOR`
+  // string u permissions — ako BE schema drift-uje (position=SUPERVISOR a literal
+  // string ne stigne u permissions), supervizor bi bio tretiran kao obican
+  // EMPLOYEE i izgubio pristup /employee/orders, /employee/tax, /audit-log itd.
+  const positionUpper = (user?.position ?? '').toUpperCase();
+
   const isSupervisor = !!(
     isAdmin ||
+    positionUpper === 'SUPERVISOR' ||
     (Array.isArray(user?.permissions) && user.permissions.includes(Permission.SUPERVISOR))
   );
 
   const isAgent = !!(
-    Array.isArray(user?.permissions) && user.permissions.includes(Permission.AGENT)
+    !isSupervisor &&
+    (positionUpper === 'AGENT' ||
+      (Array.isArray(user?.permissions) && user.permissions.includes(Permission.AGENT)))
   );
+
+  // R1-857: jedinstven izvor istine za "zaposleni banke" (role ADMIN ili
+  // EMPLOYEE). Ranije se isti `role === 'ADMIN' || role === 'EMPLOYEE'`
+  // magic-string proveravao inline po stranicama (npr. MyOrdersPage za
+  // commission=0). CLIENT-i nisu zaposleni.
+  const isEmployee = user?.role === 'ADMIN' || user?.role === 'EMPLOYEE';
 
   return (
     <AuthContext.Provider
@@ -273,6 +305,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin,
         isSupervisor,
         isAgent,
+        isEmployee,
       }}
     >
       {children}

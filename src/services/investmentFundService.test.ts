@@ -208,7 +208,7 @@ describe('investmentFundService', () => {
 
   describe('bankPositions', () => {
     it('should fetch bank positions', async () => {
-      const positions = [{ id: 1, fundId: 1, fundName: 'Alpha', userRole: 'BANK' }];
+      const positions = [{ id: 1, fundId: 1, fundName: 'Alpha', userRole: 'CLIENT' }];
       mockedApi.get.mockResolvedValue({ data: positions });
 
       const result = await investmentFundService.bankPositions();

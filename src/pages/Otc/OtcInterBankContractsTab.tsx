@@ -54,6 +54,10 @@ const SAGA_PHASES = [
 // nastavlja u pozadini — user moze da rucno triggeruje refresh kasnije.
 const SAGA_POLL_INTERVAL_MS = 3000;
 const SAGA_MAX_POLLS = 60;
+// R1 858: pocetni procenat napretka dok BE jos nije objavio nijednu SAGA fazu
+// (`currentPhase` null). Mali ne-nula broj daje korisniku osecaj da je SAGA
+// startovala, bez laznog prikaza zavrsene faze.
+const SAGA_INITIAL_PROGRESS_PERCENT = 15;
 // Spec Celina 5 (Nova) Sc 11 indirect FE coverage: rehydrate active SAGA
 // posle reload-a stranice. Cuva se {contract, transaction} JSON u sessionStorage.
 const SAGA_ACTIVE_KEY = 'interbank-otc-saga-active';
@@ -91,6 +95,11 @@ function normalizePhase(phase: string | null | undefined): string {
     .replace(/[\s-]+/g, '_');
 }
 
+// R1 858: `currentPhase` je slobodan string iz inter-bank wire protokola (Tim 1),
+// pa fazu mapiramo substring-heuristikom umesto enum-a. Enum-faze bi zahtevale
+// promenu kontrakta na obe strane (feature, van P3). `normalizePhase` apsorbuje
+// razlike u velikim/malim slovima i separatorima; nepoznata faza → null (pocetni
+// progres), nikad pogresan korak.
 function getCurrentPhaseIndex(transaction: InterbankTransaction): number | null {
   if (transaction.status === 'COMMITTED') return 5;
 
@@ -284,7 +293,7 @@ export default function OtcInterBankContractsTab({ onActiveCountChange }: Props 
     retryCount: 0,
   });
 
-  const progressValue = currentPhaseIndex == null ? 15 : (currentPhaseIndex / SAGA_PHASES.length) * 100;
+  const progressValue = currentPhaseIndex == null ? SAGA_INITIAL_PROGRESS_PERCENT : (currentPhaseIndex / SAGA_PHASES.length) * 100;
   const progressTerminal = progressState ? isInterbankTerminalStatus(progressState.transaction.status) : false;
 
   // Spec Celina 5 (Nova) Sc 11 indirect FE coverage: ako user reloaduje

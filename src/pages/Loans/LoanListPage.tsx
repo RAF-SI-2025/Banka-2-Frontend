@@ -52,6 +52,24 @@ export default function LoanListPage() {
   const [processingEarlyRepayment, setProcessingEarlyRepayment] = useState(false);
   const [confirmEarlyRepaymentLoanId, setConfirmEarlyRepaymentLoanId] = useState<number | null>(null);
 
+  // ACCEPTED-DEVIATION (user-directed 03.06): prevremena otplata bez OTP — direktan
+  // poziv iz confirm dijaloga. OTP ostaje samo na placanju/transferu.
+  const performEarlyRepayment = async (loanId: number) => {
+    setProcessingEarlyRepayment(true);
+    try {
+      await creditService.earlyRepayment(loanId);
+      toast.success('Zahtev za prevremenu otplatu je uspesno podnet.');
+      const data = await creditService.getMyLoans();
+      setLoans(asArray<Loan>(data).sort(sortByAmountDesc));
+      setSelectedLoan(null);
+      setConfirmEarlyRepaymentLoanId(null);
+    } catch {
+      toast.error('Prevremena otplata nije uspela.');
+    } finally {
+      setProcessingEarlyRepayment(false);
+    }
+  };
+
   const earlyRepaymentBreakdown = useMemo(() => {
     if (!selectedLoan) return null;
     const unpaidInterest = asArray<Installment>(installments)
@@ -498,21 +516,10 @@ export default function LoanListPage() {
                   variant="destructive"
                   data-testid="loan-early-repay-confirm-button"
                   disabled={processingEarlyRepayment}
-                  onClick={async () => {
+                  onClick={() => {
                     if (!selectedLoan || confirmEarlyRepaymentLoanId === null) return;
-                    setProcessingEarlyRepayment(true);
-                    try {
-                      await creditService.earlyRepayment(selectedLoan.id);
-                      toast.success('Zahtev za prevremenu otplatu je uspesno podnet.');
-                      const data = await creditService.getMyLoans();
-                      setLoans(asArray<Loan>(data).sort(sortByAmountDesc));
-                      setSelectedLoan(null);
-                      setConfirmEarlyRepaymentLoanId(null);
-                    } catch {
-                      toast.error('Prevremena otplata nije uspela.');
-                    } finally {
-                      setProcessingEarlyRepayment(false);
-                    }
+                    // ACCEPTED-DEVIATION (user-directed 03.06): direktna otplata, bez OTP.
+                    void performEarlyRepayment(selectedLoan.id);
                   }}
                 >
                   {processingEarlyRepayment ? 'Obrada...' : 'Potvrdi otplatu'}

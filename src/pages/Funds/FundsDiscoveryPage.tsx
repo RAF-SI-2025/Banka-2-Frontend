@@ -40,7 +40,25 @@ import {
 // `[funds]` dep-om je refetch-ovao statistike kad god se funds array preracunao
 // (filter/sort change → fetchFunds → setFunds → ovaj useEffect → N+1).
 // Sad keshira po fundId, fetch se dogadja samo za fondove koji jos nisu u cache-u.
-const STATS_CACHE = new Map<number, FundStatisticsDto>();
+//
+// R1 853: cache je RANIJE bio modul-level bez invalidacije → metrike fonda su
+// ostajale zamrznute za citavu SPA sesiju (snapshot scheduler ih azurira na BE,
+// ali FE nikad nije refetch-ovao). Dodajemo TTL: ulaz stariji od `STATS_CACHE_TTL_MS`
+// se tretira kao odsutan i ponovo dohvata.
+const STATS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minuta
+type CachedStats = { value: FundStatisticsDto; fetchedAt: number };
+const STATS_CACHE = new Map<number, CachedStats>();
+
+/** Vrati kesirane statistike ako postoje i nisu istekle (TTL), inace undefined. */
+function readFreshStats(fundId: number, now: number = Date.now()): FundStatisticsDto | undefined {
+  const entry = STATS_CACHE.get(fundId);
+  if (!entry) return undefined;
+  if (now - entry.fetchedAt > STATS_CACHE_TTL_MS) {
+    STATS_CACHE.delete(fundId);
+    return undefined;
+  }
+  return entry.value;
+}
 
 /** Exposed za test isolation — tests trebaju clear izmedju `it` blokova. */
 export function __clearFundStatsCache() {
@@ -189,17 +207,19 @@ export default function FundsDiscoveryPage() {
     if (funds.length === 0) return;
     let cancelled = false;
 
-    // Identifikuj fondove koji nemaju keshirane statistike.
-    const missingIds = funds.map((f) => f.id).filter((id) => !STATS_CACHE.has(id));
-
-    // Inicijalno setuj postojeci cache (sync) tako da UI vec moze da prikaze
-    // metrike za poznate fondove pre nego sto fetch zavrsi.
+    // Inicijalno setuj postojeci (jos uvek svez) cache (sync) tako da UI vec moze
+    // da prikaze metrike za poznate fondove pre nego sto fetch zavrsi. Istekle
+    // ulaze `readFreshStats` izbacuje pa se tretiraju kao da nedostaju.
+    const now = Date.now();
     const initialMap: Record<number, FundStatisticsDto> = {};
     funds.forEach((f) => {
-      const cached = STATS_CACHE.get(f.id);
+      const cached = readFreshStats(f.id, now);
       if (cached) initialMap[f.id] = cached;
     });
     setFundStats(initialMap);
+
+    // Identifikuj fondove koji nemaju (svez) keshiran rezultat.
+    const missingIds = funds.map((f) => f.id).filter((id) => initialMap[id] === undefined);
 
     if (missingIds.length === 0) {
       setStatsChecked(true);
@@ -214,7 +234,7 @@ export default function FundsDiscoveryPage() {
       results.forEach((r, i) => {
         const fid = missingIds[i];
         if (r.status === 'fulfilled') {
-          STATS_CACHE.set(fid, r.value);
+          STATS_CACHE.set(fid, { value: r.value, fetchedAt: Date.now() });
           updated[fid] = r.value;
         }
       });

@@ -298,6 +298,23 @@ describe('MyOrdersPage', () => {
     });
   });
 
+  // R1-260: filter sme da nudi SAMO BE OrderStatus vrednosti. PARTIALLY_FILLED i
+  // CANCELLED ne postoje na BE-u — getMyOrders bi ih tiho ignorisao i vratio SVE
+  // ordere (zavaravajuc filter), pa ih uklanjamo iz dropdown-a.
+  it('status filter offers only valid BE OrderStatus values', async () => {
+    renderWithProviders(<MyOrdersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('orders-status-filter')).toBeInTheDocument();
+    });
+
+    const select = screen.getByTestId('orders-status-filter') as HTMLSelectElement;
+    const values = Array.from(select.options).map((o) => o.value);
+    expect(values).toEqual(['', 'PENDING', 'APPROVED', 'DECLINED', 'DONE']);
+    expect(values).not.toContain('PARTIALLY_FILLED');
+    expect(values).not.toContain('CANCELLED');
+  });
+
   it('passes dateFrom filter to orderService.getMy', async () => {
     const user = userEvent.setup();
     renderWithProviders(<MyOrdersPage />);
@@ -335,6 +352,42 @@ describe('MyOrdersPage', () => {
         0,
         10,
         expect.objectContaining({ listingType: 'STOCK' }),
+      );
+    });
+  });
+
+  // TEST-fe-trading-3: tip-hartije filter nudi STOCK/FUTURES/FOREX/OPTION (BE
+  // listingType je odvojen od OrderStatus enuma — OPTION je validan tip hartije,
+  // za razliku od izmisljenih statusa PARTIALLY_FILLED/CANCELLED koji su uklonjeni
+  // iz status-filtera). Pinujemo da OPTION postoji u dropdownu i da se prosledjuje BE-u.
+  it('listingType filter offers STOCK/FUTURES/FOREX/OPTION values', async () => {
+    renderWithProviders(<MyOrdersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('orders-listing-type-filter')).toBeInTheDocument();
+    });
+
+    const select = screen.getByTestId('orders-listing-type-filter') as HTMLSelectElement;
+    const values = Array.from(select.options).map((o) => o.value);
+    expect(values).toEqual(['', 'STOCK', 'FUTURES', 'FOREX', 'OPTION']);
+  });
+
+  it('passes OPTION listingType filter to orderService.getMy', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MyOrdersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('orders-listing-type-filter')).toBeInTheDocument();
+    });
+
+    mockGetMy.mockClear();
+    await user.selectOptions(screen.getByTestId('orders-listing-type-filter'), 'OPTION');
+
+    await waitFor(() => {
+      expect(mockGetMy).toHaveBeenCalledWith(
+        0,
+        10,
+        expect.objectContaining({ listingType: 'OPTION' }),
       );
     });
   });

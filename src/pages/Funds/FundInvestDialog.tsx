@@ -172,7 +172,12 @@ export default function FundInvestDialog({
             </p>
 
             <div className="space-y-2">
-              <Label htmlFor="fund-invest-amount">Iznos (RSD)</Label>
+              {/* R4-1795: label prati valutu izabranog racuna — iznos se unosi u
+                  valuti racuna (BE konvertuje u RSD za poredjenje sa min ulogom),
+                  pa hardkodirani "(RSD)" je bio pogresan za EUR/USD/... racune. */}
+              <Label htmlFor="fund-invest-amount">
+                Iznos{selectedAccount?.currency ? ` (${selectedAccount.currency})` : ''}
+              </Label>
               <Input
                 id="fund-invest-amount"
                 type="number"
@@ -182,6 +187,14 @@ export default function FundInvestDialog({
                 onChange={(event) => setAmount(event.target.value)}
                 placeholder="Unesite iznos"
               />
+              {/* Za ne-RSD racune min ulog je u RSD pa ga ne mozemo direktno porediti
+                  ovde — eksplicitno objasni korisniku da BE konvertuje. */}
+              {selectedAccount && selectedAccount.currency !== 'RSD' && (
+                <p className="text-xs text-muted-foreground">
+                  Iznos je u {selectedAccount.currency}; minimalni ulog ({formatAmount(minimumContribution)} RSD)
+                  proverava se posle konverzije u RSD.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

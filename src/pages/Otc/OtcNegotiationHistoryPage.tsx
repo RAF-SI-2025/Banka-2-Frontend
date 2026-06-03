@@ -189,7 +189,10 @@ export default function OtcNegotiationHistoryPage() {
 
   const entries = useMemo(() => pageData?.content ?? [], [pageData]);
 
-  // Client-side filter po imenu druge strane.
+  // R1 859: BE B10 endpoint nema name-search za drugu stranu (samo numericki
+  // `modifiedById`), pa je ovo namerno KLIJENTSKI filter SAMO nad trenutnom
+  // (server-paginiranom) stranicom. UI to eksplicitno saopstava (label/hint),
+  // da korisnik ne ocekuje pretragu kroz celu istoriju.
   const visibleEntries = useMemo(() => {
     const q = counterpartySearch.trim().toLowerCase();
     if (!q) return entries;
@@ -272,18 +275,21 @@ export default function OtcNegotiationHistoryPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="otc-hist-cp">Druga strana</Label>
+              <Label htmlFor="otc-hist-cp">Druga strana (ova strana)</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="otc-hist-cp"
                   className="pl-9"
-                  placeholder="Ime korisnika..."
+                  placeholder="Ime korisnika (filtrira trenutnu stranu)..."
                   value={counterpartySearch}
                   onChange={(e) => setCounterpartySearch(e.target.value)}
                   data-testid="otc-history-counterparty-search"
                 />
               </div>
+              <p className="text-[11px] text-muted-foreground">
+                Pretraga po imenu filtrira samo zapise na trenutnoj strani. Za uzu pretragu koristi filtere statusa/datuma.
+              </p>
             </div>
           </div>
         </CardContent>

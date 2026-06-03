@@ -26,9 +26,6 @@ export const GAME_LABELS: Record<GameType, string> = {
   BANKA2_RUSH: 'Banka2Rush',
 };
 
-export const GAME_DESCRIPTIONS: Record<GameType, string> = {
-  DINO: 'Klasicni endless jumper sa bankerskim odelom — preskoci ERROR znake i sakupljaj novcanice.',
-  SOLITAIRE: 'Klondike, najpoznatija varijanta solitaire-a. Karte slozene po boji.',
-  CHESS: 'Klasicni šah — protiv prijatelja ili lakog AI-a.',
-  BANKA2_RUSH: 'Endless runner kroz lobby banke. Skupljaj vrece sa novcem, izbegavaj sefove.',
-};
+// NB: opisi igara zive u WaitingRoomHubPage `GAME_CARDS` (page-curated tekst +
+// SVG ikonice) — jedini izvor istine za UI. Raniji `GAME_DESCRIPTIONS` map je
+// uklonjen (bio dead-code i divergentan duplikat).

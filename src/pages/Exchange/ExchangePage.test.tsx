@@ -161,4 +161,82 @@ describe('ExchangePage', () => {
       expect(screen.getByText(/Kursna lista/i)).toBeInTheDocument();
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // R1-553 / TEST-fe-banking-6: normalizeExchangeRates ne sme TIHO da odbaci
+  // nepoznatu valutu — schema drift mora biti vidljiv (console.warn) tako da se
+  // Currency enum azurira, a ne da valuta samo "nestane" iz tabele bez traga.
+  // ---------------------------------------------------------------------------
+
+  it('warns (console.warn) and drops an unsupported currency from the rate list (R1-553)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // BE vraca i "XYZ" koju FE Currency enum NE poznaje.
+    mockCurrencyService.getExchangeRates.mockResolvedValue([
+      mockExchangeRate({ currency: 'RSD', buyRate: 1, sellRate: 1, middleRate: 1 }),
+      mockExchangeRate({ currency: 'EUR', buyRate: 116.5, sellRate: 118.5, middleRate: 117.5 }),
+      mockExchangeRate({ currency: 'XYZ', buyRate: 7, sellRate: 8, middleRate: 7.5 }),
+    ]);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getAllByText('EUR').length).toBeGreaterThan(0);
+    });
+
+    // Schema drift je SURFACE-ovan kroz console.warn, sa imenom odbacene valute.
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('XYZ')
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/Odbacene nepodrzane valute/i)
+    );
+
+    // Nepodrzana valuta NIJE u kursnoj listi (nije se "tiho provukla").
+    // Kartica koristi rate.currency kao tekst — "XYZ" se ne sme renderovati.
+    expect(screen.queryByText('XYZ')).not.toBeInTheDocument();
+
+    warnSpy.mockRestore();
+  });
+
+  it('does NOT warn when every returned currency is supported (no false-positive drift log)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // Sve valute su podrzane — nema drift-a, nema warn-a.
+    mockCurrencyService.getExchangeRates.mockResolvedValue([
+      mockExchangeRate({ currency: 'RSD', buyRate: 1, sellRate: 1, middleRate: 1 }),
+      mockExchangeRate({ currency: 'EUR', buyRate: 116.5, sellRate: 118.5, middleRate: 117.5 }),
+      mockExchangeRate({ currency: 'USD', buyRate: 106, sellRate: 110, middleRate: 108 }),
+    ]);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getAllByText('USD').length).toBeGreaterThan(0);
+    });
+
+    expect(warnSpy).not.toHaveBeenCalledWith(
+      expect.stringMatching(/Odbacene nepodrzane valute/i)
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  // R1-553: kad BE NE vrati RSD, normalize ubacuje sinteticki RSD baseline (1:1)
+  // tako da kalkulator uvek ima referentnu valutu. Pin-ujemo da se RSD pojavi
+  // iako ga BE nije poslao.
+  it('injects a synthetic RSD baseline row when BE omits RSD', async () => {
+    mockCurrencyService.getExchangeRates.mockResolvedValue([
+      mockExchangeRate({ currency: 'EUR', buyRate: 116.5, sellRate: 118.5, middleRate: 117.5 }),
+      mockExchangeRate({ currency: 'USD', buyRate: 106, sellRate: 110, middleRate: 108 }),
+    ]);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getAllByText('EUR').length).toBeGreaterThan(0);
+    });
+
+    // RSD se pojavljuje u kursnoj listi (kao i u kalkulator selektorima) iako
+    // ga BE nije vratio — sinteticki baseline.
+    expect(screen.getAllByText('RSD').length).toBeGreaterThan(0);
+  });
 });

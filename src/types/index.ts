@@ -129,4 +129,11 @@ export interface AuthUser {
   lastName: string;
   role?: string;
   permissions: Permission[];
+  // P1-fe-mobile-authz-1 (1760): dedicirano polje `position` (SUPERVISOR / AGENT)
+  // iz `/employees` DTO-a. `isSupervisor`/`isAgent` se izvode I iz ovog polja, a
+  // ne samo iz `permissions.includes('SUPERVISOR')` stringa — ako BE schema
+  // drift-uje (npr. position=SUPERVISOR a permissions ne sadrzi literal string),
+  // supervizor bi bez ovoga bio tretiran kao obican EMPLOYEE i redirect-ovan na
+  // /403. Undefined za klijente.
+  position?: string;
 }

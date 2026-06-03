@@ -193,6 +193,27 @@ describe('creditService', () => {
       expect(result.interestRateType).toBe('FIKSNI');
     });
 
+    it('should NOT send otpCode in the apply payload (OTP removed 03.06)', async () => {
+      mockedApi.post.mockResolvedValue({ data: { id: 1, loanType: 'CASH', interestType: 'FIXED', status: 'PENDING' } });
+
+      await creditService.apply({
+        loanType: 'GOTOVINSKI' as LoanType,
+        interestRateType: 'FIKSNI' as InterestRateType,
+        amount: 100000,
+        currency: 'RSD' as const,
+        loanPurpose: 'Test',
+        repaymentPeriod: 12,
+        accountNumber: '111111111111111111',
+        phoneNumber: '060',
+        otpCode: '123456',
+      });
+
+      // ACCEPTED-DEVIATION (user-directed 03.06): apply ne salje OTP — i ako je
+      // prosledjen u argumentu, servis ga odbacuje iz body-ja.
+      const payload = mockedApi.post.mock.calls[0][1] as Record<string, unknown>;
+      expect(payload).not.toHaveProperty('otpCode');
+    });
+
     it('should handle BE types passed directly', async () => {
       const applicationData = {
         loanType: 'CASH' as LoanType,
@@ -289,12 +310,13 @@ describe('creditService', () => {
   // ==================== earlyRepayment ====================
 
   describe('earlyRepayment', () => {
-    it('should request early repayment', async () => {
+    // ACCEPTED-DEVIATION (user-directed 03.06): prevremena otplata bez OTP gate-a.
+    it('should request early repayment without any OTP header', async () => {
       mockedApi.post.mockResolvedValue({ data: undefined });
 
       await creditService.earlyRepayment(5);
 
-      expect(mockedApi.post).toHaveBeenCalledWith('/loans/5/early-repayment');
+      expect(mockedApi.post).toHaveBeenCalledWith('/loans/5/early-repayment', null);
     });
 
     it('should propagate errors', async () => {

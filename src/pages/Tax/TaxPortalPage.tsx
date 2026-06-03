@@ -21,6 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import TaxDetailDialog from './TaxDetailDialog';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
 
 type UserTypeFilter = 'ALL' | 'CLIENT' | 'EMPLOYEE';
 
@@ -53,6 +54,8 @@ export default function TaxPortalPage() {
   const [userType, setUserType] = useState<UserTypeFilter>('ALL');
   const [runningCalculation, setRunningCalculation] = useState(false);
   const [detailRecord, setDetailRecord] = useState<TaxRecord | null>(null);
+  // R1 561: zamena native window.confirm za pokretanje obracuna poreza.
+  const [confirmCalculation, setConfirmCalculation] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(searchInput.trim()), 300);
@@ -123,15 +126,13 @@ export default function TaxPortalPage() {
     });
   }, [rateByCurrency, records]);
 
-  const handleTriggerCalculation = async () => {
-    const confirmed = window.confirm(
-      'Da li ste sigurni da zelite da pokrenete obracun poreza?'
-    );
+  // R1 561: otvara ConfirmDialog umesto native window.confirm.
+  const handleTriggerCalculation = () => {
+    setConfirmCalculation(true);
+  };
 
-    if (!confirmed) {
-      return;
-    }
-
+  const runTriggerCalculation = async () => {
+    setConfirmCalculation(false);
     setRunningCalculation(true);
 
     try {
@@ -312,6 +313,16 @@ export default function TaxPortalPage() {
           if (!open) setDetailRecord(null);
         }}
         record={detailRecord}
+      />
+
+      <ConfirmDialog
+        open={confirmCalculation}
+        onOpenChange={setConfirmCalculation}
+        title="Pokretanje obracuna poreza"
+        description="Da li ste sigurni da zelite da pokrenete obracun poreza?"
+        confirmLabel="Pokreni"
+        busy={runningCalculation}
+        onConfirm={() => void runTriggerCalculation()}
       />
     </div>
   );

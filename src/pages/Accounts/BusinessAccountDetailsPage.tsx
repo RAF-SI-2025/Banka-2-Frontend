@@ -119,6 +119,11 @@ export default function BusinessAccountDetailsPage() {
       toast.error('Naziv racuna ne sme biti prazan.');
       return;
     }
+    // R1-309: poravnato sa BE (@Size(max=64) + DB kolona length=64).
+    if (newName.length > 64) {
+      toast.error('Naziv racuna moze imati najvise 64 karaktera.');
+      return;
+    }
 
     setIsSavingName(true);
     try {

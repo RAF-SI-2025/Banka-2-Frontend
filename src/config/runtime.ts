@@ -35,6 +35,20 @@ export function getOurBankCode(): string {
   );
 }
 
+/**
+ * Numericki prefiks racuna nase banke (prve 3 cifre broja racuna). Izvodi se iz
+ * `getOurBankCode()` (npr. `RN-222` -> `222`) tako da postoji JEDAN izvor istine
+ * i deploy sa drugim bank code-om automatski uskladi intra/inter detekciju.
+ * Ranije je NewPaymentPage hardkodirao `'222'`, pa bi se na drugom kodu svako
+ * intra placanje detektovalo kao inter (pogresan 2PC flow).
+ */
+export function getOurAccountPrefix(): string {
+  const digits = getOurBankCode().replace(/\D/g, '');
+  // Bank code je oblika RN-222 (3-cifreni sufiks). Uzimamo poslednje 3 cifre kao
+  // prefiks racuna; fallback na cele cifre ako ih je manje od 3.
+  return digits.length >= 3 ? digits.slice(-3) : digits;
+}
+
 export function getEnv(): string {
   return (
     window._env_?.ENV ||
