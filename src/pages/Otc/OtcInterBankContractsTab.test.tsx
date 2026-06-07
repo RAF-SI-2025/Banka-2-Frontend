@@ -23,6 +23,7 @@ vi.mock('@/services/interbankOtcService', () => ({
   default: {
     listMyContracts: vi.fn(),
     exerciseContract: vi.fn(),
+    declineContract: vi.fn(),
   },
 }));
 
@@ -380,5 +381,104 @@ describe('OtcInterBankContractsTab', () => {
     await waitFor(() => {
       expect(mockedToast.error).toHaveBeenCalledWith('Rezervacija sredstava nije uspela.');
     });
+  });
+
+  // Decline (Odbi) — Spec inter-bank OTC: kupac moze da odbije ACTIVE ugovor
+  // pre dospeca (oslobadja rezervisana strike sredstva, status -> DECLINED).
+  // Ista eligibility kao exercise: ACTIVE + buyer + buduce dospece.
+  it('shows the decline button only for active buyer contracts before settlement', async () => {
+    render(<OtcInterBankContractsTab />);
+
+    expect(await screen.findByText('AAPL')).toBeInTheDocument();
+    // AAPL je jedini ACTIVE buyer-side ugovor sa buducim dospecem.
+    expect(screen.getAllByRole('button', { name: /^Odbi$/i })).toHaveLength(1);
+
+    // Seller-side ugovor (MSFT) i istekli (NVDA) NE smeju imati Odbi dugme.
+    const sellerRow = screen.getByText('MSFT').closest('tr') as HTMLElement;
+    expect(within(sellerRow).queryByRole('button', { name: /^Odbi$/i })).toBeNull();
+    const expiredRow = screen.getByText('NVDA').closest('tr') as HTMLElement;
+    expect(within(expiredRow).queryByRole('button', { name: /^Odbi$/i })).toBeNull();
+  });
+
+  it('does not show the decline button for exercised or declined contracts', async () => {
+    mockedInterbankOtcService.listMyContracts.mockResolvedValue([
+      { ...activeBuyerContract, id: 'c-ex', listingTicker: 'EXRC', status: 'EXERCISED' },
+      { ...activeBuyerContract, id: 'c-dec', listingTicker: 'DECL', status: 'DECLINED' },
+    ] as never);
+
+    render(<OtcInterBankContractsTab />);
+
+    await screen.findByText('EXRC');
+    expect(screen.queryByRole('button', { name: /^Odbi$/i })).toBeNull();
+  });
+
+  it('declines a contract after confirmation and refreshes the list', async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockedInterbankOtcService.declineContract.mockResolvedValue({
+      ...activeBuyerContract,
+      status: 'DECLINED',
+    } as never);
+
+    render(<OtcInterBankContractsTab />);
+
+    const contractRow = (await screen.findByText('AAPL')).closest('tr') as HTMLElement;
+    await user.click(within(contractRow).getByRole('button', { name: /^Odbi$/i }));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockedInterbankOtcService.declineContract).toHaveBeenCalledWith('contract-1');
+    });
+    await waitFor(() => {
+      expect(mockedToast.success).toHaveBeenCalledWith('Ugovor odbijen.');
+    });
+    // Lista se osvezava: inicijalni load + posle decline-a (>= 2 poziva).
+    await waitFor(() => {
+      expect(mockedInterbankOtcService.listMyContracts.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+    confirmSpy.mockRestore();
+  });
+
+  it('does not call declineContract when the confirm is cancelled', async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    render(<OtcInterBankContractsTab />);
+
+    const contractRow = (await screen.findByText('AAPL')).closest('tr') as HTMLElement;
+    await user.click(within(contractRow).getByRole('button', { name: /^Odbi$/i }));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(mockedInterbankOtcService.declineContract).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('toasts the error message when decline fails', async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockedInterbankOtcService.declineContract.mockRejectedValue({
+      response: { data: { message: 'Ugovor je vec iskoriscen.' } },
+    });
+
+    render(<OtcInterBankContractsTab />);
+
+    const contractRow = (await screen.findByText('AAPL')).closest('tr') as HTMLElement;
+    await user.click(within(contractRow).getByRole('button', { name: /^Odbi$/i }));
+
+    await waitFor(() => {
+      expect(mockedToast.error).toHaveBeenCalledWith('Ugovor je vec iskoriscen.');
+    });
+    confirmSpy.mockRestore();
+  });
+
+  it('renders the DECLINED label for a declined contract', async () => {
+    mockedInterbankOtcService.listMyContracts.mockResolvedValue([
+      { ...activeBuyerContract, id: 'c-dec', listingTicker: 'DECL', status: 'DECLINED' },
+    ] as never);
+
+    render(<OtcInterBankContractsTab />);
+
+    await screen.findByText('DECL');
+    expect(screen.getByText('Odbijen')).toBeInTheDocument();
   });
 });

@@ -78,9 +78,12 @@ type SagaProgressState = {
 const selectClassName =
   'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background';
 
-function getStatusBadgeVariant(status: OtcInterbankContractStatus): 'success' | 'secondary' | 'warning' {
+function getStatusBadgeVariant(
+  status: OtcInterbankContractStatus,
+): 'success' | 'secondary' | 'warning' | 'destructive' {
   if (status === 'ACTIVE') return 'success';
   if (status === 'EXERCISED') return 'secondary';
+  if (status === 'DECLINED') return 'destructive';
   return 'warning';
 }
 
@@ -454,6 +457,27 @@ export default function OtcInterBankContractsTab({ onActiveCountChange }: Props 
     }
   };
 
+  // Spec inter-bank OTC: kupac moze da odbije ACTIVE ugovor pre dospeca
+  // (BE oslobadja rezervisana strike sredstva, status -> DECLINED, bez
+  // prenosa hartija). Mirror sibling OffersTab.handleDecline (window.confirm
+  // + reload + lokalizovan error toast).
+  const handleDecline = async (contract: OtcInterbankContract) => {
+    if (!window.confirm('Sigurno zelite da odbijete ovaj inter-bank ugovor? Rezervisana sredstva ce biti oslobodjena.')) {
+      return;
+    }
+
+    setBusyContractId(contract.id);
+    try {
+      await interbankOtcService.declineContract(contract.id);
+      toast.success('Ugovor odbijen.');
+      await reloadContracts(filter);
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Odbijanje inter-bank ugovora nije uspelo.'));
+    } finally {
+      setBusyContractId(null);
+    }
+  };
+
   const selectedAccount = useMemo(
     () => accounts.find((account) => String(account.id) === selectedAccountId) ?? null,
     [accounts, selectedAccountId],
@@ -573,16 +597,29 @@ export default function OtcInterBankContractsTab({ onActiveCountChange }: Props 
                       </TableCell>
                       <TableCell className="text-right">
                         {canExercise ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={busyContractId === contract.id}
-                            onClick={() => openExerciseDialog(contract)}
-                            className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white"
-                          >
-                            <Zap className="mr-1 h-3.5 w-3.5" />
-                            Iskoristi
-                          </Button>
+                          <div className="flex flex-wrap justify-end gap-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={busyContractId === contract.id}
+                              onClick={() => openExerciseDialog(contract)}
+                              className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white"
+                            >
+                              <Zap className="mr-1 h-3.5 w-3.5" />
+                              Iskoristi
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              disabled={busyContractId === contract.id}
+                              onClick={() => void handleDecline(contract)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <X className="mr-1 h-3.5 w-3.5" />
+                              Odbi
+                            </Button>
+                          </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}

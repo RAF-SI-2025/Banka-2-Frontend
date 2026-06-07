@@ -134,7 +134,7 @@ export interface OtcInterbankListing {
 }
 
 export type OtcInterbankOfferStatus = 'ACTIVE' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
-export type OtcInterbankContractStatus = 'ACTIVE' | 'EXERCISED' | 'EXPIRED';
+export type OtcInterbankContractStatus = 'ACTIVE' | 'EXERCISED' | 'EXPIRED' | 'DECLINED';
 
 export interface OtcInterbankOffer {
   offerId: string; // UUID, isti kod obe banke

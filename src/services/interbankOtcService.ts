@@ -73,6 +73,16 @@ const interbankOtcService = {
     });
     return data;
   },
+
+  /**
+   * Odbija ACTIVE inter-bank OTC ugovor pre dospeca: oslobađa rezervisana
+   * strike sredstva kupca, status prelazi u DECLINED (bez prenosa hartija).
+   * 409 kad ugovor nije ACTIVE / prošlo dospeće / pozivalac nije kupac.
+   */
+  async declineContract(contractId: string): Promise<OtcInterbankContract> {
+    const { data } = await api.post<OtcInterbankContract>(`/interbank/otc/contracts/${contractId}/decline`);
+    return data;
+  },
 };
 
 export default interbankOtcService;

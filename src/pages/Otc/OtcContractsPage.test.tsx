@@ -5,6 +5,13 @@ import { MemoryRouter } from 'react-router-dom';
 import { toast } from '@/lib/notify';
 import OtcContractsPage from './OtcContractsPage';
 
+// Settlement u buducnosti, dinamicki — R1-481 guard (settlementDate >= danas) bi
+// inace kratko-spojio exercise SAGA testove kako vreme prolazi. Ranije hardkodiran
+// '2026-06-04' je istekao 2026-06-05 i oborio oba SAGA testa.
+const FUTURE_SETTLEMENT = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+  .toISOString()
+  .slice(0, 10);
+
 const mockListContracts = vi.fn();
 const mockExercise = vi.fn();
 vi.mock('@/services/otcService', () => ({
@@ -43,7 +50,7 @@ beforeEach(() => {
       id: 1, listingTicker: 'AAPL', listingName: 'Apple Inc.', listingCurrency: 'USD',
       buyerId: 1, buyerName: 'Stefan', sellerId: 2, sellerName: 'Milica',
       quantity: 5, strikePrice: 100, premium: 10, currentPrice: 100,
-      settlementDate: '2026-06-04', status: 'ACTIVE',
+      settlementDate: FUTURE_SETTLEMENT, status: 'ACTIVE',
       createdAt: '2026-05-09T10:00:00',
     },
   ]);
