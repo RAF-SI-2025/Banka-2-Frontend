@@ -18,6 +18,7 @@ import { paymentRecipientService } from '@/services/paymentRecipientService';
 import { transactionService } from '@/services/transactionService';
 import interbankPaymentService from '@/services/interbankPaymentService';
 import type { Account, PaymentRecipient } from '@/types/celina2';
+import { AccountType } from '@/types/celina2';
 import {
   INTERBANK_TERMINAL_STATUSES,
   type InterbankPayment,
@@ -193,7 +194,16 @@ export default function NewPaymentPage() {
         setRecipients(safeRecipients);
 
         if (!preselectedAccount && safeAccounts.length > 0) {
-          setValue('fromAccountNumber', safeAccounts[0].accountNumber);
+          // Bug 7 (PDF "Racun ne pripada klijentu"): NE biraj automatski poslovni
+          // (BUSINESS) racun kao podrazumevani. findAccessibleAccounts vraca i poslovne
+          // racune firme na kojoj je klijent ovlasceno lice, sortirane po balansu (DESC),
+          // pa za klijenta sa visokim firminim balansom (npr. Milica) prvi je poslovni —
+          // a placanje s njega BE odbija ("Racun ne pripada klijentu"). Default na prvi
+          // LICNI (ne-poslovni) racun; fallback na prvi dostupni ako licnog nema.
+          const personal = safeAccounts.find(
+            (a) => a.accountType !== AccountType.BUSINESS && a.accountType !== AccountType.POSLOVNI,
+          );
+          setValue('fromAccountNumber', (personal ?? safeAccounts[0]).accountNumber);
         }
       } catch {
         if (!mounted) return;

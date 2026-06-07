@@ -44,6 +44,9 @@ describe('OtcInterBankDiscoveryTab', () => {
       listingCurrency: 'USD',
       currentPrice: 198.25,
       availableQuantity: 40,
+      // CLIENT rola — vidljiv default klijentu (Bug 9: ponude BEZ role su sad
+      // sakrivene od klijenta, pa default fixture mora nositi rolu da bi se prikazao).
+      sellerRole: 'CLIENT' as const,
     },
   ];
 
@@ -51,8 +54,8 @@ describe('OtcInterBankDiscoveryTab', () => {
     vi.clearAllMocks();
     mockListRemoteListings.mockResolvedValue(remoteListings);
     mockCreateOffer.mockResolvedValue({ offerId: 'remote-offer-1' });
-    // Default: klijent (a defensive fallback omogucuje da listings bez
-    // sellerRole-a budu prikazani).
+    // Default: klijent. Ponude bez sellerRole-a su mu sakrivene (Bug 9) — vidi ih
+    // samo zaposleni/supervizor; default fixture zato ima sellerRole: 'CLIENT'.
     mockUseAuth.mockReturnValue({ isAdmin: false, isAgent: false, isSupervisor: false });
   });
 
@@ -190,7 +193,9 @@ describe('OtcInterBankDiscoveryTab', () => {
       expect(screen.queryByText('MSFT')).not.toBeInTheDocument();
     });
 
-    it('shows listings without sellerRole as defensive fallback (with warning)', async () => {
+    // Bug 9 (PDF): klijent NE SME videti unknown-role ponude (mogu biti objavljene
+    // od strane supervizora partnera). Samo zaposleni/supervizori ih vide (uz upozorenje).
+    it('hides listings without sellerRole from CLIENT (could be employee-published)', async () => {
       mockUseAuth.mockReturnValue({ isAdmin: false, isAgent: false, isSupervisor: false });
       mockListRemoteListings.mockResolvedValue([
         makeListing({ ticker: 'AAPL', sellerRole: 'CLIENT' }),
@@ -202,9 +207,31 @@ describe('OtcInterBankDiscoveryTab', () => {
 
       await waitFor(() => {
         expect(screen.getByText('AAPL')).toBeInTheDocument();
+      });
+      // Klijent vidi samo CLIENT ponude; unknown-role (MSFT) i EMPLOYEE (TSLA) su sakrivene.
+      expect(screen.queryByText('MSFT')).not.toBeInTheDocument();
+      expect(screen.queryByText('TSLA')).not.toBeInTheDocument();
+      expect(screen.getByTestId('hidden-by-role-count')).toHaveTextContent('2');
+      // Nema unknown-role ponuda u vidljivim → nema upozorenja o (ne)vracenoj roli.
+      expect(screen.queryByTestId('unknown-role-count')).not.toBeInTheDocument();
+    });
+
+    it('shows listings without sellerRole to EMPLOYEE/supervisor (with warning)', async () => {
+      mockUseAuth.mockReturnValue({ isAdmin: false, isAgent: false, isSupervisor: true });
+      mockListRemoteListings.mockResolvedValue([
+        makeListing({ ticker: 'MSFT' }),
+        makeListing({ ticker: 'TSLA', sellerRole: 'EMPLOYEE' }),
+        makeListing({ ticker: 'AAPL', sellerRole: 'CLIENT' }),
+      ]);
+
+      render(<OtcInterBankDiscoveryTab />);
+
+      await waitFor(() => {
         expect(screen.getByText('MSFT')).toBeInTheDocument();
       });
-      expect(screen.queryByText('TSLA')).not.toBeInTheDocument();
+      // Supervizor (EMPLOYEE) vidi unknown-role (MSFT) i EMPLOYEE (TSLA); CLIENT (AAPL) sakriven.
+      expect(screen.getByText('TSLA')).toBeInTheDocument();
+      expect(screen.queryByText('AAPL')).not.toBeInTheDocument();
       expect(screen.getByTestId('hidden-by-role-count')).toHaveTextContent('1');
       expect(screen.getByTestId('unknown-role-count')).toHaveTextContent('1');
     });

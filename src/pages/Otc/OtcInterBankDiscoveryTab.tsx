@@ -44,10 +44,11 @@ const AUTO_REFRESH_MS = 30_000;
     koje partner banke mogu da vrate kao extension u `GET /public-stock`.
   - Ako polje POSTOJI: izbacujemo cross-role listinge (klijent ne vidi
     EMPLOYEE, zaposleni ne vidi CLIENT).
-  - Ako polje NE postoji: prikazujemo listing (defensive fallback) i oslanjamo
-    se na BE acceptOffer guard (`OtcService.ensureSameRoleParticipants`) koji
-    vraca 400 za cross-role pokusaje. UI ima info badge koji upozorava korisnika
-    da ce server odbiti kupovinu ako je rola pogresna.
+  - Ako polje NE postoji (npr. EXBanka 2 — protokol §3.1 i ne nosi rolu): ponuda
+    je vidljiva SAMO zaposlenima/supervizorima (uz upozorenje), a KLIJENTU je
+    SAKRIVENA (Bug 9) — jer moze biti objavljena od strane supervizora partnera,
+    pa je klijent ne sme videti. Za zaposlene BE acceptOffer guard
+    (`OtcService.ensureSameRoleParticipants`) backstop-uje cross-role pokusaje (400).
   - UI takodje pokazuje koliko je listinga sakriveno filterom.
 */
 export default function OtcInterBankDiscoveryTab() {
@@ -72,7 +73,16 @@ export default function OtcInterBankDiscoveryTab() {
   });
 
   const visibleListings = useMemo(
-    () => listings.filter((l) => !l.sellerRole || l.sellerRole === myRole),
+    () =>
+      listings.filter((l) => {
+        if (l.sellerRole) return l.sellerRole === myRole;
+        // Bug 9 (PDF): ponuda BEZ role (partner — npr. EXBanka 2 — nije vratio rolu prodavca;
+        // protokol je i ne nosi) moze biti objavljena od strane zaposlenog/supervizora partnera.
+        // Klijent je NE SME videti (ranije ju je `!sellerRole` fallback pokazivao svima).
+        // Samo zaposleni/supervizori (myRole === 'EMPLOYEE') vide unknown-role ponude — uz
+        // upozorenje; BE acceptOffer guard backstop-uje cross-role pokusaje.
+        return myRole === 'EMPLOYEE';
+      }),
     [listings, myRole],
   );
   const hiddenByRoleCount = listings.length - visibleListings.length;
@@ -345,14 +355,24 @@ export default function OtcInterBankDiscoveryTab() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
+                        {/* Bug 1 (PDF "Ticker AMD ne postoji u nasem listings-u"): hartija koju
+                            ne nosimo u svom sistemu dolazi sa currentPrice=0 i kupovina/pregovor
+                            BE hard-fail-uje. Disable-ujemo dugme i objasnjavamo umesto da korisnik
+                            udari u sirovu gresku tek po slanju ponude. */}
                         <Button
                           size="sm"
                           variant={isOpen ? 'secondary' : 'default'}
+                          disabled={!isOpen && !(listing.currentPrice > 0)}
+                          title={
+                            !(listing.currentPrice > 0)
+                              ? 'Hartija nije u nasem sistemu (cena nije dostupna) — pregovor trenutno nije moguc.'
+                              : undefined
+                          }
                           onClick={() => (isOpen ? setOpenedListingKey(null) : openForListing(listing))}
-                          className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white"
+                          className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <TrendingUp className="mr-2 h-4 w-4" />
-                          {isOpen ? 'Zatvori' : 'Napravi ponudu'}
+                          {isOpen ? 'Zatvori' : listing.currentPrice > 0 ? 'Napravi ponudu' : 'Nedostupno'}
                         </Button>
                       </TableCell>
                     </TableRow>

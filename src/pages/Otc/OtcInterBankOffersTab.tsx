@@ -420,6 +420,15 @@ export default function OtcInterBankOffersTab({ onAcceptedOffer, onUnreadChange,
                                   Cross-bank prihvatanje moze samo kupac ({offer.buyerName}).
                                 </div>
                               )}
+                              {/* Bug 3 (PDF): ako se rola ne razresi (bankCode mismatch / runtime
+                                  config drift), kupac bi tiho ostao bez dugmeta Prihvati. Damo
+                                  eksplicitno objasnjenje umesto da Prihvati neobjasnjeno nestane. */}
+                              {myRole === null && (
+                                <div className="basis-full mt-1 text-[11px] text-muted-foreground italic">
+                                  Ne mozemo da odredimo vasu ulogu u ovom pregovoru — osvezite stranicu.
+                                  Ako se ponovi, kontaktirajte podrsku.
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
