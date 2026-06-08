@@ -109,6 +109,10 @@ const mockOtcRemoteListings = [
     listingCurrency: 'USD',
     currentPrice: 198.25,
     availableQuantity: 40,
+    // Bug 9: ponude bez sellerRole su sad sakrivene od klijenta (mogu biti
+    // supervisor-objavljene). Test je CLIENT session → fixtures nose CLIENT rolu
+    // da bi bile vidljive (mirror OtcInterBankDiscoveryTab.test.tsx default fixture).
+    sellerRole: 'CLIENT',
   },
   {
     bankCode: 'BANKA3',
@@ -119,6 +123,7 @@ const mockOtcRemoteListings = [
     listingCurrency: 'USD',
     currentPrice: 421.15,
     availableQuantity: 25,
+    sellerRole: 'CLIENT',
   },
 ];
 
