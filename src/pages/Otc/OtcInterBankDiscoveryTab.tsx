@@ -44,11 +44,12 @@ const AUTO_REFRESH_MS = 30_000;
     koje partner banke mogu da vrate kao extension u `GET /public-stock`.
   - Ako polje POSTOJI: izbacujemo cross-role listinge (klijent ne vidi
     EMPLOYEE, zaposleni ne vidi CLIENT).
-  - Ako polje NE postoji (npr. EXBanka 2 — protokol §3.1 i ne nosi rolu): ponuda
-    je vidljiva SAMO zaposlenima/supervizorima (uz upozorenje), a KLIJENTU je
-    SAKRIVENA (Bug 9) — jer moze biti objavljena od strane supervizora partnera,
-    pa je klijent ne sme videti. Za zaposlene BE acceptOffer guard
-    (`OtcService.ensureSameRoleParticipants`) backstop-uje cross-role pokusaje (400).
+  - Ako polje NE postoji (npr. EXBanka 2 — protokol §3.1 i ne nosi rolu, salje
+    numericke id-jeve): ponuda je vidljiva SVIMA (i klijentu i zaposlenom) uz
+    upozorenje. NAPOMENA (bagovi-fix-2): raniji Bug 9 fix je unknown-role sakrivao
+    od klijenta, ali posto EXBanka 2 NIKAD ne vraca rolu, to je sakrivalo SVE njene
+    ponude (klijent je video 0). Zato unknown ide svima — BE acceptOffer guard
+    (`OtcService.ensureSameRoleParticipants`) backstop-uje stvaran cross-role pokusaj (400).
   - UI takodje pokazuje koliko je listinga sakriveno filterom.
 */
 export default function OtcInterBankDiscoveryTab() {
@@ -72,17 +73,15 @@ export default function OtcInterBankDiscoveryTab() {
     settlementDate: addDaysISO(7),
   });
 
+  // Role-vidljivost (pomirenje Bug 9 ⇄ bagovi-fix-2):
+  //  - sellerRole POZNAT: prikazi samo ako odgovara mojoj roli (klijent NE vidi
+  //    KNOWN employee/supervisor ponude — originalni Bug 9 zahtev).
+  //  - sellerRole NEPOZNAT (npr. EXBanka 2 — protokol §3.1 i ne nosi rolu, salje
+  //    numericke id-jeve): prikazi SVIMA uz upozorenje. Sakrivanje unknown-role od
+  //    klijenta je sakrivalo SVE EXBanka-2 ponude (klijent je video 0) — pa unknown
+  //    ide svima, a BE acceptOffer guard backstop-uje stvaran cross-role pokusaj.
   const visibleListings = useMemo(
-    () =>
-      listings.filter((l) => {
-        if (l.sellerRole) return l.sellerRole === myRole;
-        // Bug 9 (PDF): ponuda BEZ role (partner — npr. EXBanka 2 — nije vratio rolu prodavca;
-        // protokol je i ne nosi) moze biti objavljena od strane zaposlenog/supervizora partnera.
-        // Klijent je NE SME videti (ranije ju je `!sellerRole` fallback pokazivao svima).
-        // Samo zaposleni/supervizori (myRole === 'EMPLOYEE') vide unknown-role ponude — uz
-        // upozorenje; BE acceptOffer guard backstop-uje cross-role pokusaje.
-        return myRole === 'EMPLOYEE';
-      }),
+    () => listings.filter((l) => !l.sellerRole || l.sellerRole === myRole),
     [listings, myRole],
   );
   const hiddenByRoleCount = listings.length - visibleListings.length;

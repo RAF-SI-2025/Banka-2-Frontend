@@ -257,6 +257,30 @@ export default function OtcInterBankOffersTab({ onAcceptedOffer, onUnreadChange,
     }
   };
 
+  // Prodavac "Prihvata uslove" = posalje counter sa ISTIM uslovima (bez izmene),
+  // sto prebacuje red na kupca (lastModifiedBy = mi/prodavac → kupcev red), koji
+  // onda pravi pravi 2PC accept (premium debit na buyer-strani). Protokol-korektno
+  // (BE counterOffer ne zahteva da se vrednosti razlikuju).
+  const handleAgree = async (offer: OtcInterbankOffer) => {
+    setBusyOfferId(offer.offerId);
+    try {
+      await interbankOtcService.counterOffer(offer.offerId, {
+        offerId: offer.offerId,
+        quantity: offer.quantity,
+        pricePerStock: offer.pricePerStock,
+        premium: offer.premium,
+        settlementDate: offer.settlementDate,
+      });
+      toast.success('Prihvatili ste uslove — red je prebacen na kupca da potvrdi placanje premije.');
+      setOpenState(null);
+      await reloadOffers();
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Slanje saglasnosti nije uspelo.'));
+    } finally {
+      setBusyOfferId(null);
+    }
+  };
+
   const handleDecline = async (offer: OtcInterbankOffer) => {
     if (!window.confirm('Sigurno zelite da odbijete ovu inter-bank ponudu?')) {
       return;
@@ -375,10 +399,10 @@ export default function OtcInterBankOffersTab({ onAcceptedOffer, onUnreadChange,
                         <TableCell className="text-right">
                           {offer.myTurn ? (
                             <div className="flex flex-wrap justify-end gap-1">
-                              {/* T2-G: Prihvati moze SAMO kupac u cross-bank pregovoru
-                                  (per §3.6 — premium debit ide sa kupcevog racuna pa
-                                  coordinator runs na buyer-strani). Ako sam prodavac,
-                                  prikazem samo Kontraponudu + Odbij. */}
+                              {/* §3.6 — KUPAC pravi 2PC accept (premium debit + coordinator na
+                                  buyer-strani). PRODAVAC ne moze direktno da finalizuje, ali moze
+                                  da PRIHVATI uslove = posalje saglasnost (counter sa istim uslovima)
+                                  cime prebacuje red na kupca koji onda potvrdjuje placanje. */}
                               {myRole === 'BUYER' && (
                                 <Button
                                   size="sm"
@@ -392,6 +416,19 @@ export default function OtcInterBankOffersTab({ onAcceptedOffer, onUnreadChange,
                                 >
                                   <Check className="mr-1 h-3.5 w-3.5" />
                                   Prihvati
+                                </Button>
+                              )}
+                              {myRole === 'SELLER' && (
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  disabled={busyOfferId === offer.offerId}
+                                  onClick={() => void handleAgree(offer)}
+                                  className="bg-gradient-to-r from-emerald-500 to-green-600 text-white"
+                                  title="Prihvati ponudjene uslove — saglasnost se salje kupcu koji potvrdjuje placanje premije"
+                                >
+                                  <Check className="mr-1 h-3.5 w-3.5" />
+                                  Prihvati uslove
                                 </Button>
                               )}
                               <Button
@@ -417,7 +454,8 @@ export default function OtcInterBankOffersTab({ onAcceptedOffer, onUnreadChange,
                               </Button>
                               {myRole === 'SELLER' && (
                                 <div className="basis-full mt-1 text-[11px] text-muted-foreground italic">
-                                  Cross-bank prihvatanje moze samo kupac ({offer.buyerName}).
+                                  "Prihvati uslove" salje saglasnost kupcu ({offer.buyerName}) — on
+                                  potvrdjuje placanje premije (cross-bank: premiju debituje kupceva banka).
                                 </div>
                               )}
                               {/* Bug 3 (PDF): ako se rola ne razresi (bankCode mismatch / runtime

@@ -193,9 +193,9 @@ describe('OtcInterBankDiscoveryTab', () => {
       expect(screen.queryByText('MSFT')).not.toBeInTheDocument();
     });
 
-    // Bug 9 (PDF): klijent NE SME videti unknown-role ponude (mogu biti objavljene
-    // od strane supervizora partnera). Samo zaposleni/supervizori ih vide (uz upozorenje).
-    it('hides listings without sellerRole from CLIENT (could be employee-published)', async () => {
+    // bagovi-fix-2: klijent VIDI unknown-role ponude (EXBanka 2 nikad ne vraca rolu,
+    // pa bi ih sakrivanje sakrilo SVE). Samo KNOWN cross-role (EMPLOYEE) je sakriven.
+    it('shows unknown-role listings to CLIENT (with warning), hides only KNOWN cross-role', async () => {
       mockUseAuth.mockReturnValue({ isAdmin: false, isAgent: false, isSupervisor: false });
       mockListRemoteListings.mockResolvedValue([
         makeListing({ ticker: 'AAPL', sellerRole: 'CLIENT' }),
@@ -208,12 +208,11 @@ describe('OtcInterBankDiscoveryTab', () => {
       await waitFor(() => {
         expect(screen.getByText('AAPL')).toBeInTheDocument();
       });
-      // Klijent vidi samo CLIENT ponude; unknown-role (MSFT) i EMPLOYEE (TSLA) su sakrivene.
-      expect(screen.queryByText('MSFT')).not.toBeInTheDocument();
+      // Klijent vidi CLIENT (AAPL) + unknown-role (MSFT, uz upozorenje); KNOWN EMPLOYEE (TSLA) sakriven.
+      expect(screen.getByText('MSFT')).toBeInTheDocument();
       expect(screen.queryByText('TSLA')).not.toBeInTheDocument();
-      expect(screen.getByTestId('hidden-by-role-count')).toHaveTextContent('2');
-      // Nema unknown-role ponuda u vidljivim → nema upozorenja o (ne)vracenoj roli.
-      expect(screen.queryByTestId('unknown-role-count')).not.toBeInTheDocument();
+      expect(screen.getByTestId('hidden-by-role-count')).toHaveTextContent('1');
+      expect(screen.getByTestId('unknown-role-count')).toHaveTextContent('1');
     });
 
     it('shows listings without sellerRole to EMPLOYEE/supervisor (with warning)', async () => {
