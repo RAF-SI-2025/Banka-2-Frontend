@@ -22,18 +22,22 @@ interface Props {
   rank: Rank;
   faceUp: boolean;
   highlighted?: boolean;
+  /** Hint glow — emerald puls (razlikuje se od amber selekcije). */
+  hinted?: boolean;
   dragging?: boolean;
   style?: React.CSSProperties;
   onClick?: (e: React.MouseEvent) => void;
   onPointerDown?: (e: React.PointerEvent) => void;
 }
 
-export function CardSvg({ suit, rank, faceUp, highlighted, dragging, style, onClick, onPointerDown }: Props) {
+export function CardSvg({ suit, rank, faceUp, highlighted, hinted, dragging, style, onClick, onPointerDown }: Props) {
   const isRedSuit = isRed(suit);
   const color = isRedSuit ? '#dc2626' : '#1e293b';
   const colorMuted = isRedSuit ? '#fecaca' : '#cbd5e1';
   const ringClass = highlighted
     ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-transparent shadow-amber-400/40 shadow-xl scale-[1.04]'
+    : hinted
+    ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-transparent shadow-emerald-400/50 shadow-xl animate-pulse'
     : 'ring-1 ring-black/15 dark:ring-white/10';
   // Jedinstveni ID per card za SVG defs (gradient/pattern)
   const uid = `${suit}${rank}`;
@@ -203,10 +207,13 @@ const PIP_LAYOUTS: Partial<Record<number, Array<[number, number]>>> = {
   10: [[0.3, 0.2], [0.7, 0.2], [0.3, 0.35], [0.7, 0.35], [0.5, 0.28], [0.5, 0.72], [0.3, 0.65], [0.7, 0.65], [0.3, 0.8], [0.7, 0.8]],
 };
 
-export function CardPlaceholder({ label, style }: { label?: string; style?: React.CSSProperties }) {
+export function CardPlaceholder({ label, hinted, style }: { label?: string; hinted?: boolean; style?: React.CSSProperties }) {
+  const cls = hinted
+    ? 'border-emerald-400 text-emerald-500 ring-2 ring-emerald-400/60 animate-pulse'
+    : 'border-slate-300 dark:border-slate-700 text-slate-400';
   return (
     <div
-      className="rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-400 text-xs font-semibold"
+      className={`rounded-lg border-2 border-dashed flex items-center justify-center text-xs font-semibold ${cls}`}
       style={{ width: CARD_W, height: CARD_H, ...style }}
     >
       {label}

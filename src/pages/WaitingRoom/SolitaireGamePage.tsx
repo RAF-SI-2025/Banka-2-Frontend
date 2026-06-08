@@ -21,6 +21,7 @@ export default function SolitaireGamePage() {
         </h1>
         <p className="text-sm text-muted-foreground">
           Slozi sve 4 boje u foundation gomile (A → K). Tableau: kralj na prazno, naredna karta nizeg ranga obrnute boje.
+          Tezine (Lako = garantovano resiva / Srednje / Tesko draw-3), undo, hint i auto-zavrsi.
         </p>
       </div>
 

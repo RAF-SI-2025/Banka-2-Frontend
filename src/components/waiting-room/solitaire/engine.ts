@@ -80,16 +80,23 @@ export function newGame(rng: () => number = Math.random): GameState {
   };
 }
 
-export function drawFromStock(state: GameState): GameState {
+/** Broj karata po izvlacenju: 1 (lako) ili 3 (tesko). */
+export type DrawMode = 1 | 3;
+
+export function drawFromStock(state: GameState, drawCount: DrawMode = 1): GameState {
   if (state.stock.length === 0) {
     if (state.waste.length === 0) return state;
-    // recikliraj waste u stock
+    // recikliraj waste u stock (poredak ocuvan: vrh waste-a postaje dno stock-a)
     const newStock = state.waste.slice().reverse().map((c) => ({ ...c, faceUp: false }));
     return { ...state, stock: newStock, waste: [], moves: state.moves + 1 };
   }
   const stock = state.stock.slice();
-  const card = { ...stock.pop()!, faceUp: true };
-  const waste = [...state.waste, card];
+  // Izvuci do `drawCount` karata; sve face-up, poslednja izvucena je vrh waste-a.
+  const drawn: Card[] = [];
+  for (let i = 0; i < drawCount && stock.length > 0; i++) {
+    drawn.push({ ...stock.pop()!, faceUp: true });
+  }
+  const waste = [...state.waste, ...drawn];
   return { ...state, stock, waste, moves: state.moves + 1 };
 }
 
@@ -176,4 +183,223 @@ export function computeScore(state: GameState, endedAt: number): number {
   const movesPenalty = Math.min(state.moves * 2, 400);
   const timePenalty = Math.min(seconds, 600);
   return Math.max(100, 2000 - movesPenalty - timePenalty);
+}
+
+// ─── Tezine / hint / auto-complete / solver ─────────────────────────────────
+
+export type Difficulty = 'easy' | 'medium' | 'hard';
+
+/** Predlozen potez (za hint i auto-complete). {@code from.type==='stock'} = "vuci iz stock-a". */
+export interface Move {
+  from: PileRef;
+  fromCardIndex: number;
+  to: PileRef;
+}
+
+function foundationIndexForSuit(suit: Suit): number {
+  return FOUNDATION_ORDER.indexOf(suit);
+}
+
+/** Vraca foundation index na koji karta moze da ide, ili null. */
+function foundationDestFor(state: GameState, card: Card): number | null {
+  const fi = foundationIndexForSuit(card.suit);
+  const pile = state.foundations[fi];
+  const top = pile[pile.length - 1];
+  if (!top) return card.rank === 1 ? fi : null;
+  return card.rank === top.rank + 1 ? fi : null;
+}
+
+/** Index prve face-up karte u koloni (pocetak face-up run-a), ili -1 ako je prazna. */
+function faceUpRunStart(col: Card[]): number {
+  for (let i = 0; i < col.length; i++) if (col[i].faceUp) return i;
+  return -1;
+}
+
+/**
+ * Heuristicki hint — vraca prvi "produktivan" potez po prioritetu:
+ * (1) tableau→tableau koji okrece face-down kartu, (2) tableau/waste vrh → foundation,
+ * (3) waste → tableau, (4) tableau → tableau (kralj na prazno / konsolidacija),
+ * (5) vuci iz stock-a (sentinel {@code from.type==='stock'}). null ako nema poteza.
+ */
+export function findHint(state: GameState): Move | null {
+  // (1) otkrij face-down kartu pomeranjem face-up run-a kolone
+  for (let c = 0; c < 7; c++) {
+    const rs = faceUpRunStart(state.tableau[c]);
+    if (rs <= 0) continue; // rs<=0 → nema face-down ispod
+    for (let d = 0; d < 7; d++) {
+      if (d === c) continue;
+      const from: PileRef = { type: 'tableau', index: c };
+      const to: PileRef = { type: 'tableau', index: d };
+      if (moveCard(state, from, rs, to)) return { from, fromCardIndex: rs, to };
+    }
+  }
+  // (2) tableau vrh / waste vrh → foundation
+  for (let c = 0; c < 7; c++) {
+    const col = state.tableau[c];
+    if (!col.length) continue;
+    const fi = foundationDestFor(state, col[col.length - 1]);
+    if (fi !== null) return { from: { type: 'tableau', index: c }, fromCardIndex: col.length - 1, to: { type: 'foundation', index: fi } };
+  }
+  if (state.waste.length) {
+    const fi = foundationDestFor(state, state.waste[state.waste.length - 1]);
+    if (fi !== null) return { from: { type: 'waste', index: 0 }, fromCardIndex: state.waste.length - 1, to: { type: 'foundation', index: fi } };
+  }
+  // (3) waste → tableau
+  if (state.waste.length) {
+    const wi = state.waste.length - 1;
+    for (let d = 0; d < 7; d++) {
+      const to: PileRef = { type: 'tableau', index: d };
+      if (moveCard(state, { type: 'waste', index: 0 }, wi, to)) return { from: { type: 'waste', index: 0 }, fromCardIndex: wi, to };
+    }
+  }
+  // (4) tableau → tableau (kralj na prazno / konsolidacija) — ne predlazi jalov king-shuffle
+  for (let c = 0; c < 7; c++) {
+    const col = state.tableau[c];
+    const rs = faceUpRunStart(col);
+    if (rs < 0) continue;
+    for (let d = 0; d < 7; d++) {
+      if (d === c) continue;
+      if (rs === 0 && state.tableau[d].length === 0) continue; // cela kolona → prazna: jalovo
+      const from: PileRef = { type: 'tableau', index: c };
+      const to: PileRef = { type: 'tableau', index: d };
+      if (moveCard(state, from, rs, to)) return { from, fromCardIndex: rs, to };
+    }
+  }
+  // (5) vuci iz stock-a
+  if (state.stock.length > 0 || state.waste.length > 0) {
+    return { from: { type: 'stock', index: 0 }, fromCardIndex: 0, to: { type: 'stock', index: 0 } };
+  }
+  return null;
+}
+
+/** Da li se partija moze automatski zavrsiti — nema vise face-down karata u tableau-u. */
+export function isAutoCompletable(state: GameState): boolean {
+  if (isWon(state)) return false;
+  return state.tableau.every((col) => col.every((c) => c.faceUp));
+}
+
+/**
+ * Jedan korak auto-complete-a: promovise prvu tableau/waste vrh kartu u foundation;
+ * ako nema takve, vuce iz stock-a. Vraca null kad nema vise sta (gotovo/zaglavljeno).
+ * UI ga poziva u petlji sa kratkim delay-em za "lete u foundation" animaciju.
+ */
+export function autoCompleteStep(state: GameState): GameState | null {
+  for (let c = 0; c < 7; c++) {
+    const col = state.tableau[c];
+    if (!col.length) continue;
+    const fi = foundationDestFor(state, col[col.length - 1]);
+    if (fi !== null) {
+      const next = moveCard(state, { type: 'tableau', index: c }, col.length - 1, { type: 'foundation', index: fi });
+      if (next) return next;
+    }
+  }
+  if (state.waste.length) {
+    const fi = foundationDestFor(state, state.waste[state.waste.length - 1]);
+    if (fi !== null) {
+      const next = moveCard(state, { type: 'waste', index: 0 }, state.waste.length - 1, { type: 'foundation', index: fi });
+      if (next) return next;
+    }
+  }
+  if (state.stock.length > 0 || state.waste.length > 0) {
+    return drawFromStock(state, 1);
+  }
+  return null;
+}
+
+// ── Solver (bounded DFS) — koristi se za "Lako" garantovano-resive deal-ove ──
+
+function hashState(s: GameState): string {
+  const t = s.tableau.map((col) => col.map((c) => c.id + (c.faceUp ? 'u' : 'd')).join(',')).join('|');
+  const f = s.foundations.map((p) => p.length).join(',');
+  const st = s.stock.map((c) => c.id).join(',');
+  const w = s.waste.map((c) => c.id).join(',');
+  return `${t}#${f}#${st}#${w}`;
+}
+
+/** Naslednici stanja u prioritetnom redosledu (najbolji prvi): foundation, reveal, waste→tab, tab→tab, draw. */
+function successors(s: GameState): GameState[] {
+  const foundationMoves: GameState[] = [];
+  const reveals: GameState[] = [];
+  const tableauMoves: GameState[] = [];
+  const wasteMoves: GameState[] = [];
+
+  for (let c = 0; c < 7; c++) {
+    const col = s.tableau[c];
+    if (!col.length) continue;
+    const fi = foundationDestFor(s, col[col.length - 1]);
+    if (fi !== null) {
+      const nx = moveCard(s, { type: 'tableau', index: c }, col.length - 1, { type: 'foundation', index: fi });
+      if (nx) foundationMoves.push(nx);
+    }
+  }
+  if (s.waste.length) {
+    const fi = foundationDestFor(s, s.waste[s.waste.length - 1]);
+    if (fi !== null) {
+      const nx = moveCard(s, { type: 'waste', index: 0 }, s.waste.length - 1, { type: 'foundation', index: fi });
+      if (nx) foundationMoves.push(nx);
+    }
+  }
+  for (let c = 0; c < 7; c++) {
+    const col = s.tableau[c];
+    const rs = faceUpRunStart(col);
+    if (rs < 0) continue;
+    for (let i = rs; i < col.length; i++) {
+      for (let d = 0; d < 7; d++) {
+        if (d === c) continue;
+        if (i === rs && rs === 0 && s.tableau[d].length === 0) continue; // jalov full-column shuffle
+        const nx = moveCard(s, { type: 'tableau', index: c }, i, { type: 'tableau', index: d });
+        if (!nx) continue;
+        if (i === rs && rs > 0) reveals.push(nx);
+        else tableauMoves.push(nx);
+      }
+    }
+  }
+  if (s.waste.length) {
+    for (let d = 0; d < 7; d++) {
+      const nx = moveCard(s, { type: 'waste', index: 0 }, s.waste.length - 1, { type: 'tableau', index: d });
+      if (nx) wasteMoves.push(nx);
+    }
+  }
+  const drawn = s.stock.length > 0 || s.waste.length > 0 ? drawFromStock(s, 1) : null;
+  const draws = drawn && hashState(drawn) !== hashState(s) ? [drawn] : [];
+
+  return [...foundationMoves, ...reveals, ...wasteMoves, ...tableauMoves, ...draws];
+}
+
+/**
+ * Bounded DFS provera resivosti (draw-1). Vraca true ako je pronadjena pobeda u
+ * okviru {@code nodeBudget} obidjenih stanja, inace false (konzervativno —
+ * tezak/neresiv deal). Move-ordering (foundation/reveal prvo) + visited-set.
+ */
+export function solve(initial: GameState, nodeBudget = 40000): boolean {
+  const visited = new Set<string>();
+  const stack: GameState[] = [initial];
+  let nodes = 0;
+  while (stack.length) {
+    const st = stack.pop()!;
+    if (isWon(st)) return true;
+    if (nodes++ > nodeBudget) return false;
+    const key = hashState(st);
+    if (visited.has(key)) continue;
+    visited.add(key);
+    const succ = successors(st);
+    // push najgori prvi → najbolji (succ[0]) ostaje na vrhu stack-a (DFS best-first)
+    for (let i = succ.length - 1; i >= 0; i--) stack.push(succ[i]);
+  }
+  return false;
+}
+
+/**
+ * Deli novu partiju koju solver moze da resi (garantovano-resiv "Lako" deal).
+ * Reshuffle do {@code retries} puta; fallback na poslednji deal ako nijedan nije
+ * potvrdjen u budzetu (i dalje igriv uz undo/hint). Tipicno se resi iz 1-3 pokusaja.
+ */
+export function newWinnableGame(rng: () => number = Math.random, retries = 20, nodeBudget = 40000): GameState {
+  let last = newGame(rng);
+  for (let i = 0; i < retries; i++) {
+    const g = newGame(rng);
+    if (solve(g, nodeBudget)) return g;
+    last = g;
+  }
+  return last;
 }

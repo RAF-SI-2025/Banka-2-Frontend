@@ -8,9 +8,36 @@ import {
   isWon,
   computeScore,
   isRed,
+  findHint,
+  isAutoCompletable,
+  autoCompleteStep,
+  solve,
   type GameState,
   type Card,
+  type Suit,
 } from './engine';
+
+// Helper: foundation gomila ranga 1..n za boju
+function upto(s: Suit, n: number): Card[] {
+  return Array.from({ length: n }, (_, i) => ({ id: `${s}${i + 1}`, suit: s, rank: (i + 1) as Card['rank'], faceUp: true }));
+}
+// Helper: stanje gde su 4 kralja tableau-vrhovi, foundationi do Q — trivijalno auto-complete
+function nearWonState(): GameState {
+  return {
+    tableau: [
+      [{ id: 'S13', suit: 'S', rank: 13, faceUp: true }],
+      [{ id: 'H13', suit: 'H', rank: 13, faceUp: true }],
+      [{ id: 'D13', suit: 'D', rank: 13, faceUp: true }],
+      [{ id: 'C13', suit: 'C', rank: 13, faceUp: true }],
+      [], [], [],
+    ],
+    foundations: [upto('S', 12), upto('H', 12), upto('D', 12), upto('C', 12)],
+    stock: [],
+    waste: [],
+    moves: 0,
+    startedAt: Date.now(),
+  };
+}
 
 describe('solitaire engine', () => {
   it('buildDeck() returns 52 unique cards', () => {
@@ -132,5 +159,63 @@ describe('solitaire engine', () => {
     expect(isRed('D')).toBe(true);
     expect(isRed('S')).toBe(false);
     expect(isRed('C')).toBe(false);
+  });
+
+  // ─── Tezine / hint / auto-complete / solver ───
+
+  it('drawFromStock(state, 3) — vuce do 3 karte u waste, sve face-up', () => {
+    const g = newGame(() => 0.5);
+    const before = g.stock.length;
+    const next = drawFromStock(g, 3);
+    expect(next.stock.length).toBe(before - 3);
+    expect(next.waste.length).toBe(3);
+    expect(next.waste.every((c) => c.faceUp)).toBe(true);
+  });
+
+  it('findHint() — predlaze As (tableau vrh) u foundation', () => {
+    const a: Card = { id: 'H1', suit: 'H', rank: 1, faceUp: true };
+    const g: GameState = {
+      tableau: [[a], [], [], [], [], [], []],
+      foundations: [[], [], [], []],
+      stock: [], waste: [], moves: 0, startedAt: Date.now(),
+    };
+    const h = findHint(g);
+    expect(h).not.toBeNull();
+    expect(h!.to.type).toBe('foundation');
+  });
+
+  it('findHint() — vraca stock-draw sentinel kad nema poteza na tabli', () => {
+    const g: GameState = {
+      tableau: [[], [], [], [], [], [], []],
+      foundations: [[], [], [], []],
+      stock: [{ id: 'C5', suit: 'C', rank: 5, faceUp: false }],
+      waste: [], moves: 0, startedAt: Date.now(),
+    };
+    const h = findHint(g);
+    expect(h).not.toBeNull();
+    expect(h!.from.type).toBe('stock');
+  });
+
+  it('isAutoCompletable() + autoCompleteStep() — bez face-down karata zavrsava do pobede', () => {
+    const g = nearWonState();
+    expect(isAutoCompletable(g)).toBe(true);
+    let st: GameState | null = g;
+    let guard = 0;
+    while (st && !isWon(st) && guard++ < 50) st = autoCompleteStep(st);
+    expect(st).not.toBeNull();
+    expect(isWon(st!)).toBe(true);
+  });
+
+  it('solve() — resi trivijalno-resivo (near-won) stanje u malom budzetu', () => {
+    expect(solve(nearWonState(), 5000)).toBe(true);
+  });
+
+  it('solve() — vraca true za vec pobedjeno stanje', () => {
+    const won: GameState = {
+      tableau: [[], [], [], [], [], [], []],
+      foundations: [upto('S', 13), upto('H', 13), upto('D', 13), upto('C', 13)],
+      stock: [], waste: [], moves: 0, startedAt: Date.now(),
+    };
+    expect(solve(won, 100)).toBe(true);
   });
 });

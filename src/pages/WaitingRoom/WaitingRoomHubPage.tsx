@@ -40,7 +40,7 @@ const GAME_CARDS: GameCard[] = [
   {
     id: 'SOLITAIRE',
     title: 'Solitaire',
-    description: 'Klondike — najpoznatija varijanta. Sortiraj sve 4 boje po redu.',
+    description: 'Klondike sa tezinama, undo, hint i XP win-kaskadom. Slozi sve 4 boje A→K.',
     path: '/soba-za-cekanje/solitaire',
     gradient: 'from-emerald-500 to-teal-600',
     status: 'ready',
