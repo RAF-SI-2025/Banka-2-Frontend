@@ -203,7 +203,9 @@ export default function OtcContractsPage() {
             <Button
               key={opt.value}
               size="sm"
+              role="tab"
               variant={statusFilter === opt.value ? 'default' : 'outline'}
+              aria-selected={statusFilter === opt.value}
               aria-pressed={statusFilter === opt.value}
               onClick={() => setStatusFilter(opt.value)}
               className={
