@@ -71,7 +71,23 @@ export const transactionService = {
     if (filters?.limit !== undefined) params.append('size', String(filters.limit));
 
     const response = await api.get<PaginatedResponse<Transaction>>('/payments', { params });
-    return response.data;
+    // BE PaymentListItemDto vraca polja `fromAccount`/`toAccount` (+ `direction`),
+    // a Transaction tip / UI ocekuju `fromAccountNumber`/`toAccountNumber`. Bez ovog
+    // mapiranja `tx.fromAccountNumber` je undefined → isOut uvek false → svako
+    // placanje (i izlazno) se prikaze kao "+ zeleno" na home/history. Mapiramo
+    // oba imena (cuvamo i raw polja) pa svi potrosaci rade nezavisno od imena.
+    const data = response.data;
+    return {
+      ...data,
+      content: (data.content ?? []).map((p) => {
+        const raw = p as unknown as Record<string, unknown>;
+        return {
+          ...p,
+          fromAccountNumber: (p.fromAccountNumber ?? (raw.fromAccount as string)) as string,
+          toAccountNumber: (p.toAccountNumber ?? (raw.toAccount as string)) as string,
+        };
+      }),
+    };
   },
 
   getById: async (id: number): Promise<Transaction> => {

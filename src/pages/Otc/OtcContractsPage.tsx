@@ -219,7 +219,9 @@ export default function OtcContractsPage() {
       </div>
 
       {source === 'inter' ? (
-        <OtcInterBankContractsTab />
+        // FIX 3/4: gornji jedinstveni status bar upravlja i inter tabom (kontrolisan
+        // prop). Inter tab vise nema sopstveni interni filter bar (uklonjen duplikat).
+        <OtcInterBankContractsTab statusFilter={statusFilter} />
       ) : (
         <Card>
           <CardHeader>

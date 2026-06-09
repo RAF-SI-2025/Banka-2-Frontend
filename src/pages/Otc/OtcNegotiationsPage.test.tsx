@@ -57,6 +57,37 @@ describe('OtcNegotiationsPage', () => {
     await waitFor(() => expect(screen.getByText('AAPL')).toBeInTheDocument());
   });
 
+  // Source chip mora prikazati OBA izvora pod "Sve" (binarni `=== 'inter'` je lomio
+  // "Sve" tako da je inter izvor bio nevidljiv). Default source je 'all'.
+  it('under "Sve" prikazuje i intra (AAPL) i inter ([InterBank]) izvor', async () => {
+    render(<MemoryRouter><OtcNegotiationsPage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('AAPL')).toBeInTheDocument());
+    expect(screen.getByTestId('inter-bank-offers')).toBeInTheDocument();
+  });
+
+  it('under "Iz nase banke" prikazuje samo intra (AAPL), bez inter taba', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><OtcNegotiationsPage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('AAPL')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /Iz nase banke/i }));
+
+    expect(screen.getByText('AAPL')).toBeInTheDocument();
+    expect(screen.queryByTestId('inter-bank-offers')).not.toBeInTheDocument();
+  });
+
+  it('under "Iz drugih banaka" prikazuje samo inter tab, bez intra kartice', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><OtcNegotiationsPage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('AAPL')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /Iz drugih banaka/i }));
+
+    expect(screen.getByTestId('inter-bank-offers')).toBeInTheDocument();
+    expect(screen.queryByText('Moji aktivni pregovori (intra-bank)')).not.toBeInTheDocument();
+    expect(screen.queryByText('AAPL')).not.toBeInTheDocument();
+  });
+
   it('renders VI badge for current user', async () => {
     render(<MemoryRouter><OtcNegotiationsPage /></MemoryRouter>);
     await waitFor(() => screen.getByText('AAPL'));

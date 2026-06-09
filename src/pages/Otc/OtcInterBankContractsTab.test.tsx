@@ -149,16 +149,29 @@ describe('OtcInterBankContractsTab', () => {
     expect(screen.getAllByText('Istekao').length).toBeGreaterThan(0);
   });
 
-  it('refetches contracts with a status filter', async () => {
-    const user = userEvent.setup();
-    render(<OtcInterBankContractsTab />);
+  // FIX 3/4: status filter je sada KONTROLISAN prop iz parenta (OtcContractsPage),
+  // a interni filter bar je uklonjen. Promena prop-a mora re-fetch-ovati po statusu.
+  it('refetches contracts with the controlled statusFilter prop', async () => {
+    const { rerender } = render(<OtcInterBankContractsTab statusFilter="ALL" />);
 
     await screen.findByText('AAPL');
-    await user.click(screen.getByRole('tab', { name: 'Iskoriscen' }));
+    await waitFor(() => {
+      expect(mockedInterbankOtcService.listMyContracts).toHaveBeenLastCalledWith(undefined);
+    });
+
+    rerender(<OtcInterBankContractsTab statusFilter="EXERCISED" />);
 
     await waitFor(() => {
       expect(mockedInterbankOtcService.listMyContracts).toHaveBeenLastCalledWith('EXERCISED');
     });
+  });
+
+  // FIX 4: interni (indigo) filter bar vise NE postoji — uklonjen duplikat.
+  it('does not render its own internal status filter bar', async () => {
+    render(<OtcInterBankContractsTab statusFilter="ALL" />);
+    await screen.findByText('AAPL');
+    expect(screen.queryByRole('tablist', { name: /Filter statusa inter-bank ugovora/i })).toBeNull();
+    expect(screen.queryByRole('tab')).toBeNull();
   });
 
   it('opens the exercise dialog and falls back to a spinner when currentPhase is missing', async () => {

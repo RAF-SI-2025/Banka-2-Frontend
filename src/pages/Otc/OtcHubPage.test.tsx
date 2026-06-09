@@ -97,6 +97,29 @@ describe('OtcHubPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/otc/moje');
   });
 
+  // FIX: brojaci ugovora moraju ukljuciti inter-bank ugovore. Pravi aktivni
+  // inter-bank ugovor je ranije ignorisan ("AKTIVNIH UGOVORA"=0).
+  it('broji aktivne inter-bank ugovore zajedno sa lokalnim', async () => {
+    const otcService = (await import('@/services/otcService')).default;
+    const interbankOtcService = (await import('@/services/interbankOtcService')).default;
+    // 1 lokalni ACTIVE
+    vi.mocked(otcService.listMyContracts).mockResolvedValueOnce([
+      { id: 1, status: 'ACTIVE', buyerId: 1, sellerId: 2, listingCurrency: 'USD',
+        premium: 0, strikePrice: 0, quantity: 0, currentPrice: 0 },
+    ] as never);
+    // 2 inter-bank ACTIVE
+    vi.mocked(interbankOtcService.listMyContracts).mockResolvedValueOnce([
+      { id: 'i1', status: 'ACTIVE', buyerName: 'Test User' },
+      { id: 'i2', status: 'ACTIVE', sellerName: 'Test User' },
+    ] as never);
+
+    render(<MemoryRouter><OtcHubPage /></MemoryRouter>);
+    await waitFor(() => {
+      // 1 lokalni + 2 inter = 3 ACTIVE
+      expect(screen.getByTestId('hub-contracts')).toHaveTextContent('3');
+    });
+  });
+
   // R1 855: dva LOKALNA listinga (razliciti prodavci-osobe) pripadaju ISTOJ
   // banci → "iz 1 banke", a ne "iz 2 banaka" (raniji bug je brojao prodavce).
   it('broji lokalne listinge kao jednu banku (ne po imenu prodavca)', async () => {

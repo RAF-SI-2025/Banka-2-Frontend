@@ -274,9 +274,11 @@ export default function OtcNegotiationsPage() {
 
       <OtcSourceFilterChip value={source} onChange={setSource} />
 
-      {source === 'inter' ? (
-        <OtcInterBankOffersTab />
-      ) : (
+      {/* Source chip upravlja DVA disjunktna izvora (intra: GET /otc/offers/active,
+          trading-service; inter: GET /interbank/otc/offers/my, banka-core). "Sve"
+          mora prikazati OBA — pa render nije binarni vec dva nezavisna uslova:
+          intra kartica kad je source 'all'|'intra', inter tab kad je 'all'|'inter'. */}
+      {(source === 'all' || source === 'intra') && (
         <Card>
           <CardHeader>
             <CardTitle>Moji aktivni pregovori (intra-bank)</CardTitle>
@@ -458,6 +460,10 @@ export default function OtcNegotiationsPage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {(source === 'all' || source === 'inter') && (
+        <OtcInterBankOffersTab />
       )}
     </div>
   );

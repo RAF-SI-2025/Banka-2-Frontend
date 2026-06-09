@@ -62,7 +62,12 @@ const SAGA_INITIAL_PROGRESS_PERCENT = 15;
 // posle reload-a stranice. Cuva se {contract, transaction} JSON u sessionStorage.
 const SAGA_ACTIVE_KEY = 'interbank-otc-saga-active';
 
+// FIX 3/4: status filter je sada KONTROLISAN iz parenta (OtcContractsPage) preko
+// jedinstvenog statusnog bara. Parent salje intra-tip (`ACTIVE|EXERCISED|EXPIRED|ALL`).
+// Inter-bank dodatno ima DECLINED, ali parent bar ga ne nudi (jedinstven UX) —
+// DECLINED ugovori se vide pod "Svi".
 type FilterValue = OtcInterbankContractStatus | 'ALL';
+type ParentStatusFilter = 'ACTIVE' | 'EXERCISED' | 'EXPIRED' | 'ALL';
 
 type SagaProgressState = {
   contract: OtcInterbankContract;
@@ -150,9 +155,15 @@ function matchesCurrentUser(contract: OtcInterbankContract, user: ReturnType<typ
 
 type Props = {
   onActiveCountChange?: (count: number) => void;
+  /**
+   * FIX 3/4: kontrolisan status filter iz parent-a (OtcContractsPage). Kad je
+   * prosledjen, interni filter bar se ne renderuje i parent-ov jedinstveni bar
+   * upravlja oba taba (intra + inter). Default 'ALL' za standalone upotrebu.
+   */
+  statusFilter?: ParentStatusFilter;
 };
 
-export default function OtcInterBankContractsTab({ onActiveCountChange }: Props = {}) {
+export default function OtcInterBankContractsTab({ onActiveCountChange, statusFilter = 'ALL' }: Props = {}) {
   // Spec Celina 4 (Nova) §137-141 + Celina 5 (Nova) §840-848: agenti nemaju
   // pristup OTC inter-bank pregovaranju. Role mapiranje izostavlja isAgent.
   const { user, isAdmin, isSupervisor } = useAuth();
@@ -160,7 +171,8 @@ export default function OtcInterBankContractsTab({ onActiveCountChange }: Props 
 
   const [contracts, setContracts] = useState<OtcInterbankContract[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [filter, setFilter] = useState<FilterValue>('ALL');
+  // FIX 3/4: filter je sada izveden iz parent prop-a, ne lokalni state.
+  const filter: FilterValue = statusFilter;
   const [loadingContracts, setLoadingContracts] = useState(true);
   const [selectedContract, setSelectedContract] = useState<OtcInterbankContract | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState('');
@@ -504,26 +516,13 @@ export default function OtcInterBankContractsTab({ onActiveCountChange }: Props 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        {/*
+          FIX 3/4: interni status filter bar je uklonjen. Status se sada kontrolise
+          iz parent-a (OtcContractsPage) preko JEDINSTVENOG statusnog bara koji
+          upravlja oba taba (intra + inter), cime se uklanja i dupli filter.
+        */}
+        <CardHeader>
           <CardTitle>Sklopljeni inter-bank ugovori</CardTitle>
-          <div className="flex gap-1" role="tablist" aria-label="Filter statusa inter-bank ugovora">
-            {(['ALL', 'ACTIVE', 'EXERCISED', 'EXPIRED'] as FilterValue[]).map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setFilter(value)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                  filter === value
-                    ? 'bg-indigo-500 text-white'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                }`}
-                role="tab"
-                aria-selected={filter === value}
-              >
-                {value === 'ALL' ? 'Svi' : CONTRACT_STATUS_LABEL[value]}
-              </button>
-            ))}
-          </div>
         </CardHeader>
         <CardContent>
           {loadingContracts ? (

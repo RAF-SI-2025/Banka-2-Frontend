@@ -17,7 +17,24 @@ import { formatAmount, formatDate } from '@/utils/formatters';
 import { createIsMeMatcher } from '@/pages/Otc/otcUtils';
 import type { OtcContract, OtcListing, OtcOffer } from '@/types/celina3';
 
-interface InterContract { foreignId?: string; status: string; settlementDate?: string; strikePrice?: number; premium?: number; quantity?: number; buyerId?: number; sellerId?: number; }
+interface InterContract {
+  foreignId?: string;
+  status: string;
+  settlementDate?: string;
+  strikePrice?: number;
+  premium?: number;
+  quantity?: number;
+  buyerId?: number;
+  sellerId?: number;
+  // Inter-bank contract polja koja BE vraca i koja koristimo za KPI agregaciju.
+  // Inter-bank user-i nemaju nas numericki id, pa isMe matcher radi i preko
+  // imena (buyerName/sellerName).
+  listingCurrency?: string;
+  buyerName?: string;
+  sellerName?: string;
+  currentPrice?: number;
+  listingTicker?: string;
+}
 interface InterOffer { foreignId?: string; status: string; myTurn?: boolean; lastModifiedAt?: string; listingTicker?: string; }
 
 interface HubData {
@@ -108,9 +125,17 @@ export default function OtcHubPage() {
     // R1 568: identitet razresavamo preko deljenog fail-closed matchera
     // (userId>0 && userId===partyId) umesto sirovog `buyerId === myId`.
     const isMe = createIsMeMatcher(user);
-    const activeContracts = data.localContracts.filter(c => c.status === 'ACTIVE');
-    const exercisedContracts = data.localContracts.filter(c => c.status === 'EXERCISED');
-    const expiredContracts = data.localContracts.filter(c => c.status === 'EXPIRED');
+
+    // FIX: brojaci ugovora moraju ukljuciti I lokalne I inter-bank ugovore.
+    // Pravi aktivni inter-bank ugovor je ranije bio ignorisan ("AKTIVNIH UGOVORA"=0).
+    const localActive = data.localContracts.filter(c => c.status === 'ACTIVE');
+    const localExercised = data.localContracts.filter(c => c.status === 'EXERCISED');
+    const localExpired = data.localContracts.filter(c => c.status === 'EXPIRED');
+    const interActive = data.interContracts.filter(c => c.status === 'ACTIVE');
+    const interExercised = data.interContracts.filter(c => c.status === 'EXERCISED');
+    const interExpired = data.interContracts.filter(c => c.status === 'EXPIRED');
+
+    const activeContracts = localActive; // intra-only — koristi se za ITM/expiring (potrebna lokalna polja)
 
     const currencyOf = (c: OtcContract): string => c.listingCurrency || 'RSD';
 
@@ -126,6 +151,19 @@ export default function OtcHubPage() {
       }
       if (isMe(c.sellerId, c.sellerName)) {
         premiumReceivedByCcy[ccy] = (premiumReceivedByCcy[ccy] ?? 0) + (c.premium ?? 0);
+      }
+    });
+    // Inter-bank doprinos premiji — samo gde polja stvarno postoje (fail-safe na 'RSD'/0).
+    // Inter-bank user-i nemaju nas numericki id, pa isMe radi preko imena (fallback id -1
+    // nikad ne matchuje pozitivan userId).
+    data.interContracts.forEach(c => {
+      if (c.premium == null) return;
+      const ccy = c.listingCurrency || 'RSD';
+      if (isMe(c.buyerId ?? -1, c.buyerName)) {
+        premiumPaidByCcy[ccy] = (premiumPaidByCcy[ccy] ?? 0) + c.premium;
+      }
+      if (isMe(c.sellerId ?? -1, c.sellerName)) {
+        premiumReceivedByCcy[ccy] = (premiumReceivedByCcy[ccy] ?? 0) + c.premium;
       }
     });
 
@@ -150,6 +188,12 @@ export default function OtcHubPage() {
     activeContracts.forEach(c => {
       const ccy = currencyOf(c);
       notionalByCcy[ccy] = (notionalByCcy[ccy] ?? 0) + (c.strikePrice ?? 0) * (c.quantity ?? 0);
+    });
+    // Inter-bank aktivni ugovori doprinose notional-u samo gde polja postoje.
+    interActive.forEach(c => {
+      if (c.strikePrice == null || c.quantity == null) return;
+      const ccy = c.listingCurrency || 'RSD';
+      notionalByCcy[ccy] = (notionalByCcy[ccy] ?? 0) + c.strikePrice * c.quantity;
     });
 
     // Dominantna valuta = valuta sa najvecim notional-om (za glavni KPI broj).
@@ -179,9 +223,10 @@ export default function OtcHubPage() {
     const discoveryAll = data.listingsAll.length + data.interListings.length;
 
     return {
-      activeContractsCount: activeContracts.length,
-      exercisedCount: exercisedContracts.length,
-      expiredCount: expiredContracts.length,
+      // FIX: brojaci sabiraju lokalne + inter-bank ugovore po statusu.
+      activeContractsCount: localActive.length + interActive.length,
+      exercisedCount: localExercised.length + interExercised.length,
+      expiredCount: localExpired.length + interExpired.length,
       itmCount,
       expiringSoon,
       myTurnTotal,

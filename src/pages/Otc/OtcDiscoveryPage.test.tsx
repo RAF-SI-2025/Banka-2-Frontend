@@ -11,11 +11,20 @@ vi.mock('react-router-dom', async () => {
 
 const mockListDiscovery = vi.fn();
 const mockCreateOffer = vi.fn();
+const mockListRemoteListings = vi.fn();
+const mockCreateInterOffer = vi.fn();
 
 vi.mock('@/services/otcService', () => ({
   default: {
     listDiscovery: (...a: unknown[]) => mockListDiscovery(...a),
     createOffer: (...a: unknown[]) => mockCreateOffer(...a),
+  },
+}));
+
+vi.mock('@/services/interbankOtcService', () => ({
+  default: {
+    listRemoteListings: (...a: unknown[]) => mockListRemoteListings(...a),
+    createOffer: (...a: unknown[]) => mockCreateInterOffer(...a),
   },
 }));
 
@@ -45,6 +54,8 @@ beforeEach(() => {
   mockNavigate.mockClear();
   mockListDiscovery.mockReset();
   mockCreateOffer.mockReset();
+  mockListRemoteListings.mockReset();
+  mockCreateInterOffer.mockReset();
   mockToastError.mockClear();
   mockListDiscovery.mockResolvedValue([
     {
@@ -53,6 +64,7 @@ beforeEach(() => {
       sellerId: 2, sellerRole: 'CLIENT', sellerName: 'Milica Nikolic',
     },
   ]);
+  mockListRemoteListings.mockResolvedValue([]);
 });
 
 describe('OtcDiscoveryPage', () => {
@@ -66,6 +78,40 @@ describe('OtcDiscoveryPage', () => {
   it('shows local listings under "Sve" filter', async () => {
     render(<MemoryRouter><OtcDiscoveryPage /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('AAPL')).toBeInTheDocument());
+  });
+
+  // FIX: "Sve" mora agregirati I nase (intra) I tudje (inter) listinge u jednoj
+  // tabeli sa kolonom "Banka". Ranije je "Sve" prikazivalo samo nasu banku.
+  it('aggregates intra + inter listings under "Sve" with a bank column', async () => {
+    mockListRemoteListings.mockResolvedValue([
+      {
+        bankCode: 'BANKA1', sellerPublicId: 'remote-7', sellerName: 'Remote Trader',
+        listingTicker: 'TSLA', listingName: 'Tesla Inc.', listingCurrency: 'USD',
+        currentPrice: 250, availableQuantity: 12,
+      },
+    ]);
+    render(<MemoryRouter><OtcDiscoveryPage /></MemoryRouter>);
+    // Nas listing (AAPL) i tudji listing (TSLA) oba vidljivi pod "Sve".
+    await waitFor(() => expect(screen.getByText('AAPL')).toBeInTheDocument());
+    expect(screen.getByText('TSLA')).toBeInTheDocument();
+    // Bank badge-evi: nasa banka + partner.
+    expect(screen.getByText('Banka 2')).toBeInTheDocument();
+    expect(screen.getByText('BANKA1')).toBeInTheDocument();
+  });
+
+  it('hides inter listings when "Iz nase banke" selected', async () => {
+    mockListRemoteListings.mockResolvedValue([
+      {
+        bankCode: 'BANKA1', sellerPublicId: 'remote-7', sellerName: 'Remote Trader',
+        listingTicker: 'TSLA', listingName: 'Tesla Inc.', listingCurrency: 'USD',
+        currentPrice: 250, availableQuantity: 12,
+      },
+    ]);
+    render(<MemoryRouter><OtcDiscoveryPage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('TSLA')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Iz nase banke/i }));
+    await waitFor(() => expect(screen.queryByText('TSLA')).not.toBeInTheDocument());
+    expect(screen.getByText('AAPL')).toBeInTheDocument();
   });
 
   it('switches to inter-bank when filter "Iz drugih banaka" clicked', async () => {

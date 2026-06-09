@@ -39,8 +39,14 @@ vi.mock('@/services/accountService', () => ({
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { id: 1 }, isAdmin: false, isAgent: false, isSupervisor: false }),
 }));
+// FIX 3/4: mock hvata statusFilter prop da bismo dokazali da parent gornji bar
+// kontrolise i inter tab (lifted state).
 vi.mock('./OtcInterBankContractsTab', () => ({
-  default: () => <div data-testid="inter-bank-contracts">[InterBank Contracts]</div>,
+  default: ({ statusFilter }: { statusFilter?: string }) => (
+    <div data-testid="inter-bank-contracts" data-status-filter={statusFilter ?? 'ALL'}>
+      [InterBank Contracts]
+    </div>
+  ),
 }));
 
 beforeEach(() => {
@@ -64,6 +70,25 @@ describe('OtcContractsPage', () => {
     expect(screen.getByRole('button', { name: /^Sve$/i })).toBeInTheDocument();
     // Status chip "Svi" — exact match
     expect(screen.getByRole('button', { name: /^Svi$/i })).toBeInTheDocument();
+  });
+
+  // FIX 3/4: gornji jedinstveni status bar mora upravljati inter tabom (lifted
+  // state); inter tab vise nema sopstveni interni filter bar.
+  it('passes statusFilter to inter tab and updates it from the unified status bar', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><OtcContractsPage /></MemoryRouter>);
+    await waitFor(() => screen.getByText(/Iz drugih banaka/i));
+
+    // Predji na inter izvor.
+    await user.click(screen.getByRole('button', { name: /Iz drugih banaka/i }));
+    const interTab = screen.getByTestId('inter-bank-contracts');
+    expect(interTab).toHaveAttribute('data-status-filter', 'ALL');
+
+    // Gornji status bar (amber) menja status — mora se propagirati u inter tab.
+    await user.click(screen.getByRole('button', { name: /^Iskoriscen$/i }));
+    await waitFor(() => {
+      expect(screen.getByTestId('inter-bank-contracts')).toHaveAttribute('data-status-filter', 'EXERCISED');
+    });
   });
 
   it('shows Iskoristi button only for buyer', async () => {
