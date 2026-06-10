@@ -9,7 +9,7 @@
     "predev": "node scripts/copy-stockfish.cjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "lint:security": "eslint . --no-config-lookup --config eslint.security.config.js",
+    "lint:security": "eslint --config eslint.config.security.mjs src",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
