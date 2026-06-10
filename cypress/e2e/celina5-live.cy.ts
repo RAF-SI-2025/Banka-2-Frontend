@@ -144,7 +144,8 @@ describe('Live C5: 2PC inter-bank placanje', () => {
     cy.get('#toAccount').clear().type('111000000000000777');
     cy.get('#recipientName').clear().type('Live C5 Primaoc');
     cy.get('#amount').clear().type('1500');
-    cy.get('#paymentCode').clear().type('289');
+    // R1-325: paymentCode je <select> (dropdown validnih sifri), ne text input.
+    cy.get('#paymentCode').select('289');
     cy.get('#purpose').clear().type('Live C5 2PC routing test');
 
     // Banner se vidi pre submit-a.
@@ -213,7 +214,8 @@ describe('Live C5: 2PC inter-bank placanje', () => {
     cy.get('#toAccount').clear().type('222000100000000999');
     cy.get('#recipientName').clear().type('Live C5 Intra Primaoc');
     cy.get('#amount').clear().type('1000');
-    cy.get('#paymentCode').clear().type('289');
+    // R1-325: paymentCode je <select> (dropdown validnih sifri), ne text input.
+    cy.get('#paymentCode').select('289');
     cy.get('#purpose').clear().type('Live C5 intra-bank kontrola');
 
     // Banner se NE pokazuje za domaci prefiks.

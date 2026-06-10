@@ -68,7 +68,11 @@ import { setupClientSession } from '../support/commands';
 //  ZAJEDNICKI HELPERI
 // ============================================================
 
-// VerificationModal (TOTP) flow: "Popuni" auto-popunjava aktivni OTP, pa "Potvrdi".
+// VerificationModal (TOTP) flow. VAZNO: "Popuni" dugme je DEV-ONLY (devOtp se
+// fetch-uje samo iza import.meta.env.DEV — P0-F1/N2 security fix) pa na prod
+// build-u (CI `npm run build` + Docker nginx) NE POSTOJI. Zato kucamo kod
+// direktno — POST /payments je ionako mockovan, pa server-side OTP validacija
+// ne postoji (isti pattern kao celina2-mock OTP testovi).
 // Pre OTP-a NewPaymentPage prikazuje confirm dialog ("Potvrdi i nastavi").
 function fillPaymentAndVerify(receiverAccount: string) {
   cy.get('select#fromAccount').select(1);
@@ -80,7 +84,7 @@ function fillPaymentAndVerify(receiverAccount: string) {
   // Bug T2-005 confirm dialog pre OTP-a
   cy.contains('button', 'Potvrdi i nastavi').click();
   cy.contains(/^Verifikacija/).should('be.visible');
-  cy.contains('button', 'Popuni').click({ force: true });
+  cy.get('#otp').should('be.visible').type('123456');
   cy.contains('button', 'Potvrdi').last().click({ force: true });
 }
 
@@ -150,10 +154,8 @@ describe('Celina 5: 2PC inter-bank placanje', () => {
     }).as('myAccounts');
     cy.intercept('GET', '**/api/payment-recipients*', { statusCode: 200, body: [] }).as('recipients');
     cy.intercept('POST', '**/api/payments/request-otp', { statusCode: 200, body: { sent: true, message: 'OTP sent' } });
-    cy.intercept('GET', '**/api/payments/my-otp', {
-      statusCode: 200,
-      body: { active: true, code: '123456', attempts: 0, maxAttempts: 3 },
-    });
+    // NAPOMENA: GET /payments/my-otp se NE mockuje — prod bundle taj poziv
+    // tree-shake-uje (DEV-only devOtp fetch), pa intercept nikad ne bi opalio.
   });
 
   // (c) ROUTING — strani prefiks pokrece inter-bank banner; domaci (222) NE.

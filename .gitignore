@@ -28,3 +28,7 @@ coverage
 
 # Auto-copied iz node_modules/stockfish prebuild script-om — vidi scripts/copy-stockfish.cjs
 public/stockfish/
+
+# Cypress runtime artefakti (video/screenshot snimci lokalnih runova)
+cypress/videos/
+cypress/screenshots/

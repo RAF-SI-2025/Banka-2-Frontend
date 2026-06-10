@@ -1,4 +1,6 @@
-FROM cypress/included:15.12.0
+# Verzija MORA pratiti "cypress" iz package.json — stariji included image
+# (15.12.0) puca na TS6 deprecation TS5101 (downlevelIteration) pri bundlovanju.
+FROM cypress/included:15.14.2
 
 # Electron needs these for headless mode in Docker
 RUN apt-get update && apt-get install -y \
