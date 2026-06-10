@@ -199,13 +199,14 @@ export default function OtcContractsPage() {
       <div className="space-y-2">
         <OtcSourceFilterChip value={source} onChange={setSource} />
         <div className="flex flex-wrap gap-2">
+          {/* Filter chip pattern (kao OtcSourceFilterChip/BranchFilters): toggle
+              Button + aria-pressed. NE role="tab" — izolovan tab bez tablist
+              roditelja je ARIA violation, a chip filtrira sadrzaj, ne menja panel. */}
           {STATUS_OPTIONS.map((opt) => (
             <Button
               key={opt.value}
               size="sm"
-              role="tab"
               variant={statusFilter === opt.value ? 'default' : 'outline'}
-              aria-selected={statusFilter === opt.value}
               aria-pressed={statusFilter === opt.value}
               onClick={() => setStatusFilter(opt.value)}
               className={

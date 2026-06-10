@@ -1756,12 +1756,13 @@ describe('Mock C4: OTC Inter-bank Contracts', () => {
     cy.contains('TSLA').should('be.visible');
     cy.contains('NVDA').should('be.visible');
 
-    cy.contains('[role="tab"]', 'Iskoriscen').click();
+    // Status chip-ovi su toggle Button + aria-pressed (chip pattern), ne role="tab".
+    cy.contains('button', 'Iskoriscen').click();
     cy.wait('@remoteContracts').its('request.query.status').should('eq', 'EXERCISED');
     cy.contains('TSLA').should('be.visible');
     cy.contains('AAPL').should('not.exist');
 
-    cy.contains('[role="tab"]', 'Svi').click();
+    cy.contains('button', 'Svi').click();
     cy.wait('@remoteContracts');
     cy.contains('AAPL').should('be.visible');
   });
