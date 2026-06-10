@@ -371,15 +371,25 @@ export default function ClientSidebar() {
                   <span>{item.label}</span>
                 </NavLink>
               ))}
+              {/* "Investicioni fondovi" sedi unutar Berza sekcije (bez razmaka
+                  ispod OTC trgovine). showTradingSection => showFundsLink uvek vazi,
+                  pa je bezuslovno tacno ovde za sve koji vide sekciju. */}
+              <NavLink
+                to="/funds"
+                className={linkClassName}
+                onClick={() => setOpen(false)}
+              >
+                <PiggyBank className="h-4 w-4" />
+                <span>Investicioni fondovi</span>
+              </NavLink>
             </div>
           </div>
           )}
 
-          {/* Investicioni fondovi (Celina 4) — discovery & details za klijente,
-              agente, supervizore i admine (NE obicnog zaposlenog — R2-389).
-              Renderuje se van "Berza"/"Moje finansije"/"Employee portal" sekcija
-              jer agent ne vidi nijednu od njih a spec trazi da vidi fondove (L48). */}
-          {showFundsLink && (
+          {/* Investicioni fondovi za AGENTA: agent (EMPLOYEE+AGENT, !supervizor)
+              ne vidi Berza sekciju iznad, pa mu fondove (koje spec trazi — L48)
+              prikazujemo kao zaseban link. Za sve ostale je vec u Berza sekciji. */}
+          {!showTradingSection && showFundsLink && (
           <div className="space-y-0.5">
             <NavLink
               to="/funds"
