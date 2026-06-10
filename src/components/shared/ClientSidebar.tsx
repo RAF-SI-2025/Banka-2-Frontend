@@ -152,9 +152,11 @@ export default function ClientSidebar() {
           { label: 'OTC trgovina', path: '/otc', icon: <Handshake className="h-4 w-4" /> },
         );
       }
-      // Investicioni fondovi: discovery & details su za SVE role (i agente, i
-      // klijente bez TRADE_STOCKS) — uvek vidljivo.
-      base.push({ label: 'Investicioni fondovi', path: '/funds', icon: <PiggyBank className="h-4 w-4" /> });
+      // NAPOMENA: "Investicioni fondovi" je IZVADJEN iz tradingLinks u zaseban
+      // uvek-vidljiv blok (vidi render ispod). Razlog: ova sekcija je gejtovana
+      // `showTradingSection` koji ISKLJUCUJE agente (EMPLOYEE bez supervisora),
+      // a spec (Celina 4 Nova) trazi da agenti vide fondove (discovery & details).
+      // Da je ostao ovde, agent ga nikad ne bi video — bug L48.
       return base;
     },
     [canAccessOtc, canAccessTradingFeatures]
@@ -168,6 +170,12 @@ export default function ClientSidebar() {
   //  - od zaposlenih je vide samo supervizor/admin (koji realno koriste Berza/OTC/
   //    Profit), ne i obican zaposleni.
   const showTradingSection = !isEmployeeOrAdmin || isSupervisor;
+
+  // L48: "Investicioni fondovi" (discovery & details) vidljivi su klijentima,
+  // AGENTIMA, supervizorima i adminima — ali NE obicnom zaposlenom (R2-389: za
+  // base employee fondovi nemaju namenu). Agent je EMPLOYEE pa ga showTradingSection
+  // iskljucuje; zato poseban uslov koji eksplicitno ukljucuje `isAgent`.
+  const showFundsLink = !isEmployeeOrAdmin || isSupervisor || isAdmin || isAgent;
 
   const employeeLinks: SidebarItem[] = useMemo(
     () => {
@@ -364,6 +372,23 @@ export default function ClientSidebar() {
                 </NavLink>
               ))}
             </div>
+          </div>
+          )}
+
+          {/* Investicioni fondovi (Celina 4) — discovery & details za klijente,
+              agente, supervizore i admine (NE obicnog zaposlenog — R2-389).
+              Renderuje se van "Berza"/"Moje finansije"/"Employee portal" sekcija
+              jer agent ne vidi nijednu od njih a spec trazi da vidi fondove (L48). */}
+          {showFundsLink && (
+          <div className="space-y-0.5">
+            <NavLink
+              to="/funds"
+              className={linkClassName}
+              onClick={() => setOpen(false)}
+            >
+              <PiggyBank className="h-4 w-4" />
+              <span>Investicioni fondovi</span>
+            </NavLink>
           </div>
           )}
 

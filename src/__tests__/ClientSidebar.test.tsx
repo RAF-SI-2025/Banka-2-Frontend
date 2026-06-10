@@ -260,6 +260,40 @@ describe('ClientSidebar', () => {
     });
   });
 
+  // L48: AGENT (EMPLOYEE + AGENT permisija) je poseban slucaj — za razliku od
+  // obicnog zaposlenog, spec (Celina 4 Nova §145-148) trazi da vidi "Investicioni
+  // fondovi" (discovery & details), ali NE i trgovinsku Berza sekciju ni OTC.
+  describe('Agent user', () => {
+    beforeEach(() => {
+      mockUser = {
+        id: 4,
+        email: 'agent@banka.rs',
+        username: 'agent',
+        firstName: 'Tamara',
+        lastName: 'Pavlovic',
+        role: 'EMPLOYEE',
+        permissions: [Permission.AGENT],
+      };
+    });
+
+    it('renders "Investicioni fondovi" link for agent', () => {
+      renderSidebar();
+      expect(screen.getByText('Investicioni fondovi')).toBeTruthy();
+    });
+
+    it('does NOT render Berza trading links for agent (Portfolio/Moji orderi/OTC)', () => {
+      renderSidebar();
+      expect(screen.queryByText('Portfolio')).toBeNull();
+      expect(screen.queryByText('Moji orderi')).toBeNull();
+      expect(screen.queryByText('OTC trgovina')).toBeNull();
+    });
+
+    it('renders employee portal links for agent', () => {
+      renderSidebar();
+      expect(screen.getByText('Portal racuna')).toBeTruthy();
+    });
+  });
+
   describe('Theme toggle', () => {
     beforeEach(() => {
       mockUser = {
