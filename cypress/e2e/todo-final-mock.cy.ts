@@ -38,16 +38,19 @@ const mockWatchlists = [
   { id: 2, ownerId: 1, ownerType: 'CLIENT', name: 'Energetika', createdAt: '2026-05-02T10:00:00Z', itemCount: 1 },
 ];
 
+// BE `WatchlistItemDto` (raw oblik) — watchlistService.mapWatchlistItem cita
+// `ticker`/`securityType`/`exchangeName` (NE listingTicker/listingType/exchange)
+// i izvodi `dailyChangePercent` iz `dailyChange`. Mock mora pratiti raw kontrakt.
 const mockWatchlistItems = [
   {
-    id: 11, watchlistId: 1, listingId: 101, listingTicker: 'AAPL', listingName: 'Apple Inc.',
-    listingType: 'STOCK', exchange: 'NASDAQ', currentPrice: 198.25, dailyChange: 2.1,
-    dailyChangePercent: 1.07, volume: 1200000, currency: 'USD', addedAt: '2026-05-01T11:00:00Z',
+    id: 11, watchlistId: 1, listingId: 101, ticker: 'AAPL', listingName: 'Apple Inc.',
+    securityType: 'STOCK', exchangeName: 'NASDAQ', currentPrice: 198.25, dailyChange: 2.1,
+    volume: 1200000, addedAt: '2026-05-01T11:00:00Z',
   },
   {
-    id: 12, watchlistId: 1, listingId: 102, listingTicker: 'EUR/USD', listingName: 'Euro / US Dollar',
-    listingType: 'FOREX', exchange: 'FOREX', currentPrice: 1.085, dailyChange: -0.001,
-    dailyChangePercent: -0.09, volume: 9000000, currency: 'USD', addedAt: '2026-05-01T12:00:00Z',
+    id: 12, watchlistId: 1, listingId: 102, ticker: 'EUR/USD', listingName: 'Euro / US Dollar',
+    securityType: 'FOREX', exchangeName: 'FOREX', currentPrice: 1.085, dailyChange: -0.001,
+    volume: 9000000, addedAt: '2026-05-01T12:00:00Z',
   },
 ];
 
@@ -178,8 +181,10 @@ describe('TODO_final: Watchlist', () => {
     cy.contains('Dividendni fokus').should('be.visible');
   });
 
-  it('WL3: Uklanjanje stavke salje DELETE /watchlists/{id}/items/{itemId}', () => {
-    cy.intercept('DELETE', '**/api/watchlists/1/items/11', { statusCode: 204 }).as('removeItem');
+  it('WL3: Uklanjanje stavke salje DELETE /watchlists/{id}/items/{listingId}', () => {
+    // BE ruta brise po listingId (101), NE po item PK (11) — komponenta poziva
+    // watchlistService.removeItem(watchlistId, item.listingId).
+    cy.intercept('DELETE', '**/api/watchlists/1/items/101', { statusCode: 204 }).as('removeItem');
 
     cy.visit('/watchlist', { onBeforeLoad: setupClientSession });
     cy.wait('@items1');
@@ -331,7 +336,9 @@ describe('TODO_final: Trajni nalozi (DCA)', () => {
     cy.wait('@recurring');
     cy.get('[data-testid="recurring-row-301"]').should('exist');
     cy.contains('AAPL').should('be.visible');
-    cy.contains('Aktivan').should('be.visible');
+    // Status-badge "Aktivan" je u sirokoj tabeli (overflow-x-auto) — moze biti
+    // van viewporta; scope-ujemo na red umesto globalne be.visible asercije.
+    cy.get('[data-testid="recurring-row-301"]').contains('Aktivan');
   });
 
   it('DCA2: Kreiranje BY_AMOUNT naloga salje POST /recurring-orders sa mode=BY_AMOUNT', () => {
@@ -431,7 +438,8 @@ describe('TODO_final: Trajni nalozi (DCA)', () => {
 
 describe('TODO_final: Audit log', () => {
   it('AUD1: Supervizor vidi audit zapise', () => {
-    cy.intercept('GET', '**/api/audit-logs*', { statusCode: 200, body: mockAuditPage }).as('audit');
+    // auditService zove api.get('/audit') -> /api/audit (gateway -> trading-service).
+    cy.intercept('GET', '**/api/audit*', { statusCode: 200, body: mockAuditPage }).as('audit');
     cy.visit('/audit-log', { onBeforeLoad: setupSupervisorSession });
     cy.wait('@audit');
     cy.get('[data-testid="audit-row-401"]').should('exist');
@@ -440,27 +448,30 @@ describe('TODO_final: Audit log', () => {
   });
 
   it('AUD2: Admin takodje ima pristup (supervisorOnly dozvoljava admina)', () => {
-    cy.intercept('GET', '**/api/audit-logs*', { statusCode: 200, body: mockAuditPage }).as('audit');
+    cy.intercept('GET', '**/api/audit*', { statusCode: 200, body: mockAuditPage }).as('audit');
     cy.visit('/audit-log', { onBeforeLoad: setupAdminSession });
     cy.wait('@audit');
     cy.get('[data-testid="audit-row-401"]').should('exist');
   });
 
-  it('AUD3: Filter po tipu akcije + email salje query parametre na /audit-logs', () => {
-    cy.intercept('GET', '**/api/audit-logs*', { statusCode: 200, body: mockAuditPage }).as('auditInit');
+  it('AUD3: Filter po tipu akcije + ime aktera salje query parametre na /audit', () => {
+    cy.intercept('GET', '**/api/audit*', { statusCode: 200, body: mockAuditPage }).as('auditInit');
     cy.visit('/audit-log', { onBeforeLoad: setupSupervisorSession });
     cy.wait('@auditInit');
 
-    // Sledeci poziv hvatamo posebnim alias-om da asertujemo query parametre
-    cy.intercept('GET', '**/api/audit-logs*', (req) => {
+    // Sledeci poziv hvatamo posebnim alias-om da asertujemo query parametre.
+    // Komponenta salje `actorName` (ime aktera), NE `actorEmail`; polje za ID
+    // (`audit-filter-actor`) je type=number pa email tu ne ide — koristimo
+    // `audit-filter-actor-name` koje mapira na auditService `actorName` param.
+    cy.intercept('GET', '**/api/audit*', (req) => {
       const url = new URL(req.url);
       expect(url.searchParams.get('actionType')).to.equal('ORDER_APPROVED');
-      expect(url.searchParams.get('actorEmail')).to.equal('nikola.supervisor@banka.rs');
+      expect(url.searchParams.get('actorName')).to.equal('Nikola Jokic');
       req.reply({ statusCode: 200, body: { ...mockAuditPage, content: [mockAuditPage.content[1]], totalElements: 1 } });
     }).as('auditFiltered');
 
     cy.get('[data-testid="audit-filter-action"]').select('ORDER_APPROVED');
-    cy.get('[data-testid="audit-filter-actor"]').type('nikola.supervisor@banka.rs');
+    cy.get('[data-testid="audit-filter-actor-name"]').type('Nikola Jokic');
     cy.get('[data-testid="audit-filter-apply"]').click();
     cy.wait('@auditFiltered');
     cy.get('[data-testid="audit-row-402"]').should('exist');
@@ -468,7 +479,7 @@ describe('TODO_final: Audit log', () => {
 
   it('AUD4: CLIENT pristup /audit-log je odbijen (redirect na /403)', () => {
     // supervisorOnly ProtectedRoute -> Navigate to /403 za klijenta (security gate)
-    cy.intercept('GET', '**/api/audit-logs*', { statusCode: 200, body: mockAuditPage });
+    cy.intercept('GET', '**/api/audit*', { statusCode: 200, body: mockAuditPage });
     cy.visit('/audit-log', { onBeforeLoad: setupClientSession });
     cy.url().should('include', '/403');
   });
@@ -544,7 +555,8 @@ describe('TODO_final: TOTP verifikacija', () => {
     cy.get('#toAccount').clear().type('222000000000000999');
     cy.get('#recipientName').clear().type('Marko Petrovic');
     cy.get('#amount').clear().type('1000');
-    cy.get('#paymentCode').clear().type('289');
+    // R1-325: paymentCode je <select> (dropdown validnih sifri), ne text input.
+    cy.get('#paymentCode').select('289');
     cy.get('#purpose').clear().type('Test uplata');
   };
 
@@ -609,7 +621,10 @@ describe('TODO_final: TOTP verifikacija', () => {
     cy.get('#otp').clear().type('000000');
     cy.contains('button', 'Potvrdi').click();
     cy.wait('@payReject');
-    cy.contains('Verifikacioni kod nije tacan.').should('be.visible');
+    // Scope na modal serverError div (stabilan) umesto tranzijentnog Toastify
+    // toast-a koji se auto-dismiss-uje. VerificationModal je Radix Dialog.Content
+    // (role="dialog") i renderuje gresku u .text-destructive bloku.
+    cy.get('[role="dialog"]').contains('Verifikacioni kod nije tacan.').should('be.visible');
     cy.contains('Preostalo pokušaja').parent().should('contain', '2');
 
     // Pokusaj 2 (2 -> 1)

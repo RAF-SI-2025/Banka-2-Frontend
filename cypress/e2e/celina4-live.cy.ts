@@ -560,7 +560,7 @@ describe('Live C4: OTC Inter-bank Offers + Contracts', () => {
   it('L31: Inter-bank ugovori - filter po statusu (Sve / Aktivni / Iskoriscen)', () => {
     loginClient('/otc/ugovori');
     cy.contains('button', /Iz drugih banaka/i, { timeout: 15000 }).click();
-    // Status filter dugmad zive unutar OtcInterBankContractsTab komponente (role="tab" ALL/ACTIVE/EXERCISED/EXPIRED).
+    // Status filter chip-ovi zive u jedinstvenom status baru OtcContractsPage (toggle Button + aria-pressed; ALL/ACTIVE/EXERCISED/EXPIRED) i upravljaju i inter tabom.
     cy.contains(/Svi|Aktivni|Iskoriscen|Istekli|status/i, { timeout: 15000 }).should('exist');
   });
 
@@ -729,6 +729,36 @@ describe('Live C4: Inter-bank Payments', () => {
     cy.get('input#amount').clear().type('5000');
     cy.get('textarea#purpose').clear().type('Live interbank routing proba');
     cy.contains('button', /Nastavi na verifikaciju/i).click();
+    // Spec Sc 12: "Nastavi na verifikaciju" otvara confirm dialog (pregled
+    // uplate) PRE OTP modala — moramo proci kroz njega da bi se OTP modal
+    // (VerificationModal) montirao.
+    cy.get('[data-testid="payment-confirm-dialog"]', { timeout: 15000 }).should('be.visible');
+    cy.get('[data-testid="payment-confirm-submit"]').click();
+  }
+
+  // OTP submit. "Popuni" dugme je DEV-only (P0-F1/N2 — devOtp iza import.meta.env.DEV)
+  // pa na prod build-u (Docker nginx) NE postoji. Fetch-ujemo aktivni OTP sa
+  // /api/payments/my-otp (PAYMENTS_EXPOSE_ACTIVE_OTP=true lokalno) i kucamo direktno
+  // u #otp — isti zeleni pattern kao celina5-live. Bez ovoga "Potvrdi" se klikne sa
+  // praznim poljem, zod validacija padne i POST /payments se NIKAD ne posalje.
+  function submitOtp() {
+    cy.contains('Verifikacija (TOTP)', { timeout: 15000 }).should('exist');
+    cy.get('#otp', { timeout: 15000 }).should('be.visible');
+    cy.wait(1500);
+    cy.window().then((win) => {
+      const token = win.sessionStorage.getItem('accessToken');
+      cy.request({
+        method: 'GET',
+        url: '/api/payments/my-otp',
+        headers: { Authorization: `Bearer ${token}` },
+        failOnStatusCode: false,
+      }).then((res) => {
+        const code: string = (res.body && (res.body.code || res.body.otp || res.body.otpCode)) || '123456';
+        cy.get('#otp').should('not.be.disabled').clear().type(String(code), { delay: 80 });
+        cy.wait(500);
+        cy.get('#otp').closest('form').find('button[type="submit"]').should('not.be.disabled').click({ force: true });
+      });
+    });
   }
 
   it('L42: Placanje na 111... racun - inter-bank routing', () => {
@@ -742,24 +772,16 @@ describe('Live C4: Inter-bank Payments', () => {
     cy.intercept('POST', '/api/payments').as('interbankInit');
     cy.visit('/payments/new');
     fillPaymentForm('111000000000000001');
+    submitOtp();
 
-    cy.get('[data-testid="verification-modal"]', { timeout: 15000 }).should('exist');
-    cy.get('body').then(($body) => {
-      if ($body.text().match(/Pending|Greška|Greska|nije uspelo/i)) {
-        // BE/partner je vec vratio gresku pre OTP-a — prikazi je eksplicitno.
-        cy.contains(/Pending|Greška|Greska|nije uspelo/i).should('be.visible');
-      } else {
-        if ($body.find('button:contains("Popuni")').length > 0) cy.contains('button', 'Popuni').click();
-        cy.contains('button', 'Potvrdi').last().click({ force: true });
-        // Realan ishod: POST /api/payments je stvarno poslat i BE odgovorio
-        // non-5xx statusom (inter-bank inicijacija primljena).
-        cy.wait('@interbankInit', { timeout: 15000 }).then((ix) => {
-          expect(ix.request.body, 'payment payload sadrzi 111... primaoca')
-            .to.have.property('toAccount', '111000000000000001');
-          expect(ix.response?.statusCode, 'BE primio inter-bank inicijaciju (non-5xx)')
-            .to.be.lessThan(500);
-        });
-      }
+    // Realan ishod: POST /api/payments je stvarno poslat sa 111... primaocem i BE
+    // odgovorio non-5xx (inter-bank inicijacija primljena, ne server crash).
+    // Terminalni 2PC COMMITTED zavisi od eksternog partnera (Tim 1) — ne tvrdimo ga.
+    cy.wait('@interbankInit', { timeout: 20000 }).then((ix) => {
+      expect(ix.request.body, 'payment payload sadrzi 111... primaoca')
+        .to.have.property('toAccount', '111000000000000001');
+      expect(ix.response?.statusCode, 'BE primio inter-bank inicijaciju (non-5xx)')
+        .to.be.lessThan(500);
     });
   });
 
@@ -799,15 +821,10 @@ describe('Live C4: Inter-bank Payments', () => {
     cy.intercept('POST', '/api/payments').as('intraPayment');
     cy.visit('/payments/new');
     fillPaymentForm('222000000000000001');
-
-    cy.get('[data-testid="verification-modal"]', { timeout: 15000 }).should('exist');
-    cy.get('body').then(($body) => {
-      if ($body.find('button:contains("Popuni")').length > 0) cy.contains('button', 'Popuni').click();
-    });
-    cy.contains('button', 'Potvrdi').last().click({ force: true });
+    submitOtp();
 
     // Realan ishod 1: intra-bank POST je poslat ka 222... racunu, BE non-5xx.
-    cy.wait('@intraPayment', { timeout: 15000 }).then((ix) => {
+    cy.wait('@intraPayment', { timeout: 20000 }).then((ix) => {
       expect(ix.request.body, 'intra-bank payload ide ka 222... racunu')
         .to.have.property('toAccount', '222000000000000001');
       expect(ix.response?.statusCode, 'BE primio intra-bank placanje (non-5xx)').to.be.lessThan(500);
@@ -825,6 +842,10 @@ describe('Live C4: Inter-bank Payments', () => {
     // skip sa logom; NE prihvatamo goli naslov stranice kao "prolaz".
     cy.visit('/payments/new');
     fillPaymentForm('111000000000000003');
+    submitOtp();
+    // Posle inicijacije ostavi 2PC-u vremena da dostigne terminalno stanje
+    // (bez partnera lokalno → tipicno ABORTED/failure); ishod nije deterministicki.
+    cy.wait(3000);
 
     cy.get('body').then(($body) => {
       if ($body.text().includes('ABORTED')) {
